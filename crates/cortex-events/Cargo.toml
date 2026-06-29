@@ -1,0 +1,9 @@
+[package]
+name = "cortex-events"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+cortex-core = { path = "../cortex-core" }

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex-sdk"
+version = "0.1.0"
+description = "Python SDK for Cortex Agent Operating System"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Cortex Developers", email = "dev@cortexos.org"}
+]
+keywords = ["ai", "agent", "llm", "runtime"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "httpx>=0.24.0",
+    "typing-extensions>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/cortexos/cortex"
+Documentation = "https://docs.cortexos.org"
+Repository = "https://github.com/cortexos/cortex"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cortex*"]
+
+[tool.setuptools.package-data]
+cortex = ["py.typed"]
