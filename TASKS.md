@@ -29,7 +29,7 @@
 
 * [x] Create Rust/Go workspace
 * [x] Create project structure
-* [ ] Configure Git
+* [x] Configure Git
 * [ ] Configure editor settings
 * [x] Configure `.gitignore`
 * [x] Configure licensing
