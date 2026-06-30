@@ -39,9 +39,9 @@
 * [x] Create SECURITY policy (reporting, advisories)
 * [x] Set up issue templates (bug, feature, question)
 * [x] Set up PR template (checklist, linking issues)
-* [ ] Configure dependabot (security updates)
-* [ ] Configure codeowners (maintainers)
-* [ ] Add contributing guide for AI agents
+* [x] Configure dependabot (security updates)
+* [x] Configure codeowners (maintainers)
+* [x] Add contributing guide for AI agents
 * [ ] Add translation/i18n placeholder
 
 ## Development
@@ -60,7 +60,7 @@
 * [ ] Set up coverage reporting (codecov)
 * [ ] Set up benchmark storage (s3 or local)
 * [ ] Set up performance trend tracking
-* [ ] Configure dependabot for Python dependencies
+* [x] Configure dependabot for Python dependencies
 * [ ] Set up renovation bot for Rust
 * [ ] Add Makefile for common tasks
 * [ ] Add justfile alternatives
