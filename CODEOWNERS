@@ -1,0 +1,19 @@
+# Code owners
+# See https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners for more information.
+
+# Each line is a file pattern followed by one or more owners.
+
+# These owners will be the default for everything in the repo.
+* @CortexDev
+
+# Documentation
+/docs/ @CortexDev
+
+# GitHub Actions workflows
+/.github/workflows/ @CortexDev
+
+# Core Rust crates
+/crates/ @CortexDev
+
+# Python SDK
+/sdks/python/ @CortexDev

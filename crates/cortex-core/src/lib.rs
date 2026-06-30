@@ -7,6 +7,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -121,6 +123,8 @@ pub struct Kernel {
     shutdown_tx: broadcast::Sender<()>,
     /// Shutdown signal receiver (cloned for internal use).
     shutdown_rx: broadcast::Receiver<()>,
+    /// Service container.
+    services: RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
 }
 
 impl Kernel {
@@ -145,6 +149,7 @@ impl Kernel {
             iteration_counter: AtomicU64::new(0),
             shutdown_tx,
             shutdown_rx,
+            services: RwLock::new(HashMap::new()),
         }
     }
 
@@ -169,6 +174,7 @@ impl Kernel {
             iteration_counter: AtomicU64::new(0),
             shutdown_tx,
             shutdown_rx,
+            services: RwLock::new(HashMap::new()),
         }
     }
 
@@ -299,8 +305,61 @@ impl Kernel {
         self.event_bus.publish(event_arc).await?;
         Ok(())
     }
-}
 
+    /// Register a service.
+    /// # Type parameters
+    /// * T: The type of the service to register. Must be 'static + Send + Sync.
+    ///
+    /// # Arguments
+    ///
+    /// * service: The service instance to register.
+    ///
+    /// # Returns
+    ///
+    /// The previously registered service of the same type, if any.
+    /// Register a service.
+    /// # Type parameters
+    /// * T: The type of the service to register. Must be 'static + Send + Sync.
+    ///
+    /// # Arguments
+    ///
+    /// * service: The service instance to register.
+    ///
+    /// # Returns
+    ///
+    /// * The previously registered service of the same type, if any, wrapped in an Arc.
+    ///
+    pub fn register_service<T: Any + Send + Sync>(&self, service: T) -> Option<Arc<T>> {
+        let mut services = self.services.write().unwrap();
+        let id = TypeId::of::<T>();
+        let old = services.insert(id, Arc::new(service));
+        old.map(|arc| arc.downcast::<T>().expect("Stored service type mismatch"))
+    }
+
+    /// Get a reference to a registered service.
+    ///
+    /// # Type parameters
+    /// * T: The type of the service to retrieve. Must be 'static + Send + Sync.
+    ///
+    /// # Returns
+    ///
+    /// An optional reference to the service, if it exists.
+    /// Get a reference to a registered service.
+    /// # Type parameters
+    /// * T: The type of the service to retrieve. Must be 'static + Send + Sync.
+    ///
+    /// # Returns
+    ///
+    /// * An Arc containing the service if it exists, otherwise None.
+    ///
+    pub fn get_service<T: Any + Send + Sync>(&self) -> Option<Arc<T>> {
+        let services = self.services.read().unwrap();
+        let id = TypeId::of::<T>();
+        services
+            .get(&id)
+            .and_then(|arc| arc.clone().downcast::<T>().ok())
+    }
+}
 impl Default for Kernel {
     fn default() -> Self {
         Self::new()
