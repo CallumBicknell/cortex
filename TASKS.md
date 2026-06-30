@@ -42,7 +42,7 @@
 * [x] Configure dependabot (security updates)
 * [x] Configure codeowners (maintainers)
 * [x] Add contributing guide for AI agents
-* [ ] Add translation/i18n placeholder
+* [x] Add translation/i18n placeholder
 
 ## Development
 
