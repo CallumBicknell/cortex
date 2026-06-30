@@ -28,6 +28,8 @@ pub struct Config {
     pub loop_interval_ms: u64,
     /// Log level for tracing.
     pub log_level: String,
+    /// Size of the event history buffer (0 to disable).
+    pub event_history_size: usize,
 }
 
 impl Default for Config {
@@ -35,6 +37,7 @@ impl Default for Config {
         Self {
             loop_interval_ms: 100,
             log_level: "info".to_string(),
+            event_history_size: 0,
         }
     }
 }
@@ -51,15 +54,24 @@ impl Config {
             .and_then(|v| v.parse().ok())
             .unwrap_or_else(Self::default_loop_interval_ms);
         let log_level = std::env::var("CORTEX_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+        let event_history_size = std::env::var("CORTEX_EVENT_HISTORY_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(Self::default_event_history_size);
 
         Self {
             loop_interval_ms,
             log_level,
+            event_history_size,
         }
     }
 
     fn default_loop_interval_ms() -> u64 {
         100
+    }
+
+    fn default_event_history_size() -> usize {
+        0
     }
 }
 

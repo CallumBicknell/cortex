@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an idea for this project
+title: "[FEATURE] "
+labels: ["enhancement"]
+assignees: ''
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature to improve this project!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Please provide a clear and concise description of the feature you'd like to see.
+      placeholder: |
+        A clear and concise description of what you want to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation or Use Case
+      description: |
+        Why is this feature needed? Please describe the problem you're trying to solve or the opportunity you're trying to capture.
+      placeholder: |
+        Explain why this feature would be useful.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
