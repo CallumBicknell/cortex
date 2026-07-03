@@ -52,42 +52,42 @@
 * [x] Configure benchmarks (criterion)
 * [x] Configure CI (GitHub Actions: fmt, clippy, test, python import)
 * [x] Configure release workflow (tag-based release, changelog)
-* [ ] Set up pre-commit hooks (rustfmt, clippy, trailing whitespace)
-* [ ] Set up cargo deny (license, duplicates)
-* [ ] Set up rustfmt.toml (edition 2021)
-* [ ] Set up clippy configuration (allow certain lints)
-* [ ] Configure pytest configuration (asyncio, coverage)
-* [ ] Set up coverage reporting (codecov)
-* [ ] Set up benchmark storage (s3 or local)
-* [ ] Set up performance trend tracking
+* [x] Set up pre-commit hooks (rustfmt, clippy, trailing whitespace)
+* [x] Set up cargo deny (license, duplicates)
+* [x] Set up rustfmt.toml (edition 2021)
+* [x] Set up clippy configuration (allow certain lints)
+* [x] Configure pytest configuration (asyncio, coverage)
+* [x] Set up coverage reporting (codecov)
+* [x] Set up benchmark storage (s3 or local)
+* [x] Set up performance trend tracking
 * [x] Configure dependabot for Python dependencies
-* [ ] Set up renovation bot for Rust
-* [ ] Add Makefile for common tasks
-* [ ] Add justfile alternatives
-* [ ] Add Dockerfile for dev environment
-* [ ] Add devcontainer configuration
-* [ ] Set up smoke test script
+* [x] Set up renovation bot for Rust
+* [x] Add Makefile for common tasks
+* [x] Add justfile alternatives
+* [x] Add Dockerfile for dev environment
+* [x] Add devcontainer configuration
+* [x] Set up smoke test script
 
 ## Documentation
 
-* [ ] Architecture overview (high-level components)
-* [ ] Runtime overview (kernel, loop, event bus)
-* [ ] Loop design (Observe-Plan-Execute-Verify-Reflect)
-* [ ] Event system (bus, handlers, history, replay)
-* [ ] Plugin system (API, lifecycle, sandbox)
-* [ ] Roadmap (quarterly goals)
-* [ ] API reference (REST/WebSocket)
-* [ ] SDK guides (Python, TypeScript)
-* [ ] Tutorial: "Hello World" agent
-* [ ] Tutorial: Using tools
-* [ ] Tutorial: Custom model provider
-* [ ] Tutorial: Plugin development
-* [ ] FAQ
-* [ ] Troubleshooting guide
-* [ ] Glossary of terms
-* [ ] Contributor guide (already in CONTRIBUTING)
-* [ ] Release notes template
-* [ ] Upgrade guide (between versions)
+* [x] Architecture overview (high-level components)
+* [x] Runtime overview (kernel, loop, event bus)
+* [x] Loop design (Observe-Plan-Execute-Verify-Reflect)
+* [x] Event system (bus, handlers, history, replay)
+* [x] Plugin system (API, lifecycle, sandbox)
+* [x] Roadmap (quarterly goals)
+* [x] API reference (REST/WebSocket)
+* [x] SDK guides (Python, TypeScript)
+* [x] Tutorial: "Hello World" agent
+* [x] Tutorial: Using tools
+* [x] Tutorial: Custom model provider
+* [x] Tutorial: Plugin development
+* [x] FAQ
+* [x] Troubleshooting guide
+* [x] Glossary of terms
+* [x] Contributor guide (already in CONTRIBUTING)
+* [x] Release notes template
+* [x] Upgrade guide (between versions)
 
 ---
 

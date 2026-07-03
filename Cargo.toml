@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "crates/cortex-core",
     "crates/cortex-events",
@@ -24,6 +25,8 @@ async-trait = "0.1"
 axum = { version = "0.7", features = ["json"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
 
-[workspace.dev-dependencies]
+# Dev/test dependencies available to workspace members.
+# Member crates reference these under their own [dev-dependencies] section.
 tokio-test = { version = "0.4" }
 assert_matches = "1.5"
+criterion = { version = "0.5" }

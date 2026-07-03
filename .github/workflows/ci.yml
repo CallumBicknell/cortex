@@ -27,6 +27,10 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
+    - name: Install cargo deny
+      run: cargo install cargo-deny --locked
+    - name: Run cargo deny
+      run: cargo deny check
 
     - name: Check formatting
       run: cargo fmt --all -- --check

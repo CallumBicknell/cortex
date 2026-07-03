@@ -1,0 +1,15 @@
+# Clippy configuration for Cortex
+# See: https://doc.rust-lang.org/clippy/clippy_configuration.html
+
+# Lint levels are controlled via crate attributes (allow/warn/deny)
+# in the crate source files. This file configures specific clippy
+# thresholds and options.
+
+# Allow unwrap/expect in test code
+allow-unwrap-in-tests = true
+
+# Complexity thresholds
+type-complexity-threshold = 300
+cognitive-complexity-threshold = 40
+too-many-arguments-threshold = 12
+too-many-lines-threshold = 200
