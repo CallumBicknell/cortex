@@ -1402,11 +1402,28 @@ async fn cmd_tools_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> 
     // Full bootstrap so MCP + plugins appear alongside builtins.
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths, false).await?;
-    println!("Registered tools:\n");
+    // Ignore BrokenPipe so `cortex tools list | head` does not panic (SIGPIPE).
+    let _ = writeln_stdout("Registered tools:\n");
     for spec in app.tools.registry().specs() {
-        println!("  {:16}  {}", spec.name, spec.description);
+        if !writeln_stdout(&format!("  {:16}  {}", spec.name, spec.description)) {
+            break;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// Write a line to stdout; returns false on broken pipe (caller may stop).
+fn writeln_stdout(line: &str) -> bool {
+    use std::io::{self, Write};
+    let mut out = io::stdout();
+    match writeln!(out, "{line}") {
+        Ok(()) => true,
+        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => false,
+        Err(e) => {
+            eprintln!("stdout write error: {e}");
+            false
+        }
+    }
 }
 
 async fn cmd_models_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()> {

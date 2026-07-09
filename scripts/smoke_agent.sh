@@ -8,7 +8,11 @@ echo "== cargo build -p cortex-cli =="
 cargo build -p cortex-cli --quiet
 
 echo "== cortex tools list =="
-cargo run -q -p cortex-cli -- tools list | head -20
+# Avoid `tools list | head` — Rust panics on SIGPIPE/Broken pipe (os error 32).
+TOOLS_OUT="$(mktemp)"
+cargo run -q -p cortex-cli -- tools list >"$TOOLS_OUT"
+head -20 "$TOOLS_OUT"
+rm -f "$TOOLS_OUT"
 
 echo "== cortex models list =="
 cargo run -q -p cortex-cli -- models list
