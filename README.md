@@ -2,74 +2,135 @@
 
 An operating system for AI agents.
 
-Cortex is a production-grade open-source agent runtime, harness, and loop engine designed to execute autonomous AI agents with reliability, observability, durability, extensibility, and high performance.
+Cortex is an open-source **agent runtime**: durable, observable, provider-agnostic execution for autonomous agents. The LLM is one component. **The runtime is the product.**
 
-## Features
+## Status
 
-- **Deterministic event-driven architecture** with explicit state transitions (Observe → Plan → Execute → Verify → Reflect → Update Memory → Checkpoint → Continue?)
-- **Plugin architecture** for models, tools, memory, storage, verification, policies, and more
-- **Durable execution** with checkpoints, replay, and crash recovery (inspired by Temporal)
-- **Observability** via structured logging, metrics, tracing, and event replay
-- **Provider-agnostic** model abstraction (OpenAI, Anthropic, Gemini, Ollama, etc.)
-- **Technology stack**: Rust core (Tokio, Axum, SQLx, SQLite/PostgreSQL), Python SDK (Pydantic, AsyncIO), future TypeScript SDK
-- **Built-in tools**: filesystem, shell, Docker, Git, GitHub, HTTP, browser, Python execution, database, MCP, web search
-- **SDKs**: Python as primary, TypeScript planned
-- **Interfaces**: REST API, WebSocket, gRPC, CLI
+**Early foundation (v0.1.0 development).** Phase 0 complete: the kernel compiles, the event bus delivers events, and tests pass. Most product features (agent loop, tools, providers, CLI) are **planned, not implemented**.
 
-## Repository Structure
+| Area | Status |
+|------|--------|
+| Kernel lifecycle | Implemented |
+| In-memory event bus + history | Implemented |
+| Service registry | Implemented |
+| Config (TOML + env) | Implemented |
+| Unit tests (core/runtime) | Implemented |
+| Agent loop (plan/tools/reflect) | Planned (Phase 4) |
+| LLM providers | Planned (Phase 2) |
+| Tools (fs, shell, git, …) | Planned (Phase 3) |
+| CLI (`cortex run`) | Planned (Phase 5) |
+| SQLite sessions / checkpoints | Planned (Phase 6) |
+| Skills / plugins / MCP | Planned (Phases 8–11) |
+| Python SDK | Stub only |
+| TUI / HTTP API | Planned (later) |
 
-- `crates/cortex-core` – Core kernel, event bus traits, and basic types
-- `crates/cortex-events` – Concrete event types
-- `crates/cortex-runtime` – Runtime implementation (kernel, scheduler, loop)
-- `sdks/python` – Python SDK for writing agents and tools
-- (Future) `sdks/typescript` – TypeScript SDK
+## Design principles
 
-## Getting Started
+- Provider-independent core (no hard dependency on a single LLM vendor)
+- Uniform `Tool` / `Provider` / `Plugin` interfaces (as they land)
+- Event-driven, serializable state
+- Cancellation for long-running work
+- SQLite first; headless-first (no dashboard required)
+- Skills as capability packs — not hard-coded “modes”
+
+See [`CONSTRAINTS.md`](CONSTRAINTS.md), [`SPEC.md`](SPEC.md), [`VISION.md`](VISION.md), and [`docs/`](docs/).
+
+## Repository structure
+
+```text
+crates/
+  cortex-core/      # Kernel, config, event bus, service registry
+  cortex-events/    # Event re-exports (agent events later)
+  cortex-runtime/   # Runtime facade (agent loop later)
+config/             # Default TOML configuration
+sdks/python/        # Python SDK stubs (not wired to runtime yet)
+docs/               # Architecture and design notes
+```
+
+## Getting started
 
 ### Prerequisites
 
-- Rust toolchain (stable)
-- Python 3.9+
+- Rust stable (see `rust-toolchain.toml`)
+- Optional: Python 3.9+ for the SDK stubs
 
-### Building
+### Build & test
 
 ```bash
 cargo build
+cargo test
+cargo clippy --workspace
 ```
 
-### Running Tests
+### Configuration
+
+Default config: [`config/default.toml`](config/default.toml).
 
 ```bash
-cargo test
+# Environment overrides
+export CORTEX_LOG_LEVEL=debug
+export CORTEX_EVENT_HISTORY_SIZE=2048
 ```
 
-### Using the Python SDK
+Load from Rust:
 
-```python
-from cortex import tool
+```rust
+use cortex_core::Config;
 
-@tool
-def search(query: str) -> str:
-    """Search the web for a query."""
-    # Implementation here
-    return f"Results for {query}"
-
-# The tool can then be used by an agent running on the Cortex runtime.
+let cfg = Config::from_file("config/default.toml")?;
+// or
+let cfg = Config::from_env();
 ```
+
+### Minimal kernel example
+
+```rust
+use cortex_core::{Config, Kernel};
+use std::sync::Arc;
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let kernel = Arc::new(Kernel::with_config(Config::default()));
+    let k = Arc::clone(&kernel);
+    let handle = tokio::spawn(async move { k.start().await });
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    kernel.stop();
+    handle.await??;
+    Ok(())
+}
+```
+
+## Roadmap (milestones)
+
+| Milestone | Outcome |
+|-----------|---------|
+| M0 Stabilize | Compiling kernel + real bus ✓ |
+| M1 Models/events | Shared message/session types |
+| M2 Providers | Chat + mock + OpenAI-compatible |
+| M3 Tools | fs + shell + registry |
+| M4 Agent loop | Multi-step tool use |
+| M5 CLI | `cortex run` / `cortex chat` |
+| M6+ | Persistence, skills, security, MCP, plugins |
+
+Full task list: [`TASKS.md`](TASKS.md).
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md).
+
+AI agents: prefer small vertical slices; do not invent APIs that are not in `TASKS.md` / the plan.
 
 ## License
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0
+- MIT license
 
 at your option.
 
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
 ## Disclaimer
 
-This is an early-stage project. APIs are subject to change.
+This is an early-stage project. APIs will change. Documentation under `docs/` may describe future design; trust **this README’s status table** and the code for what exists today.

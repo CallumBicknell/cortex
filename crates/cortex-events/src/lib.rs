@@ -1,5 +1,11 @@
 //! Cortex Events
 //!
-//! This crate re-exports event types from the cortex-core crate.
+//! Re-exports core event types and bus primitives. Agent-specific events (tool calls,
+//! plan phases, etc.) will be defined here in Phase 1+.
 
-pub use cortex_core::{KernelStarted, KernelStopped, LoopIterationCompleted, LoopIterationStarted};
+#![deny(missing_docs)]
+
+pub use cortex_core::{
+    EnvelopeHandler, Event, EventBus, EventEnvelope, EventHandler, InMemoryEventBus, KernelStarted,
+    KernelStopped, LoopIterationCompleted, LoopIterationStarted, SubscriptionId,
+};

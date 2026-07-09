@@ -11,9 +11,10 @@ chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+toml = "0.8"
 tracing = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = { workspace = true, features = ["v4"] }
+uuid = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.5" }
+criterion = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
