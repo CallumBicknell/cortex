@@ -34,7 +34,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/models", get(routes::list_models))
         .route("/v1/tools", get(routes::list_tools))
         .route("/v1/sessions", get(routes::list_sessions))
-        .route("/v1/sessions/:id", get(routes::get_session))
+        .route("/v1/sessions/{id}", get(routes::get_session))
         .route("/v1/runs", post(routes::create_run))
         .route("/v1/runs/stream", post(stream::create_run_stream))
         .layer(

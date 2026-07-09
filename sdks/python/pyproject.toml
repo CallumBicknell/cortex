@@ -25,13 +25,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "httpx>=0.24.0",
+    "httpx>=0.28.1",
     "typing-extensions>=4.16.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
+    "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
 ]
 
