@@ -65,3 +65,49 @@ fn models_list() {
         .success()
         .stdout(predicate::str::contains("default"));
 }
+
+#[test]
+fn setup_and_doctor_use_cortex_home() {
+    let home = tempdir().expect("home");
+    let ws = tempdir().expect("ws");
+    cargo_bin_cmd!("cortex")
+        .current_dir(ws.path())
+        .env("CORTEX_HOME", home.path())
+        .args(["setup"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cortex home"));
+    assert!(home.path().join("models.toml").is_file());
+    assert!(home.path().join("data").is_dir());
+
+    cargo_bin_cmd!("cortex")
+        .current_dir(ws.path())
+        .env("CORTEX_HOME", home.path())
+        .args(["doctor"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cortex doctor"))
+        .stdout(predicate::str::contains("models_ok"));
+}
+
+#[test]
+fn run_works_outside_monorepo_with_home_only() {
+    let home = tempdir().expect("home");
+    let ws = tempdir().expect("ws");
+    let db = home.path().join("data/cortex-test.db");
+    cargo_bin_cmd!("cortex")
+        .current_dir(ws.path())
+        .env("CORTEX_HOME", home.path())
+        .env("CORTEX_DATABASE", &db)
+        .args([
+            "run",
+            "hello outside monorepo",
+            "--json",
+            "--yolo",
+            "--max-turns",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("final_message"));
+}

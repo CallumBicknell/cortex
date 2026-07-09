@@ -81,7 +81,20 @@ docs/               # Architecture and design notes
 
 ## Getting started
 
-### Prerequisites
+### Install (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh
+cortex doctor
+export OPENAI_API_KEY=…   # or use ollama / mock in ~/.cortex/models.toml
+cd my-project && cortex run "hello"
+```
+
+Creates **`~/.cortex/`** (global config + fallback DB). Optional project overrides: `cortex init` → `<repo>/.cortex/`.
+
+Full details: [`docs/install.md`](docs/install.md).
+
+### Prerequisites (from source)
 
 - Rust stable (see `rust-toolchain.toml`)
 - Optional: Python 3.9+ for the SDK stubs
@@ -100,58 +113,67 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 See [`docs/ci.md`](docs/ci.md) for GitHub Actions, releases, Docker, and Dependabot.
 
-### CLI (usable now)
+### CLI
 
 ```bash
-# Offline mock provider (default in config/models.toml)
-cargo run -p cortex-cli -- tools list
-cargo run -p cortex-cli -- models list
-cargo run -p cortex-cli -- run "What is Cortex?" --json
+cortex setup                  # ~/.cortex (auto-created on first use too)
+cortex doctor
+cortex init                   # project .cortex/ (optional)
+
+# Offline mock provider (default in models.toml)
+cortex tools list
+cortex models list
+cortex run "What is Cortex?" --json
 
 # In any project:
-cargo run -p cortex-cli -- init
-cargo run -p cortex-cli -- run "Summarize this repo" --model ollama --yolo
-cargo run -p cortex-cli -- run "Audit this Foundry project for reentrancy" --skills sc_security,solidity --yolo
-cargo run -p cortex-cli -- run "Refactor carefully" --plan --verify --yolo
-cargo run -p cortex-cli -- skills import ./path/to/SKILL.md --dry-run
-cargo run -p cortex-cli -- chat --model openai
+cortex run "Summarize this repo" --model ollama --yolo
+cortex run "Audit this Foundry project for reentrancy" --skills sc_security,solidity --yolo
+cortex run "Refactor carefully" --plan --verify --yolo
+cortex skills import ./path/to/SKILL.md --dry-run
+cortex chat --model openai
 
-# Sessions (persisted under .cortex/data/cortex.db)
-cargo run -p cortex-cli -- sessions list
-cargo run -p cortex-cli -- sessions show <session-id>
-cargo run -p cortex-cli -- sessions resume <session-id>
-cargo run -p cortex-cli -- sessions export <session-id> -o session.json
+# Sessions (project .cortex/data or ~/.cortex/data)
+cortex sessions list
+cortex sessions show <session-id>
+cortex sessions resume <session-id>
+cortex sessions export <session-id> -o session.json
 
 # Workspace awareness
-cargo run -p cortex-cli -- workspace info
-cargo run -p cortex-cli -- workspace map
+cortex workspace info
+cortex workspace map
 
 # Skills (capability packs)
-cargo run -p cortex-cli -- skills list
-cargo run -p cortex-cli -- skills select "audit solidity with forge"
-cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
-cargo run -p cortex-cli -- security show
-cargo run -p cortex-cli -- plugins list
-cargo run -p cortex-cli -- memory index
-cargo run -p cortex-cli -- memory search "agent loop"
-cargo run -p cortex-cli -- parse outline crates/cortex-runtime/src/agent_loop.rs
-cargo run -p cortex-cli -- tui
-cargo run -p cortex-cli -- serve --bind 127.0.0.1:8080
-cargo run -p cortex-cli -- eval run
+cortex skills list
+cortex skills select "audit solidity with forge"
+cortex run "fix cargo test" --skills rust,testing
+cortex security show
+cortex plugins list
+cortex memory index
+cortex memory search "agent loop"
+cortex parse outline crates/cortex-runtime/src/agent_loop.rs
+cortex tui
+cortex serve --bind 127.0.0.1:8080
+cortex eval run
+
+# From a clone without installing:
+# cargo run -p cortex-cli -- <args>
 
 # Browser via CDP (Obscura default — start `obscura` or Chrome first)
-# cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
-#   --skills browser --yolo
+# cortex run "Open https://example.com and report the title" --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), [`docs/hardening.md`](docs/hardening.md), [`docs/evolving-skills.md`](docs/evolving-skills.md), [`docs/follow-ups.md`](docs/follow-ups.md), and [`docs/ci.md`](docs/ci.md).
+See [`docs/install.md`](docs/install.md), [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), [`docs/hardening.md`](docs/hardening.md), [`docs/evolving-skills.md`](docs/evolving-skills.md), [`docs/follow-ups.md`](docs/follow-ups.md), and [`docs/ci.md`](docs/ci.md).
 
 ### Configuration
 
-Default config: [`config/default.toml`](config/default.toml).
+| Location | Purpose |
+|----------|---------|
+| `~/.cortex/models.toml` | User-global providers / default model |
+| `<project>/.cortex/` | Project overrides, audits, local DB |
+| [`config/`](config/) | Monorepo defaults (dev + embedded into binary) |
 
 ```bash
-# Environment overrides
+export CORTEX_HOME=~/.cortex-work     # alternate home profile
 export CORTEX_LOG_LEVEL=debug
 export CORTEX_EVENT_HISTORY_SIZE=2048
 ```

@@ -34,6 +34,7 @@ cortex-skills = { path = "../cortex-skills" }
 cortex-tools = { path = "../cortex-tools" }
 cortex-tui = { path = "../cortex-tui" }
 cortex-workspace = { path = "../cortex-workspace" }
+dirs = { workspace = true }
 dotenvy = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }

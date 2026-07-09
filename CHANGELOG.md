@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Install**: `scripts/install.sh` (curl → `~/.local/bin`), `cortex setup`,
+  `cortex doctor`, user home `~/.cortex` (`CORTEX_HOME`), docs/install.md
+
 ### Changed
 
 - **Docker CI**: cargo-chef + BuildKit cache mounts, tighter `.dockerignore`,
@@ -14,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   tower-http 0.6; Python httpx/pytest floors raised; assorted Actions bumps
 - **TUI**: ratatui 0.30 (closes transitive `lru` advisory GHSA-rhfx-m35p-ff5j)
 - **CI**: Dependabot groups + patch/minor auto-merge; majors stay human-reviewed
+- **Config paths**: project `.cortex` → `~/.cortex` → monorepo `config/` →
+  auto-bootstrap home; sessions DB falls back to home when no project dir
 
 ## [0.2.0] — 2026-07-09
 
