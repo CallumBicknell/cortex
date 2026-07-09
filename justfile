@@ -4,13 +4,20 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 default: build test
 
 help:
-    @echo "just targets: build release test lint fmt clippy eval smoke deny python-test ci docker clean"
+    @echo "just targets: build release install install-debug test lint fmt clippy eval smoke deny python-test ci docker clean"
 
 build:
     cargo build --workspace
 
 release:
     cargo build --release -p cortex-cli
+
+# Install current tree → ~/.local/bin/cortex
+install:
+    ./scripts/install-local.sh
+
+install-debug:
+    CORTEX_BUILD_PROFILE=debug ./scripts/install-local.sh
 
 test:
     cargo test --workspace --all-targets

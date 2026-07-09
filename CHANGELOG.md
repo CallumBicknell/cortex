@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (turns · tools ok/err · duration)
 - **`cortex setup --wizard`**: interactive default model picker; also
   `--default-model` / `--ollama-model` for non-interactive setup
+- **Local install**: `make install` / `scripts/install-local.sh` → `~/.local/bin/cortex`
 
 ## [0.2.1] — 2026-07-09
 
