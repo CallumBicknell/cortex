@@ -1,0 +1,32 @@
+# Browser automation via Chrome DevTools Protocol (CDP).
+# Works with Obscura, headless Chrome/Chromium, and other CDP endpoints.
+
+# Master switch — when false, browser tools still register but fail with a clear error.
+enabled = true
+
+# Backend preset (affects default discovery URL only if cdp_url is empty):
+#   obscura  — https://github.com/h4ckf0r0day/obscura  (ws://127.0.0.1:9222/devtools/browser)
+#   chrome   — Chrome/Chromium with --remote-debugging-port=9222
+#   custom   — use cdp_url / discovery_url only
+backend = "obscura"
+
+# Explicit CDP WebSocket URL (highest priority when set).
+# Examples:
+#   ws://127.0.0.1:9222/devtools/browser          # Obscura
+#   ws://127.0.0.1:9222/devtools/browser/<uuid> # Chrome browser target
+cdp_url = ""
+
+# HTTP discovery endpoint to resolve webSocketDebuggerUrl (Chrome-style).
+# Used when cdp_url is empty.
+#   http://127.0.0.1:9222/json/version
+discovery_url = ""
+
+# Host:port used to build defaults when cdp_url/discovery_url are empty.
+host = "127.0.0.1"
+port = 9222
+
+# Default navigation wait: load | domcontentloaded | networkidle
+wait_until = "load"
+
+# Navigation / command timeout (seconds)
+timeout_secs = 30

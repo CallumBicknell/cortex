@@ -49,6 +49,8 @@ dotenvy = "0.15"
 ignore = "0.4"
 walkdir = "2"
 regex = "1"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+url = "2"
 
 # Dev/test dependencies available to workspace members.
 # Member crates reference these under their own [dev-dependencies] section.

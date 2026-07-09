@@ -4,7 +4,10 @@ use anyhow::{bail, Context, Result};
 use cortex_llm::{ModelsConfig, ProviderRegistry, ResolvedModel};
 use cortex_mcp::{load_and_register_mcp, McpConfig};
 use cortex_security::{PolicyApprover, SecurityPolicy};
-use cortex_tools::{register_default_tools, ToolContext, ToolExecutor, ToolRegistry};
+use cortex_tools::{
+    register_default_tools_with_browser, BrowserConfig, BrowserHandle, ToolContext, ToolExecutor,
+    ToolRegistry,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -104,7 +107,9 @@ impl AppContext {
             .context("build provider registry from models.toml")?;
 
         let mut tool_reg = ToolRegistry::new();
-        register_default_tools(&mut tool_reg).context("register default tools")?;
+        let browser = load_browser_handle(&paths);
+        register_default_tools_with_browser(&mut tool_reg, browser)
+            .context("register default tools")?;
 
         if let Some(mcp_cfg) = load_mcp_config(&paths)? {
             let n = load_and_register_mcp(&mcp_cfg, &mut tool_reg).await;
@@ -164,6 +169,46 @@ impl AppContext {
             default_timeout: Duration::from_secs(sec.shell_timeout_secs.max(1)),
         }
     }
+}
+
+/// Load browser/CDP config (Obscura default).
+pub fn load_browser_handle(paths: &Paths) -> BrowserHandle {
+    let candidates = [
+        std::env::var("CORTEX_BROWSER_CONFIG")
+            .ok()
+            .map(PathBuf::from),
+        Some(paths.cortex_dir.join("browser.toml")),
+        Some(PathBuf::from("config/browser.toml")),
+        Some(paths.workspace.join("config/browser.toml")),
+    ];
+    for cand in candidates.into_iter().flatten() {
+        if cand.is_file() {
+            match BrowserConfig::from_file(&cand) {
+                Ok(mut cfg) => {
+                    // Env still wins for endpoint overrides.
+                    let env = BrowserConfig::from_env_or_default();
+                    if !env.cdp_url.is_empty() {
+                        cfg.cdp_url = env.cdp_url;
+                    }
+                    if !env.discovery_url.is_empty() {
+                        cfg.discovery_url = env.discovery_url;
+                    }
+                    if std::env::var("CORTEX_BROWSER_ENABLED").is_ok() {
+                        cfg.enabled = env.enabled;
+                    }
+                    if std::env::var("CORTEX_BROWSER_BACKEND").is_ok() {
+                        cfg.backend = env.backend;
+                    }
+                    info!(path = %cand.display(), backend = ?cfg.backend, "loaded browser config");
+                    return BrowserHandle::new(cfg);
+                }
+                Err(err) => {
+                    tracing::warn!(path = %cand.display(), error = %err, "invalid browser.toml");
+                }
+            }
+        }
+    }
+    BrowserHandle::from_env_or_default()
 }
 
 /// Load MCP config if present (optional).

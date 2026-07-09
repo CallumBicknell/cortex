@@ -31,6 +31,29 @@ pub fn builtin_skills() -> Vec<Skill> {
             .tools(["http_request", "web_search"])
             .prompts(["skills/web"])
             .tags(["web", "http", "docs", "fetch", "url", "search"]),
+        Skill::new(
+            "browser",
+            "Headless browser via CDP (Obscura, Chrome, Chromium, custom)",
+        )
+        .tools([
+            "browser_navigate",
+            "browser_evaluate",
+            "browser_snapshot",
+            "browser_content",
+            "browser_click",
+            "browser_close",
+        ])
+        .tags([
+            "browser",
+            "cdp",
+            "obscura",
+            "chrome",
+            "chromium",
+            "puppeteer",
+            "playwright",
+            "scrape",
+            "headless",
+        ]),
         Skill::new("testing", "Run and fix automated tests")
             .tools(["shell", "read_file", "edit_file", "apply_patch"])
             .prompts(["skills/testing"])

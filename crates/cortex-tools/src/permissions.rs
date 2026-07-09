@@ -53,6 +53,9 @@ impl Default for PermissionPolicy {
             "git_diff",
             "git_log",
             "web_search",
+            "browser_snapshot",
+            "browser_content",
+            "browser_evaluate",
         ] {
             tools.insert(name.to_string(), PermissionMode::Allow);
         }
@@ -66,6 +69,9 @@ impl Default for PermissionPolicy {
             "git_commit",
             "http_request",
             "docker_run",
+            "browser_navigate",
+            "browser_click",
+            "browser_close",
         ] {
             tools.insert(name.to_string(), PermissionMode::Ask);
         }

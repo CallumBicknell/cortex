@@ -34,7 +34,7 @@ to see both builtins and MCP-prefixed tools.
 
 ## Browser
 
-Prefer an MCP browser server (e.g. Playwright MCP) rather than a hard-coded browser binary in core. Enable it as an MCP server entry.
+Prefer attaching to a CDP endpoint (Obscura, Chrome) via native browser tools — see [`docs/browser.md`](browser.md). Alternatively, enable a Playwright/Puppeteer MCP server entry for richer automation.
 
 ## Security
 

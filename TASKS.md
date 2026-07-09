@@ -170,6 +170,7 @@
 * [x] P10.5 `web_search` (Tavily/Brave)
 * [x] P10.6 `apply_patch` tool
 * [x] P10.7 Mock MCP stdio integration test + `docs/mcp.md`
+* [x] P10.8 Native CDP browser tools (Obscura / Chrome / custom) + `docs/browser.md`
 
 ---
 

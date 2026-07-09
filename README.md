@@ -19,7 +19,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Agent event types | Implemented |
 | LLM providers (OpenAI-compat, Anthropic, mock) | Implemented |
 | Provider registry + `config/models.toml` | Implemented |
-| Tools (fs, shell, git, http) + permissions | Implemented |
+| Tools (fs, shell, git, http, browser/CDP) + permissions | Implemented |
 | Agent loop (LLM ↔ tools, events) | Implemented |
 | CLI (`cortex run` / `chat` / `init`) | Implemented |
 | SQLite sessions / checkpoints | Implemented |
@@ -50,7 +50,7 @@ crates/
   cortex-common/    # Errors, typed IDs
   cortex-models/    # Message, ToolCall, Session, Plan, Task, Artifact
   cortex-llm/       # Provider trait, OpenAI-compat, Anthropic, mock, registry
-  cortex-tools/     # Tool trait, registry, executor, fs/shell/git/http
+  cortex-tools/     # Tool trait, registry, executor, fs/shell/git/http/browser
   cortex-core/      # Kernel, config, event bus, service registry, cancel
   cortex-events/    # Lifecycle re-exports + agent loop events
   cortex-runtime/   # Kernel facade + AgentLoop
@@ -62,7 +62,7 @@ crates/
   cortex-security/  # Policy, redaction, approval audit
   cortex-mcp/       # MCP stdio client → Tool adapters
   cortex-cli/       # `cortex` binary
-config/             # Default TOML (models, security, mcp)
+config/             # Default TOML (models, security, mcp, browser)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
@@ -115,9 +115,13 @@ cargo run -p cortex-cli -- skills list
 cargo run -p cortex-cli -- skills select "audit solidity with forge"
 cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
 cargo run -p cortex-cli -- security show
+
+# Browser via CDP (Obscura default — start `obscura` or Chrome first)
+# cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
+#   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), and [`docs/security.md`](docs/security.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), and [`docs/browser.md`](docs/browser.md).
 
 ### Configuration
 
