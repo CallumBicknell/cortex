@@ -88,10 +88,14 @@ impl InMemoryEventBus {
             let guard = self.subscribers.read().await;
             guard.iter().map(|s| Arc::clone(&s.handler)).collect()
         };
-        // Handlers are invoked sequentially. A handler should not panic; panics still
-        // unwind the calling task (true isolation can be added later via futures::FutureExt).
+        // Sequential dispatch with panic isolation so one bad handler cannot kill the bus.
         for handler in subscribers {
-            handler.handle(envelope.clone()).await;
+            let fut = handler.handle(envelope.clone());
+            if let Err(payload) =
+                futures::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(fut)).await
+            {
+                tracing::error!(?payload, "event handler panicked; continuing dispatch");
+            }
         }
     }
 }
@@ -212,5 +216,41 @@ mod tests {
         assert!(bus.unsubscribe(id).await);
         bus.publish(KernelStarted::new()).await;
         assert_eq!(handler.count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn replay_since_inclusive() {
+        let bus = InMemoryEventBus::new(16);
+        bus.publish(KernelStarted::new()).await;
+        bus.publish(KernelStarted::new()).await;
+        let history = bus.history().await;
+        assert_eq!(history.len(), 2);
+        let from_id = history[1].id;
+        let replayed = bus.replay_since(from_id).await;
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0].id, from_id);
+    }
+
+    struct PanickingHandler;
+
+    #[async_trait]
+    impl EnvelopeHandler for PanickingHandler {
+        async fn handle(&self, _event: EventEnvelope) {
+            panic!("boom");
+        }
+    }
+
+    #[tokio::test]
+    async fn panicking_handler_does_not_block_others() {
+        let bus = InMemoryEventBus::new(8);
+        bus.subscribe(Arc::new(PanickingHandler)).await;
+        let good = Arc::new(RecordingHandler {
+            count: AtomicUsize::new(0),
+            kinds: Mutex::new(Vec::new()),
+        });
+        bus.subscribe(good.clone()).await;
+        bus.publish(KernelStarted::new()).await;
+        assert_eq!(good.count.load(Ordering::SeqCst), 1);
+        assert_eq!(bus.history_len().await, 1);
     }
 }

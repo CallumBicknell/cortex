@@ -1,8 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/cortex-common",
     "crates/cortex-core",
     "crates/cortex-events",
+    "crates/cortex-models",
     "crates/cortex-runtime",
 ]
 
@@ -26,6 +28,8 @@ axum = { version = "0.7", features = ["json"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
 toml = "0.8"
 thiserror = "1.0"
+tokio-util = { version = "0.7", features = ["rt"] }
+futures = "0.3"
 
 # Dev/test dependencies available to workspace members.
 # Member crates reference these under their own [dev-dependencies] section.

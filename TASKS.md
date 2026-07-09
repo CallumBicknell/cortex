@@ -42,12 +42,12 @@
 
 # Phase 1 — Domain models + event system
 
-* [ ] P1.1 Create `cortex-common` (errors, ids)
-* [ ] P1.2 Create `cortex-models` (Message, ToolCall, Session, …)
-* [ ] P1.3 Agent events in `cortex-events` (user/assistant/tool/phase/checkpoint)
-* [ ] P1.4 Event bus hardening (replay_since already partial; handler isolation)
-* [ ] P1.5 Cancellation tokens wired into kernel stop
-* [ ] P1.6 Serde golden JSON fixtures
+* [x] P1.1 Create `cortex-common` (errors, ids)
+* [x] P1.2 Create `cortex-models` (Message, ToolCall, Session, …)
+* [x] P1.3 Agent events in `cortex-events` (user/assistant/tool/phase/checkpoint)
+* [x] P1.4 Event bus hardening (`replay_since` + panic isolation)
+* [x] P1.5 Cancellation tokens wired into kernel stop
+* [x] P1.6 Serde golden JSON fixtures
 
 ---
 

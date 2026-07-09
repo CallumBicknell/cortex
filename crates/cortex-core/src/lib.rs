@@ -24,3 +24,5 @@ pub use lifecycle_events::{
     KernelStarted, KernelStopped, LoopIterationCompleted, LoopIterationStarted,
 };
 pub use service_registry::ServiceRegistry;
+/// Re-export cancellation token used by the kernel for long-running work.
+pub use tokio_util::sync::CancellationToken;

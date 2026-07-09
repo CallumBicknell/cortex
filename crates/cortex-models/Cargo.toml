@@ -1,18 +1,17 @@
 [package]
-name = "cortex-events"
+name = "cortex-models"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
-description = "Event types and re-exports for the Cortex event bus"
+description = "Domain models for messages, tools, sessions, plans, and artifacts"
 
 [dependencies]
 chrono = { workspace = true }
 cortex-common = { path = "../cortex-common" }
-cortex-core = { path = "../cortex-core" }
-cortex-models = { path = "../cortex-models" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }

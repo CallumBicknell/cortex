@@ -8,9 +8,10 @@ use crate::lifecycle_events::{KernelStarted, KernelStopped};
 use crate::service_registry::ServiceRegistry;
 use std::any::Any;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 /// Errors from kernel operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,7 +55,8 @@ pub struct Kernel {
     event_bus: Arc<InMemoryEventBus>,
     state: RwLock<LifecycleState>,
     iteration_counter: AtomicU64,
-    shutdown_tx: broadcast::Sender<()>,
+    /// Cancellation token for the current start cycle (replaced on each start).
+    cancel: Mutex<CancellationToken>,
     service_registry: RwLock<ServiceRegistry>,
     started_at: RwLock<Option<Instant>>,
     /// Optional failure reason when state is Failed.
@@ -70,13 +72,12 @@ impl Kernel {
     /// Create a new kernel with the given configuration.
     pub fn with_config(config: Config) -> Self {
         let history = config.event_history_size;
-        let (shutdown_tx, _) = broadcast::channel(16);
         Self {
             config,
             event_bus: Arc::new(InMemoryEventBus::new(history)),
             state: RwLock::new(LifecycleState::Created),
             iteration_counter: AtomicU64::new(0),
-            shutdown_tx,
+            cancel: Mutex::new(CancellationToken::new()),
             service_registry: RwLock::new(ServiceRegistry::new()),
             started_at: RwLock::new(None),
             failure_reason: RwLock::new(None),
@@ -91,6 +92,22 @@ impl Kernel {
     /// Shared handle to the event bus.
     pub fn event_bus(&self) -> Arc<InMemoryEventBus> {
         Arc::clone(&self.event_bus)
+    }
+
+    /// Clone of the cancellation token for the current (or last) start cycle.
+    ///
+    /// Child tasks (tools, LLM calls) should select on `token.cancelled()` so they
+    /// stop when [`Self::stop`] is called.
+    pub fn cancellation_token(&self) -> CancellationToken {
+        self.cancel
+            .lock()
+            .expect("cancellation token lock poisoned")
+            .clone()
+    }
+
+    /// Returns true if a stop has been requested for the current cycle.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation_token().is_cancelled()
     }
 
     /// Current lifecycle state.
@@ -195,9 +212,13 @@ impl Kernel {
         self.event_bus.publish(event).await;
     }
 
-    /// Signal the kernel to stop. The running `start` future will exit.
+    /// Signal the kernel to stop. The running `start` future will exit and
+    /// any child holding [`Self::cancellation_token`] will observe cancel.
     pub fn stop(&self) {
-        let _ = self.shutdown_tx.send(());
+        self.cancel
+            .lock()
+            .expect("cancellation token lock poisoned")
+            .cancel();
     }
 
     /// Start the kernel and wait until stop is signaled.
@@ -220,6 +241,16 @@ impl Kernel {
             }
         }
 
+        // Fresh cancellation token for this start cycle (tokens are not resettable).
+        let cancel = {
+            let mut guard = self
+                .cancel
+                .lock()
+                .expect("cancellation token lock poisoned");
+            *guard = CancellationToken::new();
+            guard.clone()
+        };
+
         *self.failure_reason.write().await = None;
         *self.started_at.write().await = Some(Instant::now());
 
@@ -227,15 +258,12 @@ impl Kernel {
 
         *self.state.write().await = LifecycleState::Running;
 
-        let mut shutdown_rx = self.shutdown_tx.subscribe();
-
-        // Stay running until stop is requested. Optional heartbeat if interval > 0.
+        // Stay running until cancel is requested. Heartbeat is not the agent loop.
         loop {
             let sleep = tokio::time::sleep(Duration::from_millis(self.config.loop_interval_ms));
             tokio::select! {
-                _ = shutdown_rx.recv() => break,
+                _ = cancel.cancelled() => break,
                 _ = sleep => {
-                    // Heartbeat tick — reserved for future metrics. Not the agent loop.
                     self.iteration_counter.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -257,7 +285,7 @@ impl Kernel {
         tracing::error!(%reason, "kernel failed");
         *self.failure_reason.write().await = Some(reason);
         *self.state.write().await = LifecycleState::Failed;
-        let _ = self.shutdown_tx.send(());
+        self.stop();
     }
 }
 
@@ -273,10 +301,10 @@ mod tests {
     use crate::event::{EnvelopeHandler, EventEnvelope};
     use async_trait::async_trait;
     use std::sync::atomic::AtomicUsize;
-    use std::sync::Mutex;
+    use std::sync::Mutex as StdMutex;
 
     struct KindRecorder {
-        kinds: Mutex<Vec<String>>,
+        kinds: StdMutex<Vec<String>>,
         count: AtomicUsize,
     }
 
@@ -296,7 +324,7 @@ mod tests {
             event_history_size: 32,
         });
         let handler = Arc::new(KindRecorder {
-            kinds: Mutex::new(Vec::new()),
+            kinds: StdMutex::new(Vec::new()),
             count: AtomicUsize::new(0),
         });
         kernel.subscribe(handler.clone()).await;
@@ -305,7 +333,6 @@ mod tests {
         let k2 = Arc::clone(&kernel);
         let run = tokio::spawn(async move { k2.start().await });
 
-        // Wait until running.
         for _ in 0..50 {
             if kernel.is_started().await {
                 break;
@@ -313,8 +340,13 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         assert!(kernel.is_started().await);
+        assert!(!kernel.is_cancelled());
 
+        let child_token = kernel.cancellation_token();
         kernel.stop();
+        assert!(child_token.is_cancelled());
+        assert!(kernel.is_cancelled());
+
         run.await.expect("join").expect("start ok");
 
         assert!(kernel.is_stopped().await);
@@ -361,5 +393,37 @@ mod tests {
         let health = kernel.health_check().await;
         assert_eq!(health.state, LifecycleState::Created);
         assert_eq!(health.status, "created");
+    }
+
+    #[tokio::test]
+    async fn restart_after_stop_gets_fresh_token() {
+        let kernel = Arc::new(Kernel::with_config(Config {
+            loop_interval_ms: 10,
+            log_level: "info".into(),
+            event_history_size: 8,
+        }));
+        let k2 = Arc::clone(&kernel);
+        let run = tokio::spawn(async move { k2.start().await });
+        for _ in 0..50 {
+            if kernel.is_started().await {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        kernel.stop();
+        run.await.unwrap().unwrap();
+
+        let k3 = Arc::clone(&kernel);
+        let run2 = tokio::spawn(async move { k3.start().await });
+        for _ in 0..50 {
+            if kernel.is_started().await {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(kernel.is_started().await);
+        assert!(!kernel.is_cancelled());
+        kernel.stop();
+        run2.await.unwrap().unwrap();
     }
 }

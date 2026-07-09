@@ -1,9 +1,17 @@
 //! Cortex Events
 //!
-//! Re-exports core event types and bus primitives. Agent-specific events (tool calls,
-//! plan phases, etc.) will be defined here in Phase 1+.
+//! Lifecycle events live in `cortex-core`. Agent-loop events are defined here.
+//! Bus primitives are re-exported for convenience.
 
 #![deny(missing_docs)]
+
+mod agent;
+
+pub use agent::{
+    AssistantMessageProduced, CheckpointSaved, ErrorRaised, LoopPhase, LoopPhaseChanged,
+    MessageAppended, PlanUpdated, ToolCallCompleted, ToolCallFailed, ToolCallRequested,
+    UserMessageReceived,
+};
 
 pub use cortex_core::{
     EnvelopeHandler, Event, EventBus, EventEnvelope, EventHandler, InMemoryEventBus, KernelStarted,
