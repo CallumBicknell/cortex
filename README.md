@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–8 complete: agent OS core through skills/prompts. Still missing: TUI, MCP/plugins, and deeper security sandboxing.
+**Early development (v0.1.0).** Phases 0–9 complete: agent OS core through security policy/audit. Still missing: TUI, MCP/plugins, and OS-level sandboxing (bubblewrap/firejail).
 
 | Area | Status |
 |------|--------|
@@ -25,6 +25,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | SQLite sessions / checkpoints | Implemented |
 | Workspace map + context budgets | Implemented |
 | Skills + prompts (capability packs) | Implemented |
+| Security policy + audit + redaction | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
@@ -57,8 +58,9 @@ crates/
   cortex-context/   # Token budgets, history compression
   cortex-prompts/   # Markdown prompts + templates
   cortex-skills/    # Skill packs (not hard-coded modes)
+  cortex-security/  # Policy, redaction, approval audit
   cortex-cli/       # `cortex` binary
-config/             # Default TOML configuration
+config/             # Default TOML configuration (models + security)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
@@ -110,9 +112,10 @@ cargo run -p cortex-cli -- workspace map
 cargo run -p cortex-cli -- skills list
 cargo run -p cortex-cli -- skills select "audit solidity with forge"
 cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
+cargo run -p cortex-cli -- security show
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md) and [`docs/skills.md`](docs/skills.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), and [`docs/security.md`](docs/security.md).
 
 ### Configuration
 
@@ -167,7 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M6 Durable sessions | SQLite + checkpoints ✓ |
 | M7 Context-aware | Repo map + token budgets ✓ |
 | M8 Skills | Capability packs + prompts ✓ |
-| M9+ | Security polish, MCP, plugins, TUI |
+| M9 Security | Policy + audit + redaction ✓ |
+| M10+ | MCP, plugins, TUI |
 
 Full task list: [`TASKS.md`](TASKS.md).
 

@@ -35,6 +35,10 @@ pub struct PermissionPolicy {
     pub http_allow_hosts: Vec<String>,
     /// Host suffixes always blocked (SSRF basics).
     pub http_block_hosts: Vec<String>,
+    /// Env var names scrubbed from shell children.
+    pub scrub_env: Vec<String>,
+    /// Shell command substrings that are hard-denied.
+    pub shell_deny_patterns: Vec<String>,
 }
 
 impl Default for PermissionPolicy {
@@ -77,6 +81,21 @@ impl Default for PermissionPolicy {
                 "::1".into(),
                 "metadata.google.internal".into(),
                 "169.254.169.254".into(),
+            ],
+            scrub_env: vec![
+                "OPENAI_API_KEY".into(),
+                "ANTHROPIC_API_KEY".into(),
+                "OPENROUTER_API_KEY".into(),
+                "AWS_SECRET_ACCESS_KEY".into(),
+                "GITHUB_TOKEN".into(),
+                "GH_TOKEN".into(),
+                "PRIVATE_KEY".into(),
+            ],
+            shell_deny_patterns: vec![
+                "rm -rf /".into(),
+                "mkfs".into(),
+                ":(){ :|:& };:".into(),
+                "dd if=/dev/zero".into(),
             ],
         }
     }
@@ -154,6 +173,15 @@ impl PermissionPolicy {
         }
 
         Ok(normalized)
+    }
+
+    /// Hard-deny shell command if it matches a dangerous pattern.
+    pub fn shell_command_allowed(&self, command: &str) -> bool {
+        let lower = command.to_ascii_lowercase();
+        !self
+            .shell_deny_patterns
+            .iter()
+            .any(|p| lower.contains(&p.to_ascii_lowercase()))
     }
 
     /// Whether an HTTP host is allowed.

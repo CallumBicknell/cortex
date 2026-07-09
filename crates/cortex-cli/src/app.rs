@@ -2,16 +2,17 @@
 
 use anyhow::{bail, Context, Result};
 use cortex_llm::{ModelsConfig, ProviderRegistry, ResolvedModel};
-use cortex_tools::{
-    register_default_tools, PermissionMode, PermissionPolicy, ToolContext, ToolExecutor,
-    ToolRegistry,
-};
+use cortex_security::{PolicyApprover, SecurityPolicy};
+use cortex_tools::{register_default_tools, ToolContext, ToolExecutor, ToolRegistry};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::approver::CliApprover;
+use crate::db_audit::audit_sink_for;
+use cortex_common::SessionId;
+use cortex_memory::SessionStore;
 
 /// Resolved filesystem layout for a Cortex workspace invocation.
 #[derive(Debug, Clone)]
@@ -88,10 +89,12 @@ pub struct AppContext {
     pub tools: ToolExecutor,
     /// Whether auto-approve is on.
     pub yolo: bool,
+    /// Loaded security policy.
+    pub security: Arc<SecurityPolicy>,
 }
 
 impl AppContext {
-    /// Load config, providers, and tools.
+    /// Load config, providers, tools, and security policy.
     pub fn bootstrap(paths: Paths, yolo: bool) -> Result<Self> {
         let models = ModelsConfig::from_file(&paths.models_config)
             .with_context(|| format!("load {}", paths.models_config.display()))?;
@@ -102,11 +105,14 @@ impl AppContext {
         register_default_tools(&mut tool_reg).context("register default tools")?;
         let tools = ToolExecutor::new(Arc::new(tool_reg));
 
+        let security = load_security_policy(&paths, yolo)?;
+
         Ok(Self {
             paths,
             registry,
             tools,
             yolo,
+            security: Arc::new(security),
         })
     }
 
@@ -117,33 +123,60 @@ impl AppContext {
             .with_context(|| format!("resolve model alias {:?}", alias.unwrap_or("default")))
     }
 
-    /// Build tool context for the workspace.
-    pub fn tool_context(&self, cancel: CancellationToken) -> ToolContext {
-        let mut policy = PermissionPolicy::default();
+    /// Build tool context for the workspace (optional DB audit + session id).
+    pub fn tool_context(
+        &self,
+        cancel: CancellationToken,
+        store: Option<&SessionStore>,
+        session_id: Option<SessionId>,
+    ) -> ToolContext {
+        let mut sec = (*self.security).clone();
         if self.yolo {
-            policy = policy.allow_all();
+            sec = sec.with_yolo(true);
         }
-        // Shell is still risky even for coding agents; keep Ask unless yolo.
-        if !self.yolo {
-            policy.tools.insert("shell".into(), PermissionMode::Ask);
-            policy
-                .tools
-                .insert("write_file".into(), PermissionMode::Ask);
-            policy.tools.insert("edit_file".into(), PermissionMode::Ask);
-            policy
-                .tools
-                .insert("git_commit".into(), PermissionMode::Ask);
-        }
+        let sec = Arc::new(sec);
+        let policy = sec.to_permission_policy();
+        let audit = audit_sink_for(store);
+        let inner = Arc::new(CliApprover::new(sec.yolo));
+        let approver = Arc::new(PolicyApprover::new(
+            Arc::clone(&sec),
+            inner,
+            audit,
+            session_id,
+        ));
 
         ToolContext {
             workspace_root: self.paths.workspace.clone(),
-            session_id: None,
+            session_id,
             cancel,
             permissions: Arc::new(policy),
-            approver: Arc::new(CliApprover::new(self.yolo)),
-            default_timeout: Duration::from_secs(60),
+            approver,
+            default_timeout: Duration::from_secs(sec.shell_timeout_secs.max(1)),
         }
     }
+}
+
+/// Load security.toml from env, `.cortex/security.toml`, or `config/security.toml`.
+pub fn load_security_policy(paths: &Paths, yolo: bool) -> Result<SecurityPolicy> {
+    let candidates = [
+        std::env::var("CORTEX_SECURITY_CONFIG")
+            .ok()
+            .map(PathBuf::from),
+        Some(paths.cortex_dir.join("security.toml")),
+        Some(PathBuf::from("config/security.toml")),
+        Some(paths.workspace.join("config/security.toml")),
+    ];
+    for cand in candidates.into_iter().flatten() {
+        if cand.is_file() {
+            let mut policy = SecurityPolicy::from_file(&cand)
+                .with_context(|| format!("load security policy {}", cand.display()))?;
+            if yolo {
+                policy = policy.with_yolo(true);
+            }
+            return Ok(policy);
+        }
+    }
+    Ok(SecurityPolicy::default().with_yolo(yolo))
 }
 
 /// Load `.env` from cwd if present (non-fatal).

@@ -52,6 +52,12 @@ impl Tool for ShellTool {
             return Err(ToolError::InvalidInput("command must not be empty".into()));
         }
 
+        if !ctx.permissions.shell_command_allowed(&args.command) {
+            return Err(ToolError::PermissionDenied(
+                "shell command matches a denied security pattern".into(),
+            ));
+        }
+
         let cwd = if let Some(rel) = args.cwd {
             ctx.resolve_path(&rel)?
         } else {
@@ -64,18 +70,17 @@ impl Tool for ShellTool {
                 .max(1),
         );
 
-        // Scrub potentially sensitive env vars from the child? We inherit by default
-        // but strip a few common secret names for safety.
+        // Scrub secrets from the child environment.
         let mut cmd = Command::new("sh");
         cmd.arg("-c")
             .arg(&args.command)
             .current_dir(&cwd)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .env_remove("OPENAI_API_KEY")
-            .env_remove("ANTHROPIC_API_KEY")
-            .env_remove("OPENROUTER_API_KEY");
+            .kill_on_drop(true);
+        for key in &ctx.permissions.scrub_env {
+            cmd.env_remove(key);
+        }
 
         let child_fut = cmd.output();
         let output = tokio::select! {
@@ -150,5 +155,16 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, ToolError::Timeout(_)));
+    }
+
+    #[tokio::test]
+    async fn denies_dangerous_pattern() {
+        let dir = tempdir().unwrap();
+        let ctx = ToolContext::for_tests(dir.path());
+        let err = ShellTool
+            .execute(&ctx, json!({"command": "rm -rf /"}))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ToolError::PermissionDenied(_)));
     }
 }

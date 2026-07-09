@@ -25,7 +25,7 @@ impl Approver for CliApprover {
 
         let tool_name = request.tool_name.clone();
         let summary = request.summary.clone();
-        let args = request.arguments.to_string();
+        let args = cortex_security::redacted_json(&request.arguments).to_string();
 
         tokio::task::spawn_blocking(move || {
             let mut stdout = io::stdout();

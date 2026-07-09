@@ -149,13 +149,24 @@
 
 ---
 
+# Phase 9 — Security
+
+* [x] P9.1 `cortex-security` policy crate + `config/security.toml`
+* [x] P9.2 PolicyApprover + interactive CLI + `--yolo`
+* [x] P9.3 Tool modes, path sandbox, HTTP host blocks, shell deny patterns
+* [x] P9.4 Shell env scrub + cwd sandbox
+* [x] P9.5 Secrets redaction (text/JSON)
+* [x] P9.6 Approval audit → SQLite `permissions_audit`
+* [x] P9.7 Tests + `cortex security show` + `docs/security.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 9 | Security, approvals, sandbox |
 | 10 | MCP + advanced tools |
 | 11 | Plugin system |
 | 12 | Summaries + embeddings |

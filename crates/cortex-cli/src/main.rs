@@ -2,6 +2,7 @@
 
 mod app;
 mod approver;
+mod db_audit;
 
 use anyhow::{Context, Result};
 use app::{init_tracing, load_dotenv, write_default_models_toml, AppContext, Paths};
@@ -11,6 +12,7 @@ use cortex_memory::{open_sqlite, CheckpointState, SessionStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
+use cortex_security::{redact_text, SecurityPolicy};
 use cortex_skills::{select_skills, SkillRegistry};
 use cortex_tools::ToolRegistry;
 use cortex_workspace::RepoMap;
@@ -129,6 +131,11 @@ enum Commands {
         #[command(subcommand)]
         command: SkillsCmd,
     },
+    /// Security policy helpers.
+    Security {
+        #[command(subcommand)]
+        command: SecurityCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -167,6 +174,12 @@ enum SkillsCmd {
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum SecurityCmd {
+    /// Show the effective security policy.
+    Show,
 }
 
 #[derive(Debug, Subcommand)]
@@ -288,8 +301,43 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Skills { command } => {
             cmd_skills(cli.workspace, command)?;
         }
+        Commands::Security { command } => {
+            cmd_security(cli.workspace, cli.config, command)?;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_security(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    command: SecurityCmd,
+) -> Result<()> {
+    match command {
+        SecurityCmd::Show => {
+            let paths = Paths::resolve(workspace, config)?;
+            let policy = app::load_security_policy(&paths, false)?;
+            let _ = &policy as &SecurityPolicy;
+            println!(
+                "yolo={} sandbox={} shell_timeout_secs={}",
+                policy.yolo, policy.sandbox_workspace, policy.shell_timeout_secs
+            );
+            println!("default_mode={:?}", policy.default_mode);
+            println!("tools:");
+            let mut names: Vec<_> = policy.tools.keys().cloned().collect();
+            names.sort();
+            for name in names {
+                println!("  {name}: {:?}", policy.tools[&name]);
+            }
+            println!(
+                "shell_deny_patterns: {}",
+                policy.shell_deny_patterns.join(" | ")
+            );
+            println!("scrub_env: {}", policy.scrub_env.join(", "));
+            println!("http_block_hosts: {}", policy.http_block_hosts.join(", "));
+        }
+    }
+    Ok(())
 }
 
 fn build_context_for_task(
@@ -491,7 +539,11 @@ async fn cmd_run(
         cancel_ctrl.cancel();
     });
 
-    let tool_ctx = app.tool_context(cancel.clone());
+    let session =
+        load_or_new_session(store.as_ref(), session_id.as_deref(), &app, &resolved).await?;
+    let session_id_for_ctx = session.id;
+
+    let tool_ctx = app.tool_context(cancel.clone(), store.as_ref(), Some(session_id_for_ctx));
     let agent = AgentLoop::new(
         Arc::clone(&resolved.provider),
         resolved.model.clone(),
@@ -504,9 +556,6 @@ async fn cmd_run(
             stop_on_max_turns: true,
         },
     );
-
-    let session =
-        load_or_new_session(store.as_ref(), session_id.as_deref(), &app, &resolved).await?;
 
     let output = agent
         .run(RunInput {
@@ -606,7 +655,7 @@ async fn cmd_chat(
             cancel_ctrl.cancel();
         });
 
-        let tool_ctx = app.tool_context(cancel.clone());
+        let tool_ctx = app.tool_context(cancel.clone(), Some(&store), Some(session.id));
         let agent = AgentLoop::new(
             Arc::clone(&resolved.provider),
             resolved.model.clone(),
@@ -851,10 +900,10 @@ fn print_run_human(output: &RunOutput) {
         println!();
     }
     if let Some(msg) = &output.final_message {
-        println!("assistant>\n{msg}\n");
+        println!("assistant>\n{}\n", redact_text(msg));
     }
     if let Some(err) = &output.error {
-        println!("error: {err}");
+        println!("error: {}", redact_text(err));
     }
     println!(
         "status={:?} turns={} duration_ms={} session={}",

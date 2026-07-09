@@ -11,6 +11,7 @@ members = [
     "crates/cortex-models",
     "crates/cortex-prompts",
     "crates/cortex-runtime",
+    "crates/cortex-security",
     "crates/cortex-skills",
     "crates/cortex-tools",
     "crates/cortex-workspace",
@@ -46,6 +47,7 @@ clap = { version = "4", features = ["derive", "env"] }
 dotenvy = "0.15"
 ignore = "0.4"
 walkdir = "2"
+regex = "1"
 
 # Dev/test dependencies available to workspace members.
 # Member crates reference these under their own [dev-dependencies] section.

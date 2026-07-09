@@ -1,0 +1,66 @@
+# Cortex security policy (copy to .cortex/security.toml to customize)
+
+# Default tool mode when not listed: allow | deny | ask
+default_mode = "ask"
+
+# Workspace path sandbox (block .. escapes)
+sandbox_workspace = true
+
+# Tool output cap (bytes)
+max_output_bytes = 262144
+
+# Shell timeout (seconds)
+shell_timeout_secs = 60
+
+# Auto-approve all tools (equivalent to --yolo; prefer CLI flag)
+yolo = false
+
+# Empty allow list = all non-blocked hosts
+http_allow_hosts = []
+
+http_block_hosts = [
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  "metadata.google.internal",
+  "169.254.169.254",
+]
+
+# Substrings that cause shell commands to be denied
+shell_deny_patterns = [
+  "rm -rf /",
+  "mkfs",
+  ":(){ :|:& };:",
+  "dd if=/dev/zero",
+  "shutdown",
+  "reboot",
+]
+
+# Env var names stripped from shell child processes
+scrub_env = [
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "OPENROUTER_API_KEY",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "GITHUB_TOKEN",
+  "GH_TOKEN",
+  "NPM_TOKEN",
+  "HF_TOKEN",
+  "PRIVATE_KEY",
+]
+
+[tools]
+read_file = "allow"
+list_dir = "allow"
+glob_files = "allow"
+git_status = "allow"
+git_diff = "allow"
+git_log = "allow"
+write_file = "ask"
+edit_file = "ask"
+shell = "ask"
+git_add = "ask"
+git_commit = "ask"
+http_request = "ask"

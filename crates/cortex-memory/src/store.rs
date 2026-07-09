@@ -353,6 +353,31 @@ impl SessionStore {
         Ok(())
     }
 
+    /// Persist a permissions / approval audit row.
+    pub async fn save_permission_audit(
+        &self,
+        session_id: Option<SessionId>,
+        tool_name: &str,
+        decision: &str,
+        detail: &serde_json::Value,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO permissions_audit (id, session_id, tool_name, decision, detail_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(session_id.map(|s| s.to_string()))
+        .bind(tool_name)
+        .bind(decision)
+        .bind(serde_json::to_string(detail)?)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Save a summary row (schema ready; generation is later).
     pub async fn save_summary(
         &self,
