@@ -6,9 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-(nothing yet)
+- **Docker CI**: cargo-chef + BuildKit cache mounts, tighter `.dockerignore`,
+  PR Docker builds only when packaging files change (faster pipeline)
 
 ## [0.2.0] — 2026-07-09
 

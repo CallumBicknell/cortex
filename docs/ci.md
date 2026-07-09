@@ -9,7 +9,7 @@ local scripts that mirror CI for pre-push confidence.
 |----------|---------|----------------|
 | [`ci.yml`](../.github/workflows/ci.yml) | PR / push | fmt, clippy, tests, evals, smoke, cargo-deny, Python SDK, release binary artifact |
 | [`release.yml`](../.github/workflows/release.yml) | tag `v*` | Multi-OS release binaries + GitHub Release |
-| [`docker.yml`](../.github/workflows/docker.yml) | main / tags | Build & push image to GHCR |
+| [`docker.yml`](../.github/workflows/docker.yml) | main / tags (PRs only if Docker files change) | Build & push image to GHCR |
 
 ## Jobs (CI)
 
@@ -60,10 +60,25 @@ git push origin v0.2.0
 4. **Docker** (optional): image at `ghcr.io/<owner>/<repo>` on main/tags.
 
 ```bash
-docker build -t cortex:local .
+# Local build (BuildKit + layer/cache mounts; needs Docker Buildx)
+DOCKER_BUILDKIT=1 docker build -t cortex:local .
 docker run --rm -p 8080:8080 -v "$PWD:/workspace" -w /workspace \
   cortex:local serve --bind 0.0.0.0:8080
 ```
+
+### Docker CI performance
+
+The image build uses:
+
+1. **cargo-chef** — dependency graph cooked in a separate layer; app code changes
+   do not recompile all crates.io deps from scratch.
+2. **BuildKit cache mounts** — registry/git/`target` directories reuse work across
+   builds when GHA cache hits.
+3. **`.dockerignore`** — excludes `target/`, `.git`, docs, SDK, etc. so the
+   build context stays small.
+4. **PR path filters** — Docker job runs on PRs only when `Dockerfile` /
+   `.dockerignore` / the workflow change. Normal Rust PRs rely on `ci.yml`.
+5. **GHA cache** (`type=gha,mode=max`) shared as scope `cortex-docker`.
 
 ## Dependabot
 

@@ -1,0 +1,53 @@
+# Keep Docker context small (faster upload + fewer cache invalidations).
+# Do NOT exclude prompts/ or migrations/ (embedded at compile time).
+
+.git
+.github
+.cortex
+target
+**/target
+**/tmp
+**/.tmp
+tmp
+
+# Docs / non-compile paths
+docs
+sdks
+examples
+evals
+scripts
+notes
+i18n
+plugins
+.pi
+.devcontainer
+
+# Root markdown (keep prompts/**)
+/*.md
+CODEOWNERS
+LICENSE
+
+.env
+.env.*
+*.bak
+.DS_Store
+.idea
+.vscode
+
+# Python
+**/.venv
+**/__pycache__
+**/*.pyc
+**/venv
+
+# CI / local tools not needed in image
+.codecov.yml
+renovate.json
+smoke.sh
+deny.toml
+clippy.toml
+rustfmt.toml
+rust-toolchain.toml
+Makefile
+justfile
+.pre-commit-config.yaml

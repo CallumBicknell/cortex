@@ -4,14 +4,18 @@ on:
   push:
     branches: [main, master]
     tags: ["v*"]
+  # PRs: only when Docker packaging changes (CI already builds/tests Rust).
+  # Avoids multi-minute image rebuilds on every application PR.
   pull_request:
     paths:
       - "Dockerfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
+      - ".dockerignore"
       - ".github/workflows/docker.yml"
   workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -28,6 +32,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # Enable containerd image store for better cache export when available
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -47,13 +55,21 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Shared GHA cache; scoped so PR/main don't thrash each other.
+          cache-from: |
+            type=gha,scope=cortex-docker
+            type=gha,scope=cortex-docker-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=cortex-docker
+          # Skip optional attestations (saves time, smaller upload).
+          provenance: false
+          sbom: false
