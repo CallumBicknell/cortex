@@ -29,17 +29,23 @@ A skill declares:
 | `rust` | no | cargo-oriented file + shell |
 | `python` | no | pytest-oriented |
 | `javascript` | no | npm/pnpm/yarn-oriented |
-| `solidity` | no | forge-oriented guidance |
-| `review` | no | read-only review prompts |
+| `solidity` | no | Foundry/Hardhat implement + test |
+| `sc_security` | no | SC audits, vuln finding, threat models |
+| `review` | no | general code review (non-SC) |
 
 ### High-value common packs
 
 - **`skill_creator`** — adapted from [Anthropic skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator): draft → test → iterate → `skill_save` / promote; optional `cortex eval` fixtures.
 - **`frontend_design`** — adapted from [Anthropic frontend-design](https://github.com/anthropics/skills/tree/main/skills/frontend-design): intentional visual design, anti-template defaults, plan-then-build.
+- **`solidity` + `sc_security`** — coding agent loop for EVM contracts **and** security review (checklist aligned with [ETHSkills security](https://ethskills.com/); external packs from [skills.eth.sh](https://skills.eth.sh/)).
 
-Prompts: `prompts/skills/skill_creator.md`, `prompts/skills/frontend_design.md`.
+Prompts: `prompts/skills/skill_creator.md`, `prompts/skills/frontend_design.md`,
+`prompts/skills/solidity.md`, `prompts/skills/sc_security.md`.
 
-Solidity is a **skill**, not “Solidity mode”. Activating it loads related prompts/tools; it does not switch the entire agent into a special global state.
+Solidity / SC security are **skills**, not global modes. Activating them loads
+related prompts/tools; they do not replace the coding agent identity.
+
+See also: [`docs/web3-security.md`](web3-security.md).
 
 ## Selection
 

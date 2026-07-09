@@ -1,6 +1,8 @@
 # MCP server configuration
 # Copy to .cortex/mcp.toml and enable servers as needed.
 # Disabled by default so `cortex run` works offline without extra processes.
+#
+# Web3 catalog: https://skills.eth.sh/  |  https://skills.eth.sh/llms.txt
 
 # Example (stdio):
 # [[servers]]
@@ -10,7 +12,53 @@
 # args = ["-y", "@modelcontextprotocol/server-filesystem", "/absolute/path"]
 # tool_prefix = "mcp_fs"
 
-# Example (HTTP/SSE — not fully implemented; reserved for future):
+# --- Web3 / smart-contract security (from skills.eth.sh) ---
+# Uncomment and set enabled = true after installing runtimes (Node, uv, etc.).
+
+# Foundry MCP — Anvil, cast, forge workspace, Heimdall decompile
+# https://github.com/PraneshASP/foundry-mcp-server
+# [[servers]]
+# name = "foundry"
+# enabled = false
+# command = "npx"
+# args = ["-y", "@pranesh.asp/foundry-mcp-server"]
+# tool_prefix = "mcp_foundry"
+
+# Blockscout — verified source, ABI, balances, multichain reads
+# https://mcp.blockscout.com/
+# [[servers]]
+# name = "blockscout"
+# enabled = false
+# transport = "sse"
+# url = "https://mcp.blockscout.com/mcp"
+# tool_prefix = "mcp_blockscout"
+
+# Tenderly — simulation, traces, virtual testnets (OAuth / project context)
+# https://docs.tenderly.co/ai-tools/quickstart
+# [[servers]]
+# name = "tenderly"
+# enabled = false
+# transport = "sse"
+# url = "https://mcp.tenderly.co/mcp"
+# tool_prefix = "mcp_tenderly"
+
+# CoinGecko market data (public)
+# [[servers]]
+# name = "coingecko"
+# enabled = false
+# transport = "sse"
+# url = "https://mcp.api.coingecko.com/mcp"
+# tool_prefix = "mcp_cg"
+
+# Cryo — historical chain extraction (needs ETH_RPC_URL)
+# [[servers]]
+# name = "cryo"
+# enabled = false
+# command = "uvx"
+# args = ["cryo-mcp", "--rpc-url", "${ETH_RPC_URL}"]
+# tool_prefix = "mcp_cryo"
+
+# Example (HTTP/SSE — transport reserved; enable when your Cortex build supports it):
 # [[servers]]
 # name = "remote"
 # enabled = false

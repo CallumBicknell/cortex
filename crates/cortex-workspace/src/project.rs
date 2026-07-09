@@ -82,6 +82,18 @@ impl ProjectInfo {
         if root.join("foundry.toml").is_file() {
             package_managers.push("forge".into());
             test_command = test_command.or(Some("forge test".into()));
+            lint_command = lint_command.or(Some("forge fmt --check".into()));
+        }
+        // Optional static analysis marker — helps skill scoring for audits.
+        if root.join("slither.config.json").is_file() || root.join(".slither.config.json").is_file()
+        {
+            key_files.push("slither.config.json".into());
+            if !package_managers.iter().any(|p| p == "slither") {
+                package_managers.push("slither".into());
+            }
+        }
+        if root.join("remappings.txt").is_file() {
+            key_files.push("remappings.txt".into());
         }
 
         for name in [
@@ -152,5 +164,21 @@ mod tests {
         let info = ProjectInfo::detect(dir.path());
         assert!(info.languages.contains(&"rust".into()));
         assert_eq!(info.test_command.as_deref(), Some("cargo test"));
+    }
+
+    #[test]
+    fn detects_foundry_solidity() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("foundry.toml"), "[profile.default]\n").unwrap();
+        fs::write(
+            dir.path().join("remappings.txt"),
+            "forge-std/=lib/forge-std/\n",
+        )
+        .unwrap();
+        let info = ProjectInfo::detect(dir.path());
+        assert!(info.languages.contains(&"solidity".into()));
+        assert!(info.package_managers.contains(&"forge".into()));
+        assert_eq!(info.test_command.as_deref(), Some("forge test"));
+        assert!(info.key_files.iter().any(|k| k == "remappings.txt"));
     }
 }

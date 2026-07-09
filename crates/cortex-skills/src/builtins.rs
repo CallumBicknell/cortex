@@ -203,7 +203,11 @@ pub fn builtin_skills() -> Vec<Skill> {
             .tags(["javascript", "typescript", "node", "npm", "pnpm", "yarn"]),
         Skill::new(
             "solidity",
-            "Solidity / smart-contract workflows (Foundry-oriented)",
+            "Solidity / EVM smart-contract development (Foundry-oriented). \
+             Use for implementing contracts, forge tests, remappings, Hardhat, \
+             OpenZeppelin integrations, or any .sol / foundry.toml work — \
+             including when the user says 'write a vault', 'add a forge test', \
+             or 'fix the contract compile'.",
         )
         .tools([
             "shell",
@@ -211,7 +215,11 @@ pub fn builtin_skills() -> Vec<Skill> {
             "write_file",
             "edit_file",
             "glob_files",
+            "list_dir",
             "apply_patch",
+            "code_outline",
+            "workspace_symbols",
+            "code_definition",
         ])
         .prompts(["skills/solidity", "security"])
         .tags([
@@ -219,13 +227,84 @@ pub fn builtin_skills() -> Vec<Skill> {
             "foundry",
             "forge",
             "ethereum",
+            "evm",
             "smart contract",
-            "slither",
-            "audit",
+            "smart contracts",
+            "hardhat",
+            "openzeppelin",
+            "erc20",
+            "erc721",
+            "erc4626",
+            ".sol",
+            "foundry.toml",
+            "anvil",
+            "cast",
         ]),
-        Skill::new("review", "Code review and quality focus")
-            .tools(["read_file", "glob_files", "list_dir"])
+        // Smart-contract security — methodology aligned with common Web3 audit
+        // practice and ethskills.com/security; catalog: https://skills.eth.sh/
+        Skill::new(
+            "sc_security",
+            "Smart-contract security audits and vulnerability finding for Solidity/EVM. \
+             Use whenever the user wants an audit, threat model, pre-deploy review, \
+             reentrancy/oracle/auth check, exploit sketch, Slither pass, or to \
+             'find vulns' / 'security review' contracts — even if they only say \
+             'is this safe?', 'check this vault', or 'x-ray this protocol'.",
+        )
+        .tools([
+            "shell",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "glob_files",
+            "list_dir",
+            "apply_patch",
+            "code_outline",
+            "workspace_symbols",
+            "code_definition",
+            "spawn_subagent",
+            "http_request",
+            "web_search",
+        ])
+        .prompts(["skills/sc_security", "skills/solidity", "security"])
+        .tags([
+            "sc_security",
+            "smart contract security",
+            "solidity security",
+            "audit",
+            "security audit",
+            "security review",
+            "vulnerability",
+            "vulnerabilities",
+            "vuln",
+            "find vulns",
+            "reentrancy",
+            "slither",
+            "mythril",
+            "echidna",
+            "medusa",
+            "invariant",
+            "threat model",
+            "x-ray",
+            "pre-deploy",
+            "pre audit",
+            "pre-audit",
+            "exploit",
+            "poc",
+            "access control",
+            "oracle manipulation",
+            "flash loan",
+            "delegatecall",
+            "upgradeable",
+            "uups",
+            "erc-4626 inflation",
+            "mev",
+            "quillshield",
+            "pashov",
+            "web3 security",
+        ]),
+        Skill::new("review", "Code review and quality focus (general software)")
+            .tools(["read_file", "glob_files", "list_dir", "code_outline"])
             .prompts(["review"])
-            .tags(["review", "audit", "quality"]),
+            .tags(["code review", "quality", "pr review", "review this pr"]),
     ]
 }

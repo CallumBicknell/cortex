@@ -75,6 +75,7 @@ mod tests {
         let reg = SkillRegistry::with_builtins();
         assert!(reg.get("coding").unwrap().always_on);
         assert!(reg.get("solidity").is_some());
+        assert!(reg.get("sc_security").is_some());
         assert!(reg.ids().len() >= 8);
     }
 }

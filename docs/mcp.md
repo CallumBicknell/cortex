@@ -36,6 +36,16 @@ to see both builtins and MCP-prefixed tools.
 
 Prefer attaching to a CDP endpoint (Obscura, Chrome) via native browser tools — see [`docs/browser.md`](browser.md). Alternatively, enable a Playwright/Puppeteer MCP server entry for richer automation.
 
+## Web3 servers (skills.eth.sh)
+
+Commented templates live in `config/mcp.toml` for Foundry MCP, Blockscout,
+Tenderly, CoinGecko, and Cryo. Full catalog: [https://skills.eth.sh/](https://skills.eth.sh/)
+and [llms.txt](https://skills.eth.sh/llms.txt).
+
+For smart-contract audits, local `forge` / `slither` via the shell tool plus the
+builtin `sc_security` skill is enough to start; MCP adds onchain reads and
+simulation. See [`docs/web3-security.md`](web3-security.md).
+
 ## Security
 
 MCP tools inherit the same permission modes as other tools (`ask` by default unless listed in `security.toml`). Prefer explicit allow-lists for untrusted servers.

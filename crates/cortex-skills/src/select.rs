@@ -129,9 +129,44 @@ mod tests {
     #[test]
     fn prompt_selects_solidity() {
         let reg = SkillRegistry::with_builtins();
-        let sel = select_skills(&reg, "audit this solidity contract with forge", None, &[]);
+        let sel = select_skills(&reg, "add a forge test for this solidity vault", None, &[]);
         assert!(sel.skill_ids.contains(&"solidity".to_string()));
         assert!(sel.prompts.iter().any(|p| p.contains("solidity")));
+    }
+
+    #[test]
+    fn prompt_selects_sc_security_on_audit() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "audit this contract for reentrancy and find vulns",
+            None,
+            &[],
+        );
+        assert!(
+            sel.skill_ids.contains(&"sc_security".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+        assert!(sel.prompts.iter().any(|p| p.contains("sc_security")));
+    }
+
+    #[test]
+    fn foundry_project_selects_solidity() {
+        let reg = SkillRegistry::with_builtins();
+        let project = ProjectInfo {
+            languages: vec!["solidity".into()],
+            package_managers: vec!["forge".into()],
+            test_command: Some("forge test".into()),
+            lint_command: Some("forge fmt --check".into()),
+            key_files: vec!["foundry.toml".into()],
+        };
+        let sel = select_skills(&reg, "fix the failing test", Some(&project), &[]);
+        assert!(
+            sel.skill_ids.contains(&"solidity".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
     }
 
     #[test]

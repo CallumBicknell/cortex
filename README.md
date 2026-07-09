@@ -1,8 +1,9 @@
 # Cortex
 
-An operating system for AI agents.
+An operating system for AI agents — with a **coding agent loop** and
+**smart-contract security** skills (Solidity / Foundry audits, vuln finding).
 
-Cortex is an open-source **agent runtime**: durable, observable, provider-agnostic execution for autonomous agents. The LLM is one component. **The runtime is the product.**
+Cortex is an open-source **agent runtime**: durable, observable, provider-agnostic execution for autonomous agents. The LLM is one component. **The runtime is the product.** Web3 tooling can be extended via [skills.eth.sh](https://skills.eth.sh/) MCP/skill packs (see [`docs/web3-security.md`](docs/web3-security.md)).
 
 ## Status
 
@@ -24,7 +25,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | CLI (`cortex run` / `chat` / `init`) | Implemented |
 | SQLite sessions / checkpoints | Implemented |
 | Workspace map + context budgets | Implemented |
-| Skills + prompts (capability packs) | Implemented |
+| Skills + prompts (coding, Solidity, SC security, …) | Implemented |
 | Security policy + audit + redaction | Implemented |
 | MCP client + docker/search/patch tools | Implemented |
 | Browser tools via CDP (Obscura/Chrome) | Implemented |
@@ -117,6 +118,7 @@ cargo run -p cortex-cli -- run "What is Cortex?" --json
 # In any project:
 cargo run -p cortex-cli -- init
 cargo run -p cortex-cli -- run "Summarize this repo" --model ollama --yolo
+cargo run -p cortex-cli -- run "Audit this Foundry project for reentrancy" --skills sc_security,solidity
 cargo run -p cortex-cli -- chat --model openai
 
 # Sessions (persisted under .cortex/data/cortex.db)

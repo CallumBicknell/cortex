@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   code outline / workspace symbols / definition, skill evolution tools
 - **Skills**: capability packs including `skill_creator` and `frontend_design`
   (adapted from Anthropic skills guidance)
+- **Smart contract security**: builtin `sc_security` skill + hardened `solidity`
+  prompts (ETHSkills-style checklist, audit report format, Foundry/Slither
+  workflow); system identity as coding agent + SC security; project markers for
+  remappings/Slither; MCP examples and docs for [skills.eth.sh](https://skills.eth.sh/)
+  (Pashov, QuillShield, Foundry MCP, Blockscout, Tenderly)
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`

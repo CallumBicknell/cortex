@@ -171,6 +171,10 @@ const BUILTIN_PROMPTS: &[(&str, &str)] = &[
         include_str!("../../../prompts/skills/solidity.md"),
     ),
     (
+        "skills/sc_security",
+        include_str!("../../../prompts/skills/sc_security.md"),
+    ),
+    (
         "skills/skill_creator",
         include_str!("../../../prompts/skills/skill_creator.md"),
     ),
@@ -194,6 +198,8 @@ mod tests {
         let cat = PromptCatalog::with_builtins();
         assert!(cat.get("system").is_ok());
         assert!(cat.get("skills/rust").is_ok());
+        assert!(cat.get("skills/sc_security").is_ok());
+        assert!(cat.get("skills/solidity").is_ok());
         assert!(cat.ids().len() >= 10);
     }
 
