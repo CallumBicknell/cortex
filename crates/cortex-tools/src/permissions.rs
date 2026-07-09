@@ -52,6 +52,7 @@ impl Default for PermissionPolicy {
             "git_status",
             "git_diff",
             "git_log",
+            "web_search",
         ] {
             tools.insert(name.to_string(), PermissionMode::Allow);
         }
@@ -59,10 +60,12 @@ impl Default for PermissionPolicy {
         for name in [
             "write_file",
             "edit_file",
+            "apply_patch",
             "shell",
             "git_add",
             "git_commit",
             "http_request",
+            "docker_run",
         ] {
             tools.insert(name.to_string(), PermissionMode::Ask);
         }

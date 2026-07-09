@@ -2,12 +2,14 @@
 
 use anyhow::{bail, Context, Result};
 use cortex_llm::{ModelsConfig, ProviderRegistry, ResolvedModel};
+use cortex_mcp::{load_and_register_mcp, McpConfig};
 use cortex_security::{PolicyApprover, SecurityPolicy};
 use cortex_tools::{register_default_tools, ToolContext, ToolExecutor, ToolRegistry};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::approver::CliApprover;
 use crate::db_audit::audit_sink_for;
@@ -94,8 +96,8 @@ pub struct AppContext {
 }
 
 impl AppContext {
-    /// Load config, providers, tools, and security policy.
-    pub fn bootstrap(paths: Paths, yolo: bool) -> Result<Self> {
+    /// Load config, providers, tools, MCP servers, and security policy.
+    pub async fn bootstrap(paths: Paths, yolo: bool) -> Result<Self> {
         let models = ModelsConfig::from_file(&paths.models_config)
             .with_context(|| format!("load {}", paths.models_config.display()))?;
         let registry = ProviderRegistry::from_config(&models)
@@ -103,6 +105,14 @@ impl AppContext {
 
         let mut tool_reg = ToolRegistry::new();
         register_default_tools(&mut tool_reg).context("register default tools")?;
+
+        if let Some(mcp_cfg) = load_mcp_config(&paths)? {
+            let n = load_and_register_mcp(&mcp_cfg, &mut tool_reg).await;
+            if n > 0 {
+                info!(tools = n, "MCP tools registered");
+            }
+        }
+
         let tools = ToolExecutor::new(Arc::new(tool_reg));
 
         let security = load_security_policy(&paths, yolo)?;
@@ -154,6 +164,24 @@ impl AppContext {
             default_timeout: Duration::from_secs(sec.shell_timeout_secs.max(1)),
         }
     }
+}
+
+/// Load MCP config if present (optional).
+pub fn load_mcp_config(paths: &Paths) -> Result<Option<McpConfig>> {
+    let candidates = [
+        std::env::var("CORTEX_MCP_CONFIG").ok().map(PathBuf::from),
+        Some(paths.cortex_dir.join("mcp.toml")),
+        Some(PathBuf::from("config/mcp.toml")),
+        Some(paths.workspace.join("config/mcp.toml")),
+    ];
+    for cand in candidates.into_iter().flatten() {
+        if cand.is_file() {
+            let cfg = McpConfig::from_file(&cand)
+                .with_context(|| format!("load MCP config {}", cand.display()))?;
+            return Ok(Some(cfg));
+        }
+    }
+    Ok(None)
 }
 
 /// Load security.toml from env, `.cortex/security.toml`, or `config/security.toml`.

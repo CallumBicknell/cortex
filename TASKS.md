@@ -161,13 +161,24 @@
 
 ---
 
+# Phase 10 — MCP + advanced tools
+
+* [x] P10.1 MCP stdio client (initialize, tools/list, tools/call)
+* [x] P10.2 `config/mcp.toml` + CLI bootstrap registration
+* [x] P10.3 Browser via MCP (documented; not hard-coded)
+* [x] P10.4 `docker_run` tool
+* [x] P10.5 `web_search` (Tavily/Brave)
+* [x] P10.6 `apply_patch` tool
+* [x] P10.7 Mock MCP stdio integration test + `docs/mcp.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 10 | MCP + advanced tools |
 | 11 | Plugin system |
 | 12 | Summaries + embeddings |
 | 13 | Parser / tree-sitter / LSP |

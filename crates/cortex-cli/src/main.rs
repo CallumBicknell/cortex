@@ -290,7 +290,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             ToolsCmd::List => cmd_tools_list()?,
         },
         Commands::Models { command } => match command {
-            ModelsCmd::List => cmd_models_list(cli.workspace, cli.config)?,
+            ModelsCmd::List => cmd_models_list(cli.workspace, cli.config).await?,
         },
         Commands::Sessions { command } => {
             return cmd_sessions(cli.workspace, cli.config, command).await;
@@ -510,7 +510,7 @@ async fn cmd_run(
     skills: Vec<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
-    let app = AppContext::bootstrap(paths.clone(), yolo)?;
+    let app = AppContext::bootstrap(paths.clone(), yolo).await?;
     let resolved = app.resolve_model(model.as_deref())?;
     let store = if no_save {
         None
@@ -612,7 +612,7 @@ async fn cmd_chat(
     skills: Vec<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
-    let app = AppContext::bootstrap(paths.clone(), yolo)?;
+    let app = AppContext::bootstrap(paths.clone(), yolo).await?;
     let resolved = app.resolve_model(model.as_deref())?;
     let store = open_store(&paths).await?;
 
@@ -871,9 +871,9 @@ fn cmd_tools_list() -> Result<()> {
     Ok(())
 }
 
-fn cmd_models_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()> {
+async fn cmd_models_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()> {
     let paths = Paths::resolve(workspace, config)?;
-    let app = AppContext::bootstrap(paths, true)?;
+    let app = AppContext::bootstrap(paths, true).await?;
     println!("config: {}\n", app.paths.models_config.display());
     println!("Providers:");
     for id in app.registry.provider_ids() {

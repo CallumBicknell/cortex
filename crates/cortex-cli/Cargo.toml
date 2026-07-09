@@ -20,6 +20,7 @@ cortex-common = { path = "../cortex-common" }
 # SessionId used in app tool_context
 cortex-core = { path = "../cortex-core" }
 cortex-llm = { path = "../cortex-llm" }
+cortex-mcp = { path = "../cortex-mcp" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
 cortex-prompts = { path = "../cortex-prompts" }

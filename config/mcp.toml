@@ -1,0 +1,24 @@
+# MCP server configuration
+# Copy to .cortex/mcp.toml and enable servers as needed.
+# Disabled by default so `cortex run` works offline without extra processes.
+
+# Example (stdio):
+# [[servers]]
+# name = "filesystem"
+# enabled = true
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/absolute/path"]
+# tool_prefix = "mcp_fs"
+
+# Example (HTTP/SSE — not fully implemented; reserved for future):
+# [[servers]]
+# name = "remote"
+# enabled = false
+# transport = "sse"
+# url = "http://127.0.0.1:3000/sse"
+
+[[servers]]
+name = "example_disabled"
+enabled = false
+command = "echo"
+args = ["not-used"]

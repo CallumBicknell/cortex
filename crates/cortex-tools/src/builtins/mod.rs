@@ -1,15 +1,21 @@
 //! Builtin tools shipped with Cortex.
 
+pub mod diff;
+pub mod docker;
 pub mod filesystem;
 pub mod git;
 pub mod http;
+pub mod search;
 pub mod shell;
 
 use crate::error::Result;
 use crate::registry::ToolRegistry;
+use diff::ApplyPatchTool;
+use docker::DockerRunTool;
 use filesystem::{EditFileTool, GlobFilesTool, ListDirTool, ReadFileTool, WriteFileTool};
 use git::{GitAddTool, GitCommitTool, GitDiffTool, GitLogTool, GitStatusTool};
 use http::HttpRequestTool;
+use search::WebSearchTool;
 use shell::ShellTool;
 use std::sync::Arc;
 
@@ -20,6 +26,7 @@ pub fn register_default_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register(Arc::new(EditFileTool))?;
     registry.register(Arc::new(ListDirTool))?;
     registry.register(Arc::new(GlobFilesTool))?;
+    registry.register(Arc::new(ApplyPatchTool))?;
     registry.register(Arc::new(ShellTool))?;
     registry.register(Arc::new(GitStatusTool))?;
     registry.register(Arc::new(GitDiffTool))?;
@@ -27,6 +34,8 @@ pub fn register_default_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register(Arc::new(GitAddTool))?;
     registry.register(Arc::new(GitCommitTool))?;
     registry.register(Arc::new(HttpRequestTool::new()))?;
+    registry.register(Arc::new(DockerRunTool))?;
+    registry.register(Arc::new(WebSearchTool::from_env()))?;
     Ok(())
 }
 
@@ -38,6 +47,7 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "edit_file",
         "list_dir",
         "glob_files",
+        "apply_patch",
         "shell",
         "git_status",
         "git_diff",
@@ -45,5 +55,7 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "git_add",
         "git_commit",
         "http_request",
+        "docker_run",
+        "web_search",
     ]
 }

@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–9 complete: agent OS core through security policy/audit. Still missing: TUI, MCP/plugins, and OS-level sandboxing (bubblewrap/firejail).
+**Early development (v0.1.0).** Phases 0–10 complete: agent OS core through MCP and advanced tools. Still missing: plugin system, TUI, and OS-level sandboxing (bubblewrap/firejail).
 
 | Area | Status |
 |------|--------|
@@ -26,6 +26,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Workspace map + context budgets | Implemented |
 | Skills + prompts (capability packs) | Implemented |
 | Security policy + audit + redaction | Implemented |
+| MCP client + docker/search/patch tools | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
@@ -59,8 +60,9 @@ crates/
   cortex-prompts/   # Markdown prompts + templates
   cortex-skills/    # Skill packs (not hard-coded modes)
   cortex-security/  # Policy, redaction, approval audit
+  cortex-mcp/       # MCP stdio client → Tool adapters
   cortex-cli/       # `cortex` binary
-config/             # Default TOML configuration (models + security)
+config/             # Default TOML (models, security, mcp)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
@@ -171,7 +173,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M7 Context-aware | Repo map + token budgets ✓ |
 | M8 Skills | Capability packs + prompts ✓ |
 | M9 Security | Policy + audit + redaction ✓ |
-| M10+ | MCP, plugins, TUI |
+| M10 MCP + tools | MCP, docker, search, patch ✓ |
+| M11+ | Plugins, TUI, API |
 
 Full task list: [`TASKS.md`](TASKS.md).
 
