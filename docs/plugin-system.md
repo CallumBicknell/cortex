@@ -96,6 +96,15 @@ If any `init` fails, bootstrap fails (fail closed).
 - Prefer MCP or the sandbox shell for untrusted third-party code.
 - Tool permission modes in `security.toml` still apply to plugin-contributed tools.
 
+## Shipped external plugins
+
+| Path | Tools | Notes |
+|------|-------|-------|
+| `plugins/example_echo/` | `ext_example_echo` | Demo |
+| `plugins/foundry_helpers/` | `forge_version`, `forge_build`, `forge_test`, `forge_test_verbose`, `forge_test_match`, `forge_test_fuzz`, `forge_fmt_check` | Fixed-arg Foundry; needs `forge` on PATH; `cwd = "{workspace}"` |
+
+`cortex init --web3` copies `foundry_helpers` into `.cortex/plugins/foundry_helpers/`.
+
 ## External plugin layout
 
 ```text

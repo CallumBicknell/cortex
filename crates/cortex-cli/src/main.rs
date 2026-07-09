@@ -1263,7 +1263,9 @@ This project was initialized with `cortex init --web3`.
 
 ## Guidance for the agent
 
-- Prefer Foundry (`forge build`, `forge test`) when `foundry.toml` is present.
+- Prefer Foundry when `foundry.toml` is present.
+- Prefer fixed tools `forge_build` / `forge_test` / `forge_test_match` (foundry_helpers
+  plugin under `.cortex/plugins/`) over freeform shell when available.
 - For audits use skills `sc_security`, `solidity`, and optionally `sc_xray`.
 - Multi-lens: tool `audit_lenses` (parallel specialty reviewers).
 - Write durable reports with `write_audit_report` under `.cortex/audits/`.
@@ -1275,6 +1277,8 @@ This project was initialized with `cortex init --web3`.
 - Assisted review is not a professional audit.
 - Note when Slither/Aderyn/forge are missing; do not invent tool output.
 "#;
+
+const FOUNDRY_HELPERS_PLUGIN: &str = include_str!("../../../plugins/foundry_helpers/plugin.toml");
 
 fn cmd_update(dry_run: bool) -> Result<()> {
     let install = "curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh";
@@ -1379,9 +1383,26 @@ async fn cmd_init(workspace: Option<PathBuf>, force: bool, web3: bool) -> Result
         if !agents.exists() {
             let stub = "# Project agent notes\n\n\
                         See `.cortex/instructions.md` for Web3/audit defaults.\n\
-                        Prefer `cortex run \"…\" --skills sc_security,solidity`.\n";
+                        Prefer `cortex run \"…\" --skills sc_security,solidity`.\n\
+                        Prefer `forge_build` / `forge_test` tools when available.\n";
             std::fs::write(&agents, stub).ok();
             println!("✓ wrote {}", agents.display());
+        }
+
+        // Fixed-arg forge tools (auto-discovered under .cortex/plugins/).
+        let plug_dir = cortex_dir.join("plugins").join("foundry_helpers");
+        let plug_toml = plug_dir.join("plugin.toml");
+        if plug_toml.exists() && !force {
+            println!(
+                "✓ {} already exists (use --force to overwrite)",
+                plug_toml.display()
+            );
+        } else {
+            std::fs::create_dir_all(&plug_dir)
+                .with_context(|| format!("create {}", plug_dir.display()))?;
+            std::fs::write(&plug_toml, FOUNDRY_HELPERS_PLUGIN)
+                .with_context(|| format!("write {}", plug_toml.display()))?;
+            println!("✓ wrote {} (forge_* tools)", plug_toml.display());
         }
     }
 

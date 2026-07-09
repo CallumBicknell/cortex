@@ -19,6 +19,10 @@ from the user message and project fingerprint (e.g. `foundry.toml`).
 ## CLI examples
 
 ```bash
+# Web3 scaffold (MCP + instructions + foundry_helpers plugin)
+cortex init --web3
+cortex tools list | grep forge_
+
 # Implement / fix contracts (auto-selects solidity on Foundry projects)
 cortex run "Add a withdraw function with CEI and a forge test"
 
@@ -35,6 +39,10 @@ cortex skills list
 # Solidity outlines
 cortex parse outline examples/foundry-vault/src/VulnerableVault.sol
 ```
+
+### Foundry helpers plugin
+
+`plugins/foundry_helpers` (also copied by `init --web3` into `.cortex/plugins/`) registers fixed-arg tools: `forge_version`, `forge_build`, `forge_test`, `forge_test_verbose`, `forge_test_match`, `forge_test_fuzz`, `forge_fmt_check`. Prefer these over freeform `shell` when auditing. Missing `forge` fails honestly.
 
 ## Audit loop
 

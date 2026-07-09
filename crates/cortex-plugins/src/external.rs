@@ -198,10 +198,21 @@ impl Tool for ExternalCommandTool {
             return Err(ToolError::Execution("plugin tool has empty command".into()));
         }
         let program = argv.remove(0);
-        let cwd = if let Some(rel) = &self.def.cwd {
-            self.plugin_dir.join(rel)
-        } else {
-            self.plugin_dir.clone()
+        let cwd = match self.def.cwd.as_deref() {
+            None => self.plugin_dir.clone(),
+            Some("{workspace}") | Some("workspace") => self.workspace.clone(),
+            Some(rel) if rel.starts_with("{workspace}") => {
+                // `{workspace}/subdir` style
+                let rest = rel
+                    .trim_start_matches("{workspace}")
+                    .trim_start_matches('/');
+                if rest.is_empty() {
+                    self.workspace.clone()
+                } else {
+                    self.workspace.join(rest)
+                }
+            }
+            Some(rel) => self.plugin_dir.join(rel),
         };
 
         let mut cmd = Command::new(&program);
@@ -292,6 +303,15 @@ mod tests {
     use super::*;
     use cortex_tools::ToolRegistry;
     use tempfile::tempdir;
+
+    #[test]
+    fn expand_workspace_placeholder() {
+        let ws = PathBuf::from("/tmp/proj");
+        let s = expand_placeholders("cd {workspace}", &ws, "{}", &json!({}));
+        assert_eq!(s, "cd /tmp/proj");
+        let s = expand_placeholders("{arg:pattern}", &ws, "{}", &json!({"pattern": "test/*"}));
+        assert_eq!(s, "test/*");
+    }
 
     #[test]
     fn load_and_discover() {

@@ -1,0 +1,61 @@
+# Fixed-arg Foundry tools (safer than freeform shell).
+# Auto-discovered under `plugins/` or `.cortex/plugins/`.
+# Requires `forge` on PATH. Missing forge → honest tool error.
+
+id = "foundry_helpers"
+name = "Foundry Helpers"
+version = "0.1.0"
+description = "forge build / test / fmt with fixed argv (runs in workspace)"
+
+[[tools]]
+name = "forge_version"
+description = "Print forge version (check Foundry is installed). Honest error if forge missing."
+command = ["forge", "--version"]
+cwd = "{workspace}"
+timeout_secs = 30
+
+[[tools]]
+name = "forge_build"
+description = "Compile the Foundry project (forge build). Use when foundry.toml exists."
+command = ["forge", "build"]
+cwd = "{workspace}"
+timeout_secs = 300
+
+[[tools]]
+name = "forge_test"
+description = "Run Foundry unit tests (forge test)."
+command = ["forge", "test"]
+cwd = "{workspace}"
+timeout_secs = 600
+
+[[tools]]
+name = "forge_test_verbose"
+description = "Run Foundry tests with high verbosity (forge test -vvv)."
+command = ["forge", "test", "-vvv"]
+cwd = "{workspace}"
+timeout_secs = 600
+
+[[tools]]
+name = "forge_test_match"
+description = "Run Foundry tests matching a path pattern (forge test --match-path PATTERN)."
+command = ["forge", "test", "--match-path", "{arg:pattern}"]
+cwd = "{workspace}"
+timeout_secs = 600
+[tools.parameters]
+pattern = { type = "string", description = "Path glob e.g. test/Reentrancy.t.sol or test/**/*.sol" }
+
+[[tools]]
+name = "forge_test_fuzz"
+description = "Run Foundry tests with a fuzz run budget (forge test --fuzz-runs N)."
+command = ["forge", "test", "--fuzz-runs", "{arg:runs}"]
+cwd = "{workspace}"
+timeout_secs = 900
+[tools.parameters]
+runs = { type = "string", description = "Number of fuzz runs (e.g. 256, 1000)" }
+
+[[tools]]
+name = "forge_fmt_check"
+description = "Check Solidity formatting (forge fmt --check)."
+command = ["forge", "fmt", "--check"]
+cwd = "{workspace}"
+timeout_secs = 120
