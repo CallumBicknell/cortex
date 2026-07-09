@@ -97,6 +97,14 @@ cortex skills import ./SKILL.md --id external_pack
 Writes `.cortex/skills/` + `.cortex/prompts/`. Catalog: `web3_catalog` skill.
 Recipes: [`web3-recipes.md`](web3-recipes.md).
 
+## Loop quality (P24)
+
+- Parallel read-only tool batches
+- `--plan` mode guidance
+- `--verify` / `--verify-cmd` after file writes
+
+See [`loop-quality.md`](loop-quality.md).
+
 ## Self-evolving skills
 
 See [`evolving-skills.md`](evolving-skills.md).

@@ -92,6 +92,15 @@ enum Commands {
         /// Comma-separated skill ids (default: auto-select from prompt + project).
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
+        /// Plan mode: prefer read/plan before writes; inject plan guidance.
+        #[arg(long)]
+        plan: bool,
+        /// After file edits, run the project test command (from project detect or --verify-cmd).
+        #[arg(long)]
+        verify: bool,
+        /// Override verify shell command (implies --verify).
+        #[arg(long)]
+        verify_cmd: Option<String>,
     },
     /// Interactive multi-turn chat REPL.
     Chat {
@@ -110,6 +119,15 @@ enum Commands {
         /// Comma-separated skill ids (default: auto).
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
+        /// Plan mode for each turn.
+        #[arg(long)]
+        plan: bool,
+        /// After file edits, run project tests.
+        #[arg(long)]
+        verify: bool,
+        /// Override verify shell command (implies --verify).
+        #[arg(long)]
+        verify_cmd: Option<String>,
     },
     /// Tool helpers.
     Tools {
@@ -400,6 +418,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             session,
             no_save,
             skills,
+            plan,
+            verify,
+            verify_cmd,
         } => {
             return cmd_run(
                 cli.workspace,
@@ -412,6 +433,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 session,
                 no_save,
                 skills,
+                plan,
+                verify,
+                verify_cmd,
             )
             .await;
         }
@@ -421,6 +445,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             max_turns,
             session,
             skills,
+            plan,
+            verify,
+            verify_cmd,
         } => {
             return cmd_chat(
                 cli.workspace,
@@ -430,6 +457,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 max_turns,
                 session,
                 skills,
+                plan,
+                verify,
+                verify_cmd,
             )
             .await;
         }
@@ -1126,6 +1156,9 @@ async fn cmd_run(
     session_id: Option<String>,
     no_save: bool,
     skills: Vec<String>,
+    plan: bool,
+    verify: bool,
+    verify_cmd: Option<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths.clone(), yolo).await?;
@@ -1162,10 +1195,15 @@ async fn cmd_run(
     let session_id_for_ctx = session.id;
 
     let tool_ctx = app.tool_context(cancel.clone(), store.as_ref(), Some(session_id_for_ctx));
+    let (verify_after_writes, verify_command) =
+        resolve_verify(verify, verify_cmd, &app.paths.workspace);
     let loop_cfg = AgentLoopConfig {
         max_turns,
         context,
         summarize: SummarizeConfig::default(),
+        plan_mode: plan,
+        verify_after_writes,
+        verify_command,
         ..Default::default()
     };
     let tools = tools_with_subagent(
@@ -1248,11 +1286,16 @@ async fn cmd_chat(
     max_turns: u32,
     session_id: Option<String>,
     skills: Vec<String>,
+    plan: bool,
+    verify: bool,
+    verify_cmd: Option<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths.clone(), yolo).await?;
     let resolved = app.resolve_model(model.as_deref())?;
     let store = open_store(&paths).await?;
+    let (verify_after_writes, verify_command) =
+        resolve_verify(verify, verify_cmd, &app.paths.workspace);
 
     let mut session =
         load_or_new_session(Some(&store), session_id.as_deref(), &app, &resolved).await?;
@@ -1264,6 +1307,15 @@ async fn cmd_chat(
     println!("workspace: {}", app.paths.workspace.display());
     println!("session:   {}", session.id);
     println!("db:        {}", app.paths.database.display());
+    if plan {
+        println!("plan mode: on");
+    }
+    if verify_after_writes {
+        println!(
+            "verify:    {}",
+            verify_command.as_deref().unwrap_or("(none)")
+        );
+    }
     println!("Type a message, or /quit to exit. Ctrl-C cancels the current turn.\n");
 
     let stdin = io::stdin();
@@ -1298,6 +1350,9 @@ async fn cmd_chat(
             max_turns,
             context,
             summarize: SummarizeConfig::default(),
+            plan_mode: plan,
+            verify_after_writes,
+            verify_command: verify_command.clone(),
             ..Default::default()
         };
         let tools = tools_with_subagent(
@@ -1409,6 +1464,9 @@ async fn cmd_sessions(
                 max_turns,
                 Some(id),
                 Vec::new(),
+                false,
+                false,
+                None,
             )
             .await;
         }
@@ -1512,6 +1570,22 @@ async fn persist_output(
 
 fn parse_session_id(s: &str) -> Result<SessionId> {
     SessionId::from_str(s).map_err(|e| anyhow::anyhow!("invalid session id: {e}"))
+}
+
+/// Resolve verify-after-writes settings from CLI flags + project fingerprint.
+fn resolve_verify(
+    verify: bool,
+    verify_cmd: Option<String>,
+    workspace: &std::path::Path,
+) -> (bool, Option<String>) {
+    let cmd = verify_cmd.filter(|s| !s.trim().is_empty()).or_else(|| {
+        if !verify {
+            return None;
+        }
+        cortex_workspace::ProjectInfo::detect(workspace).test_command
+    });
+    let enabled = verify || cmd.is_some();
+    (enabled, cmd)
 }
 
 async fn cmd_tools_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<ExitCode> {

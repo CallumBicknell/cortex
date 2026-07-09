@@ -9,6 +9,7 @@
 pub mod builtins;
 mod error;
 mod executor;
+mod parallel;
 mod permissions;
 mod registry;
 mod tool;
@@ -20,6 +21,7 @@ pub use builtins::{
 };
 pub use error::{Result, ToolError};
 pub use executor::ToolExecutor;
+pub use parallel::{is_file_mutating, is_parallel_safe};
 pub use permissions::{PermissionMode, PermissionPolicy};
 pub use registry::ToolRegistry;
 pub use tool::{

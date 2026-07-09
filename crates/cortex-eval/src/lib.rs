@@ -197,6 +197,9 @@ pub async fn run_fixture(fixture: &EvalFixture) -> Result<EvalCaseResult> {
             max_tool_calls_per_turn: 16,
             subagent_depth: 0,
             max_subagent_depth: 1,
+            plan_mode: false,
+            verify_after_writes: false,
+            verify_command: None,
         },
     );
 

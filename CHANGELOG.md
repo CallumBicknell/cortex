@@ -37,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `.cortex/audits/`); vuln fixtures + SC eval cases
 - **Web3 skill bridge (P23)**: `cortex skills import` for SKILL.md; `web3_catalog`
   skill; recipes for skills.eth.sh MCP/packs; load `.cortex/prompts`
+- **Loop quality (P24)**: parallel read-only tool batches; `--plan` mode;
+  `--verify` / `--verify-cmd` after file writes
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`

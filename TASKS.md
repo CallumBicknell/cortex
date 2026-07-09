@@ -333,11 +333,21 @@ Optional later: `plugins/foundry_helpers` fixed-arg forge wrappers.
 
 ---
 
+# Phase 24 — Agent loop quality
+
+* [x] P24.1 Safe parallel tool batches (`execute_all` + `is_parallel_safe`)
+* [x] P24.2 `--plan` mode injects plan guidance
+* [x] P24.3 `--verify` / `--verify-cmd` after file mutations
+* [x] P24.4 Docs (`docs/loop-quality.md`)
+
+Deferred: LLM skill-pick step; richer TUI sub-agent UX; full token streaming polish.
+
+---
+
 # Upcoming (planned)
 
 | Phase | Theme |
 |-------|--------|
-| P24 | Parallel read tools, plan/verify polish |
 | P25 | Docs/release productization |
 
 Still open (later):

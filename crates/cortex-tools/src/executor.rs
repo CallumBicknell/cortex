@@ -1,10 +1,12 @@
-//! Tool executor with permissions and approval.
+//! Tool executor with permissions, approval, and safe parallel batches.
 
 use crate::error::{Result, ToolError};
+use crate::parallel::is_parallel_safe;
 use crate::permissions::PermissionMode;
 use crate::registry::ToolRegistry;
 use crate::tool::{run_tool, ApprovalDecision, ApprovalRequest, ToolContext};
 use cortex_models::{ToolCall, ToolResult};
+use futures::future::join_all;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{info, warn};
@@ -55,8 +57,69 @@ impl ToolExecutor {
         run_tool(tool.as_ref(), ctx, call).await
     }
 
-    /// Execute multiple tool calls sequentially.
+    /// Execute multiple tool calls with **safe parallel batches**.
+    ///
+    /// Consecutive [`is_parallel_safe`] tools run concurrently via `join_all`.
+    /// Mutating / shell / nested-agent tools run strictly serially and never
+    /// share a batch with other tools.
     pub async fn execute_all(&self, ctx: &ToolContext, calls: &[ToolCall]) -> Vec<ToolResult> {
+        if calls.is_empty() {
+            return Vec::new();
+        }
+        let mut out: Vec<Option<ToolResult>> = (0..calls.len()).map(|_| None).collect();
+        let mut i = 0;
+        while i < calls.len() {
+            if ctx.cancel.is_cancelled() {
+                for j in i..calls.len() {
+                    out[j] = Some(ToolResult::error(
+                        calls[j].id,
+                        &calls[j].name,
+                        "cancelled before execution",
+                    ));
+                }
+                break;
+            }
+
+            if is_parallel_safe(&calls[i].name) {
+                let start = i;
+                while i < calls.len() && is_parallel_safe(&calls[i].name) {
+                    i += 1;
+                }
+                let batch: Vec<usize> = (start..i).collect();
+                if batch.len() == 1 {
+                    let idx = batch[0];
+                    out[idx] = Some(self.execute(ctx, &calls[idx]).await);
+                } else {
+                    info!(count = batch.len(), "parallel tool batch");
+                    let futs: Vec<_> = batch
+                        .iter()
+                        .map(|&idx| {
+                            let call = calls[idx].clone();
+                            let exec = self.clone();
+                            let ctx = ctx.clone();
+                            async move { (idx, exec.execute(&ctx, &call).await) }
+                        })
+                        .collect();
+                    for (idx, result) in join_all(futs).await {
+                        out[idx] = Some(result);
+                    }
+                }
+            } else {
+                out[i] = Some(self.execute(ctx, &calls[i]).await);
+                i += 1;
+            }
+        }
+        out.into_iter()
+            .map(|r| r.expect("all tool slots filled"))
+            .collect()
+    }
+
+    /// Force sequential execution (tests / debugging).
+    pub async fn execute_all_serial(
+        &self,
+        ctx: &ToolContext,
+        calls: &[ToolCall],
+    ) -> Vec<ToolResult> {
         let mut out = Vec::with_capacity(calls.len());
         for call in calls {
             if ctx.cancel.is_cancelled() {
@@ -120,6 +183,27 @@ mod tests {
         let result = exec.execute(&ctx, &call).await;
         assert!(!result.is_error);
         assert_eq!(result.output, "hello");
+    }
+
+    #[tokio::test]
+    async fn parallel_batch_reads() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "A").unwrap();
+        std::fs::write(dir.path().join("b.txt"), "B").unwrap();
+        let mut reg = ToolRegistry::new();
+        register_default_tools(&mut reg).unwrap();
+        let exec = ToolExecutor::new(Arc::new(reg));
+        let ctx = ToolContext::for_tests(dir.path());
+        let calls = vec![
+            ToolCall::new("read_file", json!({"path": "a.txt"})),
+            ToolCall::new("read_file", json!({"path": "b.txt"})),
+        ];
+        let results = exec.execute_all(&ctx, &calls).await;
+        assert_eq!(results.len(), 2);
+        assert!(!results[0].is_error);
+        assert!(!results[1].is_error);
+        assert_eq!(results[0].output, "A");
+        assert_eq!(results[1].output, "B");
     }
 
     #[tokio::test]

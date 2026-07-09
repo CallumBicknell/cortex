@@ -11,7 +11,7 @@ use cortex_events::{
 };
 use cortex_llm::{ChatRequest, FinishReason, Provider};
 use cortex_models::{Message, Session, TaskStatus, ToolCall, ToolResult};
-use cortex_tools::{ToolContext, ToolExecutor};
+use cortex_tools::{is_file_mutating, ToolContext, ToolExecutor};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio_util::sync::CancellationToken;
@@ -40,6 +40,12 @@ pub struct AgentLoopConfig {
     pub subagent_depth: u32,
     /// Maximum allowed nesting depth for sub-agents (inclusive of this level).
     pub max_subagent_depth: u32,
+    /// When true, inject plan-mode guidance (read/plan first; no silent big rewrites).
+    pub plan_mode: bool,
+    /// After successful file-mutating tools, run `verify_command` via shell once per turn.
+    pub verify_after_writes: bool,
+    /// Shell command for verify (e.g. `cargo test` / `forge test`). Required when verify is on.
+    pub verify_command: Option<String>,
 }
 
 impl Default for AgentLoopConfig {
@@ -55,9 +61,23 @@ impl Default for AgentLoopConfig {
             max_tool_calls_per_turn: 16,
             subagent_depth: 0,
             max_subagent_depth: 2,
+            plan_mode: false,
+            verify_after_writes: false,
+            verify_command: None,
         }
     }
 }
+
+const PLAN_MODE_ADDENDUM: &str = r#"
+
+## Plan mode (active)
+
+You are in **plan mode** for this run:
+1. Prefer reading, outlining, and mapping before any write.
+2. First substantive reply should include a short **Plan** (bullets) before edits.
+3. Keep changes minimal; do not start large rewrites without stating the plan.
+4. If the user only asked for a plan, stop after the plan (no tool writes).
+"#;
 
 /// Input for one agent run against a session.
 pub struct RunInput {
@@ -298,6 +318,9 @@ impl AgentLoop {
             }
 
             let mut ctx = self.config.context.clone();
+            if self.config.plan_mode {
+                ctx.system_prompt = format!("{}{PLAN_MODE_ADDENDUM}", ctx.system_prompt);
+            }
             if let Some(summary) = self.rolling_summary() {
                 ctx = ctx.with_rolling_summary(summary);
             }
@@ -361,7 +384,16 @@ impl AgentLoop {
                     max: self.config.max_tool_calls_per_turn,
                 });
             }
+
             for call in &calls {
+                self.publish(ToolCallRequested::from_call(session.id, call).with_run_id(run_id))
+                    .await;
+            }
+
+            // Safe parallel batches for read-only tools; serial for writes/shell/agents.
+            let batch_results = self.tools.execute_all(tool_ctx, &calls).await;
+            let mut wrote_files = false;
+            for (call, result) in calls.iter().zip(batch_results.iter()) {
                 if cancel.is_cancelled() {
                     return Err(RuntimeError::Cancelled(
                         "run cancelled during tool execution".into(),
@@ -372,14 +404,38 @@ impl AgentLoop {
                 {
                     return Err(RuntimeError::RunTimeout(self.config.max_run_secs));
                 }
-                self.publish(ToolCallRequested::from_call(session.id, call).with_run_id(run_id))
+                self.emit_tool_result(session.id, run_id, call, result)
                     .await;
+                if !result.is_error && is_file_mutating(&call.name) {
+                    wrote_files = true;
+                }
+                tool_results.push(result.clone());
+                let tool_msg =
+                    Message::tool_result(result.tool_call_id, &result.name, &result.output);
+                session.push_message(tool_msg);
+            }
 
-                let result = self.tools.execute(tool_ctx, call).await;
-                self.emit_tool_result(session.id, run_id, call, &result)
+            // Optional verify hook after successful file mutations.
+            if wrote_files
+                && self.config.verify_after_writes
+                && self
+                    .config
+                    .verify_command
+                    .as_ref()
+                    .map(|c| !c.trim().is_empty())
+                    .unwrap_or(false)
+            {
+                let cmd = self.config.verify_command.as_ref().unwrap().clone();
+                info!(%cmd, "verify_after_writes: running project test command");
+                let verify_call = ToolCall::new("shell", serde_json::json!({ "command": cmd }));
+                self.publish(
+                    ToolCallRequested::from_call(session.id, &verify_call).with_run_id(run_id),
+                )
+                .await;
+                let result = self.tools.execute(tool_ctx, &verify_call).await;
+                self.emit_tool_result(session.id, run_id, &verify_call, &result)
                     .await;
                 tool_results.push(result.clone());
-
                 let tool_msg =
                     Message::tool_result(result.tool_call_id, &result.name, &result.output);
                 session.push_message(tool_msg);
