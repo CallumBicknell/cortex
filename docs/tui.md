@@ -55,7 +55,10 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 - Run summary in the status bar (`turns · tools · ms`)
 - Sessions persist to the same SQLite DB as `cortex run`
 - Project instructions (`AGENTS.md` / `.cortex/instructions.md`) injected automatically
-- Logs default to `error` inside the TUI so they don’t paint over the UI
+- Logs default to **error** for all crates during `chat`/`tui` (set before
+  tracing init) so INFO lines never paint over the alternate screen. Use
+  `--verbose` or `RUST_LOG=info` to debug.
+- Starts a **fresh session** each launch; open prior ones with `Ctrl+B`
 
 ## Not yet
 

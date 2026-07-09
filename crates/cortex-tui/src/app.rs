@@ -174,7 +174,8 @@ impl App {
             host.model_alias,
             host.workspace.display()
         );
-        let mut app = Self {
+        // Fresh conversation by default (Claude Code–style). Resume via Ctrl+B sessions.
+        Ok(Self {
             workspace: host.workspace.display().to_string(),
             model_label: format!("{} · {}/{}", host.model_alias, host.provider_id, host.model),
             database: host.database.display().to_string(),
@@ -195,13 +196,7 @@ impl App {
             status: "ready".into(),
             streaming: None,
             activity: None,
-        };
-        if let Some(s) = app.sessions.first().cloned() {
-            if let Ok(loaded) = host.load_session(s.id).await {
-                app.set_session(loaded);
-            }
-        }
-        Ok(app)
+        })
     }
 
     /// Start a fresh session.
