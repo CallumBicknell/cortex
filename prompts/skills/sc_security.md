@@ -105,9 +105,12 @@ Use tools; do not only “reason in the abstract”:
 7. Report          → structured findings (below)
 ```
 
-If `spawn_subagent` is available, parallelize specialty passes (access control,
-reentrancy/external calls, economics/oracles, upgrade/proxy) then **dedupe**
-findings by (contract, function, bug class). Cap depth; do not recurse forever.
+Prefer the **`audit_lenses`** tool for multi-lens audits: it builds a shared
+Solidity source bundle and runs specialty sub-agents **in parallel** (access,
+reentrancy, economic/oracle, proxy; optional `invariants`). Then **dedupe**
+findings by (contract, function, bug class) using the orchestrator section of
+the tool output. Use plain `spawn_subagent` only for one-off side tasks.
+Do not nest `audit_lenses` inside children.
 
 ## Report format
 

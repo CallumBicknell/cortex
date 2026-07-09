@@ -11,6 +11,8 @@ pub enum SourceLanguage {
     Rust,
     /// Python.
     Python,
+    /// Solidity.
+    Solidity,
 }
 
 impl SourceLanguage {
@@ -25,6 +27,7 @@ impl SourceLanguage {
         match ext.as_str() {
             "rs" => Ok(Self::Rust),
             "py" | "pyi" => Ok(Self::Python),
+            "sol" => Ok(Self::Solidity),
             _ => Err(ParseError::Unsupported(path.display().to_string())),
         }
     }
@@ -34,6 +37,7 @@ impl SourceLanguage {
         match self {
             Self::Rust => "rust",
             Self::Python => "python",
+            Self::Solidity => "solidity",
         }
     }
 
@@ -42,6 +46,7 @@ impl SourceLanguage {
         match self {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
             Self::Python => tree_sitter_python::LANGUAGE.into(),
+            Self::Solidity => tree_sitter_solidity::LANGUAGE.into(),
         }
     }
 }

@@ -46,6 +46,7 @@ pub fn outline_source(path: &str, source: &str, lang: SourceLanguage) -> Result<
     let symbols = match lang {
         SourceLanguage::Rust => extract_rust(tree.root_node(), source.as_bytes())?,
         SourceLanguage::Python => extract_python(tree.root_node(), source.as_bytes())?,
+        SourceLanguage::Solidity => extract_solidity(tree.root_node(), source.as_bytes())?,
     };
 
     Ok(Outline {
@@ -165,6 +166,106 @@ fn extract_python(root: Node, source: &[u8]) -> Result<Vec<Symbol>> {
     let mut symbols = Vec::new();
     walk_python(root, source, None, &mut symbols);
     Ok(symbols)
+}
+
+fn extract_solidity(root: Node, source: &[u8]) -> Result<Vec<Symbol>> {
+    let mut symbols = Vec::new();
+    walk_solidity(root, source, None, &mut symbols);
+    Ok(symbols)
+}
+
+fn walk_solidity(node: Node, source: &[u8], parent: Option<&str>, out: &mut Vec<Symbol>) {
+    let kind = node.kind();
+    match kind {
+        "contract_declaration" | "interface_declaration" | "library_declaration" => {
+            let k = match kind {
+                "interface_declaration" => "interface",
+                "library_declaration" => "library",
+                _ => "contract",
+            };
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol(k, &name, node, parent));
+                // Walk body with container as parent
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "contract_body" {
+                        walk_solidity(child, source, Some(&name), out);
+                    }
+                }
+                return;
+            }
+        }
+        "function_definition" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("function", &name, node, parent));
+                return;
+            }
+        }
+        "constructor_definition" | "constructor" => {
+            out.push(symbol("constructor", "constructor", node, parent));
+            return;
+        }
+        "fallback_receive_definition" => {
+            let text = node_text(node, source);
+            let name = if text.contains("receive") {
+                "receive"
+            } else if text.contains("fallback") {
+                "fallback"
+            } else {
+                "fallback_or_receive"
+            };
+            out.push(symbol("function", name, node, parent));
+            return;
+        }
+        "modifier_definition" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("modifier", &name, node, parent));
+                return;
+            }
+        }
+        "event_definition" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("event", &name, node, parent));
+                return;
+            }
+        }
+        "error_declaration" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("error", &name, node, parent));
+                return;
+            }
+        }
+        "struct_declaration" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("struct", &name, node, parent));
+                return;
+            }
+        }
+        "enum_declaration" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("enum", &name, node, parent));
+                return;
+            }
+        }
+        "state_variable_declaration" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("state_var", &name, node, parent));
+                return;
+            }
+        }
+        "constant_variable_declaration" => {
+            if let Some(name) = child_text(node, "name", source) {
+                out.push(symbol("constant", &name, node, parent));
+                return;
+            }
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_solidity(child, source, parent, out);
+    }
 }
 
 fn walk_python(node: Node, source: &[u8], parent: Option<&str>, out: &mut Vec<Symbol>) {
@@ -289,5 +390,62 @@ class C:
         let outline = outline_source("a.rs", "fn main() {}", SourceLanguage::Rust).unwrap();
         let text = format_outline(&outline);
         assert!(text.contains("main"));
+    }
+
+    #[test]
+    fn solidity_outline_contract_and_fn() {
+        let src = r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract Vault {
+    mapping(address => uint256) public balances;
+    event Withdraw(address indexed who, uint256 amount);
+    error ZeroAmount();
+
+    function withdraw() external {
+        uint256 bal = balances[msg.sender];
+        balances[msg.sender] = 0;
+        (bool ok,) = msg.sender.call{value: bal}("");
+        require(ok);
+    }
+
+    modifier onlyPositive(uint256 x) {
+        require(x > 0);
+        _;
+    }
+}
+
+interface IVault {
+    function deposit() external payable;
+}
+"#;
+        let outline = outline_source("Vault.sol", src, SourceLanguage::Solidity).unwrap();
+        assert!(
+            outline
+                .symbols
+                .iter()
+                .any(|s| s.kind == "contract" && s.name == "Vault"),
+            "{:?}",
+            outline.symbols
+        );
+        assert!(
+            outline
+                .symbols
+                .iter()
+                .any(|s| s.kind == "function" && s.name == "withdraw"),
+            "{:?}",
+            outline.symbols
+        );
+        assert!(
+            outline
+                .symbols
+                .iter()
+                .any(|s| s.kind == "interface" && s.name == "IVault"),
+            "{:?}",
+            outline.symbols
+        );
+        assert!(outline.symbols.iter().any(|s| s.kind == "event"));
+        assert!(outline.symbols.iter().any(|s| s.kind == "modifier"));
     }
 }

@@ -22,6 +22,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   workflow); system identity as coding agent + SC security; project markers for
   remappings/Slither; MCP examples and docs for [skills.eth.sh](https://skills.eth.sh/)
   (Pashov, QuillShield, Foundry MCP, Blockscout, Tenderly)
+- **Multi-lens audits (P17)**: `audit_lenses` tool runs parallel specialty
+  sub-agents (access, reentrancy, economic, proxy, invariants) with shared
+  Solidity source bundles under `.cortex/tmp/`
+- **Solidity outlines (P18)**: tree-sitter Solidity for `code_outline` /
+  workspace symbols (contracts, functions, modifiers, events, …)
+- **Foundry samples (P19)**: `examples/foundry-vault/`, `examples/mcp/foundry.mcp.toml`,
+  `scripts/smoke_foundry.sh`
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`

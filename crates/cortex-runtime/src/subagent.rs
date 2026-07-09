@@ -84,7 +84,7 @@ pub async fn run_subagent(
     if allowed.is_empty() {
         allowed = tools.registry().names();
     }
-    allowed.retain(|n| n != "spawn_subagent");
+    allowed.retain(|n| n != "spawn_subagent" && n != "audit_lenses");
     child_cfg.context = child_cfg.context.with_allowed_tools(allowed);
 
     info!(
@@ -150,6 +150,33 @@ pub async fn run_subagent(
     Ok(out)
 }
 
+/// Format a sub-agent result for tool output.
+pub fn format_subagent_result(out: &RunOutput) -> String {
+    let mut s = format!(
+        "sub-agent status={:?} turns={} duration_ms={}\n",
+        out.status, out.turns, out.duration_ms
+    );
+    if let Some(msg) = &out.final_message {
+        s.push_str("--- final ---\n");
+        s.push_str(msg);
+        s.push('\n');
+    }
+    if let Some(err) = &out.error {
+        s.push_str("--- error ---\n");
+        s.push_str(err);
+        s.push('\n');
+    }
+    if !out.tool_results.is_empty() {
+        s.push_str("--- tools ---\n");
+        for t in &out.tool_results {
+            let flag = if t.is_error { "ERR" } else { "ok" };
+            let preview: String = t.output.chars().take(160).collect();
+            s.push_str(&format!("[{flag}] {}: {preview}\n", t.name));
+        }
+    }
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,31 +219,4 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, RuntimeError::SubAgentDepth(1)));
     }
-}
-
-/// Format a sub-agent result for tool output.
-pub fn format_subagent_result(out: &RunOutput) -> String {
-    let mut s = format!(
-        "sub-agent status={:?} turns={} duration_ms={}\n",
-        out.status, out.turns, out.duration_ms
-    );
-    if let Some(msg) = &out.final_message {
-        s.push_str("--- final ---\n");
-        s.push_str(msg);
-        s.push('\n');
-    }
-    if let Some(err) = &out.error {
-        s.push_str("--- error ---\n");
-        s.push_str(err);
-        s.push('\n');
-    }
-    if !out.tool_results.is_empty() {
-        s.push_str("--- tools ---\n");
-        for t in &out.tool_results {
-            let flag = if t.is_error { "ERR" } else { "ok" };
-            let preview: String = t.output.chars().take(160).collect();
-            s.push_str(&format!("[{flag}] {}: {preview}\n", t.name));
-        }
-    }
-    s
 }

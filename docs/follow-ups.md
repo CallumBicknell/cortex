@@ -58,7 +58,19 @@ Child runs also publish normal loop events when a bus is attached.
 | `workspace_symbols` | Workspace symbol search |
 | `code_definition` | Find definitions by name |
 
-Rust + Python via tree-sitter. Not a full language server (no diagnostics/hover).
+Rust, Python, and **Solidity** via tree-sitter. Not a full language server
+(no diagnostics/hover).
+
+## Smart contract multi-lens audits
+
+| Piece | Role |
+|-------|------|
+| `sc_security` skill | Audit identity + checklist |
+| `audit_lenses` tool | Parallel specialty sub-agents |
+| `examples/foundry-vault/` | Intentional reentrancy demo |
+| `examples/mcp/foundry.mcp.toml` | Foundry MCP sample |
+
+See [`web3-security.md`](web3-security.md).
 
 ## Self-evolving skills
 

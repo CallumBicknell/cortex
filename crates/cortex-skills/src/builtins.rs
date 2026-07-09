@@ -246,9 +246,10 @@ pub fn builtin_skills() -> Vec<Skill> {
             "sc_security",
             "Smart-contract security audits and vulnerability finding for Solidity/EVM. \
              Use whenever the user wants an audit, threat model, pre-deploy review, \
-             reentrancy/oracle/auth check, exploit sketch, Slither pass, or to \
-             'find vulns' / 'security review' contracts — even if they only say \
-             'is this safe?', 'check this vault', or 'x-ray this protocol'.",
+             reentrancy/oracle/auth check, multi-lens audit, exploit sketch, Slither pass, \
+             or to 'find vulns' / 'security review' contracts — even if they only say \
+             'is this safe?', 'check this vault', or 'x-ray this protocol'. Prefer \
+             audit_lenses for parallel specialty passes, then dedupe into one report.",
         )
         .tools([
             "shell",
@@ -262,6 +263,7 @@ pub fn builtin_skills() -> Vec<Skill> {
             "workspace_symbols",
             "code_definition",
             "spawn_subagent",
+            "audit_lenses",
             "http_request",
             "web_search",
         ])

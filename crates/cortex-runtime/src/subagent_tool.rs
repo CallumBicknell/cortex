@@ -14,13 +14,16 @@ use std::sync::Mutex;
 /// Shared handle for spawning sub-agents from tools.
 #[derive(Clone)]
 pub struct SubAgentHandle {
-    provider: Arc<dyn Provider>,
-    model: String,
-    tools: ToolExecutor,
+    /// LLM provider for child runs.
+    pub(crate) provider: Arc<dyn Provider>,
+    /// Model id for child runs.
+    pub(crate) model: String,
+    /// Tool executor available to children (without nesting tools).
+    pub(crate) tools: ToolExecutor,
     /// Parent loop config (depth, budgets). Updated carefully per parent run if needed.
-    parent_config: Arc<Mutex<AgentLoopConfig>>,
+    pub(crate) parent_config: Arc<Mutex<AgentLoopConfig>>,
     /// Optional event bus for sub-agent lifecycle events.
-    bus: Option<Arc<InMemoryEventBus>>,
+    pub(crate) bus: Option<Arc<InMemoryEventBus>>,
 }
 
 impl SubAgentHandle {

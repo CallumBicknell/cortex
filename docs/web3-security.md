@@ -12,6 +12,7 @@ from the user message and project fingerprint (e.g. `foundry.toml`).
 | `coding` skill | Always-on file/edit navigation |
 | `solidity` skill | Implement contracts, Foundry/Hardhat workflows |
 | `sc_security` skill | Audits, vuln finding, threat models, pre-deploy |
+| `audit_lenses` tool | Parallel specialty sub-agents (Cortex-native) |
 | Runtime `security` prompt | Agent OS constraints (secrets, sandbox) |
 
 ## CLI examples
@@ -23,19 +24,37 @@ cortex run "Add a withdraw function with CEI and a forge test"
 # Explicit security pack
 cortex run "Audit contracts/ for reentrancy and oracle risk" --skills sc_security,solidity
 
+# Demo fixture (intentional reentrancy)
+cortex run "Audit examples/foundry-vault with multi-lens" --skills sc_security --yolo
+
 # Preview selection
 cortex skills select "find vulns in this vault"
 cortex skills list
+
+# Solidity outlines
+cortex parse outline examples/foundry-vault/src/VulnerableVault.sol
 ```
 
-Typical audit loop the agent follows (see `prompts/skills/sc_security.md`):
+## Audit loop
 
-1. Map sources and entry points
-2. `forge build` / `forge test`
-3. `slither .` when installed
-4. Manual checklist (reentrancy, auth, tokens, oracles, proxies, MEV)
-5. Structured findings with severity + proof (forge PoC when useful)
-6. Optional parallel specialty passes via `spawn_subagent`
+Typical flow (`prompts/skills/sc_security.md`):
+
+1. Map sources and entry points (`code_outline`, glob)
+2. Prefer **`audit_lenses`** for parallel specialty passes:
+   - `access` — auth / roles / signatures
+   - `reentrancy` — CEI / external calls
+   - `economic` — oracles, tokens, 4626, MEV
+   - `proxy` — upgrades / storage / delegatecall
+   - `invariants` — optional first-principles lens
+3. Tool builds `.cortex/tmp/audit-*/source.md` (excludes lib/test/mocks)
+4. Orchestrator **dedupes** FINDING/LEAD by (contract, function, bug_class)
+5. Optionally `forge build` / `forge test` / `slither .` when installed
+6. Structured final report with severity counts
+
+Specialty prompts live under `prompts/skills/audit_lenses/`.
+
+This is **not** a vendored Pashov 12-agent tree; deeper external packs remain at
+[skills.eth.sh](https://skills.eth.sh/) (Pashov, QuillShield).
 
 ## Project fingerprint
 
@@ -45,6 +64,32 @@ Typical audit loop the agent follows (see `prompts/skills/sc_security.md`):
 - `remappings.txt`
 - `slither.config.json` (optional)
 - test command `forge test` when Foundry is present
+
+## First Foundry session
+
+1. Install Foundry: https://getfoundry.sh
+2. Optional MCP (stdio):
+
+```bash
+cp examples/mcp/foundry.mcp.toml .cortex/mcp.toml
+# requires Node + npx; tools appear as mcp_foundry_*
+cortex tools list
+```
+
+3. Point Cortex at a Foundry project (or the demo vault):
+
+```bash
+cortex run "Audit examples/foundry-vault for reentrancy" \
+  --skills sc_security,solidity --yolo
+```
+
+4. Optional smoke (skips missing tools):
+
+```bash
+./scripts/smoke_foundry.sh
+```
+
+Demo layout: `examples/foundry-vault/` (vulnerable `withdraw`).
 
 ## Web3 skills catalog (skills.eth.sh)
 
@@ -58,38 +103,33 @@ Cortex does **not** vendor third-party skill repos. Discover and wire them via:
 | Resource | What it adds |
 |----------|----------------|
 | [Pashov skills](https://github.com/pashov/skills) | solidity-auditor, x-ray pre-audit, fizz (Echidna/Medusa) |
-| [QuillShield skills](https://github.com/quillai-network/quillshield_skills) | Multi-plugin audit methodology (invariants, reentrancy, oracles, proxies) |
-| [ETHSkills security](https://ethskills.com/) | Defensive patterns + pre-deploy checklist (basis for builtin `sc_security` prompt) |
-
-Install external packs as Claude/Codex skills, or capture workflows into
-`.cortex/skills/` with `skill_save` / `skill_creator`.
+| [QuillShield skills](https://github.com/quillai-network/quillshield_skills) | Multi-plugin audit methodology |
+| [ETHSkills security](https://ethskills.com/) | Defensive patterns (basis for builtin checklist) |
 
 ### MCP (configure in `.cortex/mcp.toml`)
 
-Examples are commented in `config/mcp.toml`:
-
 | Server | Install / URL |
 |--------|----------------|
-| Foundry MCP | `npx -y @pranesh.asp/foundry-mcp-server` |
-| Blockscout | `https://mcp.blockscout.com/mcp` |
-| Tenderly | `https://mcp.tenderly.co/mcp` |
+| Foundry MCP | `examples/mcp/foundry.mcp.toml` / `npx -y @pranesh.asp/foundry-mcp-server` |
+| Blockscout | `https://mcp.blockscout.com/mcp` (SSE; transport TBD) |
+| Tenderly | `https://mcp.tenderly.co/mcp` (SSE; transport TBD) |
 | CoinGecko | `https://mcp.api.coingecko.com/mcp` |
 | Cryo | `uvx cryo-mcp --rpc-url $ETH_RPC_URL` |
 
-stdio MCP is supported today; SSE/HTTP entries are reserved until transport is
-fully implemented — prefer stdio Foundry MCP + local `forge`/`slither` for audits.
+stdio MCP is supported today; SSE/HTTP for remote eth.sh servers is planned (Phase 20).
 
 ## Honest limits
 
-- Builtin `sc_security` is an **agent-assisted review**, not a substitute for a
-  professional audit or formal verification.
-- Findings without proof should stay leads.
+- Builtin `sc_security` / `audit_lenses` is **agent-assisted review**, not a
+  substitute for a professional audit or formal verification.
+- Findings without proof should stay **LEADs**.
 - Tool output must be real — if Slither/forge is missing, the agent should say so.
 
 ## Related docs
 
 - [`docs/skills.md`](skills.md) — skill selection model
 - [`docs/mcp.md`](mcp.md) — MCP loading
+- [`docs/parse.md`](parse.md) — Solidity outlines
 - [`docs/security.md`](security.md) — agent OS policy / sandbox
 - [`prompts/skills/sc_security.md`](../prompts/skills/sc_security.md)
 - [`prompts/skills/solidity.md`](../prompts/skills/solidity.md)

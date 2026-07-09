@@ -1,6 +1,6 @@
 //! Tree-sitter based code outlines for Cortex.
 //!
-//! Supported languages: Rust, Python. Full LSP is intentionally deferred.
+//! Supported languages: Rust, Python, Solidity. Full LSP is intentionally deferred.
 
 #![deny(missing_docs)]
 

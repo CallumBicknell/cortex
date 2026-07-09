@@ -2,7 +2,8 @@
 
 Cortex can extract **structural outlines** from source files using
 [tree-sitter](https://tree-sitter.github.io/). This is **not** a full language
-server — no go-to-definition, diagnostics, or completions yet.
+server — no diagnostics or hover. Workspace symbol search and name-based
+definition lookup are available via `workspace_symbols` / `code_definition`.
 
 ## Supported languages
 
@@ -10,35 +11,36 @@ server — no go-to-definition, diagnostics, or completions yet.
 |----------|------------|---------|
 | Rust | `.rs` | functions, structs, enums, traits, impls, mods, consts/types |
 | Python | `.py`, `.pyi` | functions, classes, methods |
+| Solidity | `.sol` | contracts, interfaces, libraries, functions, modifiers, events, errors, state vars, structs, enums |
 
 ## CLI
 
 ```bash
 cortex parse outline crates/cortex-runtime/src/agent_loop.rs
+cortex parse outline examples/foundry-vault/src/VulnerableVault.sol
 cortex parse outline path/to/mod.py --json
 ```
 
-## Tool
+## Tools
 
-`code_outline` (always-on via the `coding` skill):
-
-```json
-{ "path": "crates/cortex-tools/src/lib.rs" }
-```
+| Tool | Role |
+|------|------|
+| `code_outline` | File outline |
+| `workspace_symbols` | Search indexed symbols |
+| `code_definition` | Find definitions by name |
 
 ## Library
 
 ```rust
 use cortex_parse::{outline_file, format_outline};
 
-let outline = outline_file("src/main.rs")?;
+let outline = outline_file("src/Vault.sol")?;
 println!("{}", format_outline(&outline));
 ```
 
-## Not yet (LSP / later)
+## Not yet (full LSP / later)
 
-- go-to-definition / references
-- diagnostics / hover
-- TypeScript, Go, Solidity grammars
+- True go-to-definition / references via language servers
+- Diagnostics / hover
+- TypeScript, Go grammars
 - Incremental re-parse of dirty buffers
-- Workspace-wide symbol index

@@ -251,6 +251,55 @@
 * [x] F4 Sub-agent lifecycle events on parent bus
 * [x] F5 Workspace symbols + code_definition (LSP-lite)
 * [x] F6 Self-evolving skills (skill_list/save/promote + disk store)
+* [x] F7 Coding + SC security identity (`sc_security`, eth.sh docs)
+
+---
+
+# Phase 17 — Multi-lens audit orchestration
+
+* [x] P17.1 Specialty lens prompts (`prompts/skills/audit_lenses/*`)
+* [x] P17.2 `audit_lenses` tool (parallel JoinSet + semaphore)
+* [x] P17.3 Shared source bundle (`.cortex/tmp/audit-*/source.md`)
+* [x] P17.4 Dedup / orchestrator footer in tool output
+* [x] P17.5 Wire into `sc_security` skill + permissions
+* [x] P17.6 Budgets (max 5 lenses, default 4, turns clamp)
+* [x] P17.7 Unit + mock parallel tests
+* [x] P17.8 `docs/web3-security.md` multi-lens section
+
+---
+
+# Phase 18 — Solidity code intelligence
+
+* [x] P18.1 `tree-sitter-solidity` workspace dep
+* [x] P18.2 `SourceLanguage::Solidity`
+* [x] P18.3 Outline walk (contract/fn/modifier/event/…)
+* [x] P18.4 Index via existing workspace walk (`.sol` extension)
+* [x] P18.5 Unit tests on Vault fixture
+* [x] P18.6 `docs/parse.md` language table
+
+---
+
+# Phase 19 — Foundry MCP sample + smoke
+
+* [x] P19.1 `examples/mcp/foundry.mcp.toml`
+* [x] P19.2 Demo fixture `examples/foundry-vault/`
+* [x] P19.3 `scripts/smoke_foundry.sh` (skip-friendly)
+* [x] P19.4 Docs: first Foundry session in `web3-security.md` / mcp.md
+
+Optional later: `cortex init --web3`, CI foundry-smoke job.
+
+---
+
+# Upcoming (planned)
+
+| Phase | Theme |
+|-------|--------|
+| P20 | MCP HTTP/SSE transport (Blockscout, Tenderly, …) |
+| P21 | SC tooling depth (x-ray skill, PoC templates, analyzers) |
+| P22 | Audit artifacts + SC eval fixtures |
+| P23 | Web3 skill import / skills.eth.sh bridge |
+| P24 | Parallel read tools, plan/verify polish |
+| P25 | Docs/release productization |
 
 Still open (later):
 

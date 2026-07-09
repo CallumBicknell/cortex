@@ -6,6 +6,8 @@
 #![deny(missing_docs)]
 
 mod agent_loop;
+mod audit_bundle;
+mod audit_lenses;
 mod context;
 mod error;
 mod runtime;
@@ -14,6 +16,10 @@ mod subagent_tool;
 mod summarize;
 
 pub use agent_loop::{AgentLoop, AgentLoopConfig, RunInput, RunOutput};
+pub use audit_bundle::{
+    build_source_bundle, collect_sol_files, is_excluded_sol_path, write_source_bundle, SourceBundle,
+};
+pub use audit_lenses::{builtin_lenses, default_lens_ids, AuditLensesTool};
 pub use context::{ContextBuilder, DEFAULT_SYSTEM_PROMPT};
 pub use error::{Result, RuntimeError};
 pub use runtime::Runtime;
@@ -23,11 +29,15 @@ pub use subagent_tool::{SpawnSubagentTool, SubAgentHandle};
 use cortex_tools::{ToolExecutor, ToolRegistry};
 use std::sync::Arc;
 
-/// Clone tools from `base` and register `spawn_subagent` for nested runs.
+/// Tools that must not be available inside sub-agent registries (no nested fan-out).
+fn is_nesting_tool(name: &str) -> bool {
+    matches!(name, "spawn_subagent" | "audit_lenses")
+}
+
+/// Clone tools from `base` and register nesting tools (`spawn_subagent`, `audit_lenses`).
 ///
-/// The sub-agent handle uses a copy of `base` (without `spawn_subagent`) so
-/// children cannot re-enter nesting via the tool table; depth limits still apply
-/// if the parent allow-list is customized later.
+/// The sub-agent handle uses a copy of `base` without nesting tools so children
+/// cannot re-enter fan-out via the tool table; depth limits still apply.
 pub fn tools_with_subagent(
     base: &ToolExecutor,
     provider: Arc<dyn cortex_llm::Provider>,
@@ -36,7 +46,7 @@ pub fn tools_with_subagent(
 ) -> ToolExecutor {
     let mut child_reg = ToolRegistry::new();
     for name in base.registry().names() {
-        if name == "spawn_subagent" {
+        if is_nesting_tool(&name) {
             continue;
         }
         if let Ok(tool) = base.registry().get(&name) {
@@ -48,11 +58,15 @@ pub fn tools_with_subagent(
 
     let mut parent_reg = ToolRegistry::new();
     for name in base.registry().names() {
+        if is_nesting_tool(&name) {
+            continue;
+        }
         if let Ok(tool) = base.registry().get(&name) {
             let _ = parent_reg.register(tool);
         }
     }
-    parent_reg.register_or_replace(Arc::new(SpawnSubagentTool::new(handle)));
+    parent_reg.register_or_replace(Arc::new(SpawnSubagentTool::new(handle.clone())));
+    parent_reg.register_or_replace(Arc::new(AuditLensesTool::new(handle)));
     ToolExecutor::new(Arc::new(parent_reg))
 }
 pub use summarize::{maybe_summarize, SummarizeConfig, SummarizeOutcome};

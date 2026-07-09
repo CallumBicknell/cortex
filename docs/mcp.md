@@ -42,9 +42,23 @@ Commented templates live in `config/mcp.toml` for Foundry MCP, Blockscout,
 Tenderly, CoinGecko, and Cryo. Full catalog: [https://skills.eth.sh/](https://skills.eth.sh/)
 and [llms.txt](https://skills.eth.sh/llms.txt).
 
+### First Foundry MCP session
+
+```bash
+# Requires Node/npx + Foundry on PATH
+cp examples/mcp/foundry.mcp.toml .cortex/mcp.toml
+cortex tools list   # look for mcp_foundry_*
+```
+
+Demo vulnerable vault: `examples/foundry-vault/`. Skip-friendly smoke:
+
+```bash
+./scripts/smoke_foundry.sh
+```
+
 For smart-contract audits, local `forge` / `slither` via the shell tool plus the
-builtin `sc_security` skill is enough to start; MCP adds onchain reads and
-simulation. See [`docs/web3-security.md`](web3-security.md).
+builtin `sc_security` skill (and `audit_lenses`) is enough to start; MCP adds
+onchain reads and simulation. See [`docs/web3-security.md`](web3-security.md).
 
 ## Security
 

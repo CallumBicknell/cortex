@@ -1,0 +1,17 @@
+# Example MCP config for Foundry (skills.eth.sh / Foundry MCP Server).
+# Copy into a project as `.cortex/mcp.toml` and set enabled = true.
+#
+# Prerequisites:
+#   - Node.js + npx
+#   - Foundry (`forge`, `cast`, `anvil`) on PATH: https://getfoundry.sh
+#
+# Then:
+#   cortex tools list | grep mcp_foundry
+#   cortex run "List forge workspace status" --skills solidity,sc_security
+
+[[servers]]
+name = "foundry"
+enabled = true
+command = "npx"
+args = ["-y", "@pranesh.asp/foundry-mcp-server"]
+tool_prefix = "mcp_foundry"

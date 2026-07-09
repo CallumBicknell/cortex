@@ -62,6 +62,7 @@ url = "2"
 tree-sitter = "0.25"
 tree-sitter-rust = "0.24"
 tree-sitter-python = "0.25"
+tree-sitter-solidity = "1.2"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
 
