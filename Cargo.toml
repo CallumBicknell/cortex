@@ -9,7 +9,9 @@ members = [
     "crates/cortex-llm",
     "crates/cortex-memory",
     "crates/cortex-models",
+    "crates/cortex-prompts",
     "crates/cortex-runtime",
+    "crates/cortex-skills",
     "crates/cortex-tools",
     "crates/cortex-workspace",
 ]

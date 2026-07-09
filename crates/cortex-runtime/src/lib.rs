@@ -17,4 +17,6 @@ pub use runtime::Runtime;
 
 // Re-export loop phase and workspace helpers for callers.
 pub use cortex_events::LoopPhase;
+pub use cortex_prompts::{PromptCatalog, PromptError};
+pub use cortex_skills::{select_skills, Skill, SkillRegistry, SkillSelection};
 pub use cortex_workspace::{ProjectInfo, RepoMap};

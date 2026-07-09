@@ -15,6 +15,8 @@ cortex-core = { path = "../cortex-core" }
 cortex-events = { path = "../cortex-events" }
 cortex-llm = { path = "../cortex-llm" }
 cortex-models = { path = "../cortex-models" }
+cortex-prompts = { path = "../cortex-prompts" }
+cortex-skills = { path = "../cortex-skills" }
 cortex-tools = { path = "../cortex-tools" }
 cortex-workspace = { path = "../cortex-workspace" }
 serde = { workspace = true }

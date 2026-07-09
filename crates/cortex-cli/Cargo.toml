@@ -21,7 +21,9 @@ cortex-core = { path = "../cortex-core" }
 cortex-llm = { path = "../cortex-llm" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
+cortex-prompts = { path = "../cortex-prompts" }
 cortex-runtime = { path = "../cortex-runtime" }
+cortex-skills = { path = "../cortex-skills" }
 cortex-tools = { path = "../cortex-tools" }
 cortex-workspace = { path = "../cortex-workspace" }
 dotenvy = { workspace = true }

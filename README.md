@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–7 complete: kernel, models, providers, tools, agent loop, CLI, SQLite sessions, and workspace-aware context. Still missing: TUI, skills/MCP, and richer security.
+**Early development (v0.1.0).** Phases 0–8 complete: agent OS core through skills/prompts. Still missing: TUI, MCP/plugins, and deeper security sandboxing.
 
 | Area | Status |
 |------|--------|
@@ -24,6 +24,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | CLI (`cortex run` / `chat` / `init`) | Implemented |
 | SQLite sessions / checkpoints | Implemented |
 | Workspace map + context budgets | Implemented |
+| Skills + prompts (capability packs) | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
@@ -54,8 +55,11 @@ crates/
   cortex-memory/    # SQLite sessions, checkpoints, events
   cortex-workspace/ # Root detect, ignore, project, repo map
   cortex-context/   # Token budgets, history compression
+  cortex-prompts/   # Markdown prompts + templates
+  cortex-skills/    # Skill packs (not hard-coded modes)
   cortex-cli/       # `cortex` binary
 config/             # Default TOML configuration
+prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
 scripts/            # smoke_agent.sh
@@ -101,9 +105,14 @@ cargo run -p cortex-cli -- sessions export <session-id> -o session.json
 # Workspace awareness
 cargo run -p cortex-cli -- workspace info
 cargo run -p cortex-cli -- workspace map
+
+# Skills (capability packs)
+cargo run -p cortex-cli -- skills list
+cargo run -p cortex-cli -- skills select "audit solidity with forge"
+cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md) and [`docs/skills.md`](docs/skills.md).
 
 ### Configuration
 
@@ -157,7 +166,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M5 CLI | `cortex run` / `cortex chat` ✓ |
 | M6 Durable sessions | SQLite + checkpoints ✓ |
 | M7 Context-aware | Repo map + token budgets ✓ |
-| M8+ | Skills, security, MCP, TUI |
+| M8 Skills | Capability packs + prompts ✓ |
+| M9+ | Security polish, MCP, plugins, TUI |
 
 Full task list: [`TASKS.md`](TASKS.md).
 

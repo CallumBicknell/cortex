@@ -137,13 +137,24 @@
 
 ---
 
+# Phase 8 — Prompts + skills
+
+* [x] P8.1 `cortex-prompts` (markdown load + `{{var}}`)
+* [x] P8.2 Core + skill prompts under `prompts/`
+* [x] P8.3 `cortex-skills` registry + builtin packs
+* [x] P8.4 Packs: coding/git/web/testing/rust/python/javascript/solidity/review
+* [x] P8.5 Heuristic selection (prompt + project + `--skills`)
+* [x] P8.6 Dynamic tool exposure via `ContextBuilder::allowed_tools`
+* [x] P8.7 `docs/skills.md` + CLI `skills list|select`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 8 | Prompts + skills (coding/git/web/solidity/…) |
 | 9 | Security, approvals, sandbox |
 | 10 | MCP + advanced tools |
 | 11 | Plugin system |

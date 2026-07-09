@@ -31,6 +31,10 @@ pub struct ContextBuilder {
     pub repo_map_section: Option<String>,
     /// Whether to inject repo map into context.
     pub include_repo_map: bool,
+    /// Optional skill prompt section (active skill guidance).
+    pub skill_prompt_section: Option<String>,
+    /// If set, only expose these tool names to the model.
+    pub allowed_tools: Option<Vec<String>>,
 }
 
 impl Default for ContextBuilder {
@@ -42,6 +46,8 @@ impl Default for ContextBuilder {
             keep_recent_messages: 24,
             repo_map_section: None,
             include_repo_map: true,
+            skill_prompt_section: None,
+            allowed_tools: None,
         }
     }
 }
@@ -86,6 +92,21 @@ impl ContextBuilder {
         self
     }
 
+    /// Attach skill guidance text (markdown sections joined by caller).
+    pub fn with_skill_prompts(mut self, section: impl Into<String>) -> Self {
+        self.skill_prompt_section = Some(section.into());
+        self
+    }
+
+    /// Restrict tools exposed to the model.
+    pub fn with_allowed_tools(
+        mut self,
+        tools: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.allowed_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Assemble messages for a chat request.
     pub fn build_messages(&self, history: &[Message]) -> Vec<Message> {
         let mut out = Vec::new();
@@ -93,6 +114,13 @@ impl ContextBuilder {
         // System prompt
         if !self.system_prompt.trim().is_empty() {
             out.push(Message::system(&self.system_prompt));
+        }
+
+        // Skill guidance
+        if let Some(section) = &self.skill_prompt_section {
+            if !section.trim().is_empty() {
+                out.push(Message::system(section));
+            }
         }
 
         // Workspace / repo map as an additional system message
@@ -150,9 +178,15 @@ impl ContextBuilder {
         out
     }
 
-    /// Pass-through tool specs (skill filtering lands in a later phase).
+    /// Filter tool specs when [`Self::allowed_tools`] is set.
     pub fn build_tools(&self, tools: Vec<ToolSpec>) -> Vec<ToolSpec> {
-        tools
+        match &self.allowed_tools {
+            None => tools,
+            Some(allow) => tools
+                .into_iter()
+                .filter(|t| allow.iter().any(|a| a == &t.name))
+                .collect(),
+        }
     }
 
     /// Estimated tokens for a built message list.

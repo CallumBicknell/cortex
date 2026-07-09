@@ -9,7 +9,9 @@ use clap::{Parser, Subcommand};
 use cortex_common::SessionId;
 use cortex_memory::{open_sqlite, CheckpointState, SessionStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
+use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
+use cortex_skills::{select_skills, SkillRegistry};
 use cortex_tools::ToolRegistry;
 use cortex_workspace::RepoMap;
 use std::io::{self, BufRead, Write};
@@ -30,7 +32,8 @@ use tokio_util::sync::CancellationToken;
                   cortex run \"Add a README section about config\"\n  \
                   cortex chat --model ollama\n  \
                   cortex sessions list\n  \
-                  cortex sessions resume <id>"
+                  cortex skills list\n  \
+                  cortex run \"…\" --skills rust,git"
 )]
 struct Cli {
     /// Workspace root (default: current directory).
@@ -79,6 +82,9 @@ enum Commands {
         /// Disable SQLite persistence for this run.
         #[arg(long)]
         no_save: bool,
+        /// Comma-separated skill ids (default: auto-select from prompt + project).
+        #[arg(long, value_delimiter = ',')]
+        skills: Vec<String>,
     },
     /// Interactive multi-turn chat REPL.
     Chat {
@@ -94,6 +100,9 @@ enum Commands {
         /// Resume session id.
         #[arg(long)]
         session: Option<String>,
+        /// Comma-separated skill ids (default: auto).
+        #[arg(long, value_delimiter = ',')]
+        skills: Vec<String>,
     },
     /// Tool helpers.
     Tools {
@@ -114,6 +123,11 @@ enum Commands {
     Workspace {
         #[command(subcommand)]
         command: WorkspaceCmd,
+    },
+    /// Skill packs (capability catalogs — not hard-coded modes).
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCmd,
     },
 }
 
@@ -138,6 +152,20 @@ enum WorkspaceCmd {
         /// Max files to index.
         #[arg(long, default_value_t = 400)]
         max_files: usize,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SkillsCmd {
+    /// List builtin skills.
+    List,
+    /// Show which skills would activate for a prompt.
+    Select {
+        /// User prompt / task text.
+        prompt: String,
+        /// Optional explicit skill ids.
+        #[arg(long, value_delimiter = ',')]
+        skills: Vec<String>,
     },
 }
 
@@ -211,6 +239,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             json,
             session,
             no_save,
+            skills,
         } => {
             return cmd_run(
                 cli.workspace,
@@ -222,6 +251,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 json,
                 session,
                 no_save,
+                skills,
             )
             .await;
         }
@@ -230,8 +260,18 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             yolo,
             max_turns,
             session,
+            skills,
         } => {
-            return cmd_chat(cli.workspace, cli.config, model, yolo, max_turns, session).await;
+            return cmd_chat(
+                cli.workspace,
+                cli.config,
+                model,
+                yolo,
+                max_turns,
+                session,
+                skills,
+            )
+            .await;
         }
         Commands::Tools { command } => match command {
             ToolsCmd::List => cmd_tools_list()?,
@@ -245,30 +285,94 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Workspace { command } => {
             cmd_workspace(cli.workspace, command)?;
         }
+        Commands::Skills { command } => {
+            cmd_skills(cli.workspace, command)?;
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
 
-fn build_context(workspace: &std::path::Path, quiet: bool) -> ContextBuilder {
-    let mut context = ContextBuilder::default();
-    match RepoMap::build(workspace) {
-        Ok(map) => {
-            if !quiet {
-                eprintln!(
-                    "workspace map: {} files, {}",
-                    map.file_count,
-                    map.project.summary().replace('\n', "; ")
-                );
-            }
-            context = context.with_repo_map(&map);
+fn build_context_for_task(
+    workspace: &std::path::Path,
+    prompt: &str,
+    explicit_skills: &[String],
+    quiet: bool,
+) -> ContextBuilder {
+    let prompts = PromptCatalog::with_builtins();
+    // Prefer file-based system prompt when present.
+    let system = prompts
+        .render("system", &Default::default())
+        .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
+
+    let mut context = ContextBuilder::new(system);
+    let map = RepoMap::build(workspace).ok();
+    if let Some(ref map) = map {
+        if !quiet {
+            eprintln!(
+                "workspace map: {} files, {}",
+                map.file_count,
+                map.project.summary().replace('\n', "; ")
+            );
         }
-        Err(err) => {
-            if !quiet {
-                eprintln!("warning: repo map unavailable: {err}");
-            }
+        context = context.with_repo_map(map);
+    } else if !quiet {
+        eprintln!("warning: repo map unavailable");
+    }
+
+    let project = map.as_ref().map(|m| &m.project);
+    let reg = SkillRegistry::with_builtins();
+    let selection = select_skills(&reg, prompt, project, explicit_skills);
+    if !quiet {
+        eprintln!("skills: {}", selection.skill_ids.join(", "));
+        eprintln!("tools:  {}", selection.tools.join(", "));
+    }
+
+    let mut skill_body = String::from("## Active skills\n");
+    for id in &selection.skill_ids {
+        skill_body.push_str(&format!("- {id}\n"));
+    }
+    skill_body.push('\n');
+    for pid in &selection.prompts {
+        if let Ok(p) = prompts.get(pid) {
+            skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
         }
     }
+
     context
+        .with_skill_prompts(skill_body)
+        .with_allowed_tools(selection.tools)
+}
+
+fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()> {
+    let reg = SkillRegistry::with_builtins();
+    match command {
+        SkillsCmd::List => {
+            println!("{:<14}  {:<8}  DESCRIPTION", "ID", "ALWAYS");
+            for s in reg.all() {
+                println!(
+                    "{:<14}  {:<8}  {}",
+                    s.id,
+                    if s.always_on { "yes" } else { "no" },
+                    s.description
+                );
+            }
+        }
+        SkillsCmd::Select { prompt, skills } => {
+            let root = workspace
+                .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
+                .canonicalize()
+                .ok();
+            let project = root
+                .as_ref()
+                .and_then(|r| RepoMap::build(r).ok())
+                .map(|m| m.project);
+            let sel = select_skills(&reg, &prompt, project.as_ref(), &skills);
+            println!("skills: {}", sel.skill_ids.join(", "));
+            println!("tools:  {}", sel.tools.join(", "));
+            println!("prompts: {}", sel.prompts.join(", "));
+        }
+    }
+    Ok(())
 }
 
 fn cmd_workspace(workspace: Option<PathBuf>, command: WorkspaceCmd) -> Result<()> {
@@ -355,6 +459,7 @@ async fn cmd_run(
     json: bool,
     session_id: Option<String>,
     no_save: bool,
+    skills: Vec<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths.clone(), yolo)?;
@@ -377,7 +482,7 @@ async fn cmd_run(
         );
     }
 
-    let context = build_context(&app.paths.workspace, json);
+    let context = build_context_for_task(&app.paths.workspace, &prompt, &skills, json);
 
     let cancel = CancellationToken::new();
     let cancel_ctrl = cancel.clone();
@@ -455,6 +560,7 @@ async fn cmd_chat(
     yolo: bool,
     max_turns: u32,
     session_id: Option<String>,
+    skills: Vec<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths.clone(), yolo)?;
@@ -473,8 +579,6 @@ async fn cmd_chat(
     println!("db:        {}", app.paths.database.display());
     println!("Type a message, or /quit to exit. Ctrl-C cancels the current turn.\n");
 
-    let context = build_context(&app.paths.workspace, false);
-
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     loop {
@@ -492,6 +596,9 @@ async fn cmd_chat(
             break;
         }
 
+        // Re-select skills per turn from the latest prompt (plus explicit flags).
+        let context = build_context_for_task(&app.paths.workspace, &prompt, &skills, false);
+
         let cancel = CancellationToken::new();
         let cancel_ctrl = cancel.clone();
         let ctrl = tokio::spawn(async move {
@@ -506,7 +613,7 @@ async fn cmd_chat(
             app.tools.clone(),
             AgentLoopConfig {
                 max_turns,
-                context: context.clone(),
+                context,
                 temperature: None,
                 max_tokens: None,
                 stop_on_max_turns: true,
@@ -599,6 +706,7 @@ async fn cmd_sessions(
                 yolo,
                 max_turns,
                 Some(id),
+                Vec::new(),
             )
             .await;
         }
