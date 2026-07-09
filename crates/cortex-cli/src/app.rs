@@ -466,86 +466,6 @@ pub fn write_default_models_toml(dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Known first-run default model aliases (must exist in embedded models.toml).
-pub const SETUP_MODEL_CHOICES: &[(&str, &str)] = &[
-    ("default", "mock (offline — no API key)"),
-    ("ollama", "Ollama local (http://127.0.0.1:11434)"),
-    ("openai", "OpenAI (needs OPENAI_API_KEY)"),
-    ("openrouter", "OpenRouter (needs OPENROUTER_API_KEY)"),
-];
-
-/// Set `default_model = "…"` in a models.toml file (best-effort line rewrite).
-pub fn set_default_model(models_path: &Path, alias: &str) -> Result<()> {
-    if !SETUP_MODEL_CHOICES.iter().any(|(a, _)| *a == alias) {
-        bail!(
-            "unknown default model `{alias}`; choose one of: {}",
-            SETUP_MODEL_CHOICES
-                .iter()
-                .map(|(a, _)| *a)
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
-    let text = std::fs::read_to_string(models_path)
-        .with_context(|| format!("read {}", models_path.display()))?;
-    let mut replaced = false;
-    let mut out = String::with_capacity(text.len() + 32);
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("default_model") && trimmed.contains('=') {
-            out.push_str(&format!("default_model = \"{alias}\"\n"));
-            replaced = true;
-        } else {
-            out.push_str(line);
-            out.push('\n');
-        }
-    }
-    if !replaced {
-        // Prepend if missing.
-        out = format!("default_model = \"{alias}\"\n{out}");
-    }
-    std::fs::write(models_path, out).with_context(|| format!("write {}", models_path.display()))?;
-    Ok(())
-}
-
-/// Optionally update `[models.ollama] model = "…"` when the user picks a tag.
-pub fn set_ollama_model_id(models_path: &Path, model_id: &str) -> Result<()> {
-    let model_id = model_id.trim();
-    if model_id.is_empty() {
-        bail!("ollama model id must not be empty");
-    }
-    // Basic safety: no quotes/newlines in model id.
-    if model_id.contains('"') || model_id.contains('\n') {
-        bail!("invalid ollama model id");
-    }
-    let text = std::fs::read_to_string(models_path)
-        .with_context(|| format!("read {}", models_path.display()))?;
-    let mut out = String::with_capacity(text.len() + 32);
-    let mut in_ollama = false;
-    let mut replaced = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ollama = trimmed == "[models.ollama]";
-        }
-        if in_ollama && trimmed.starts_with("model") && trimmed.contains('=') {
-            out.push_str(&format!("model = \"{model_id}\"\n"));
-            replaced = true;
-            continue;
-        }
-        out.push_str(line);
-        out.push('\n');
-    }
-    if !replaced {
-        bail!(
-            "[models.ollama] model entry not found in {}",
-            models_path.display()
-        );
-    }
-    std::fs::write(models_path, out).with_context(|| format!("write {}", models_path.display()))?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -592,29 +512,6 @@ mod tests {
             .ends_with(Path::new(".cortex/models.toml")));
         assert_eq!(paths.database, ws.join(".cortex/data/cortex.db"));
         std::env::remove_var("CORTEX_HOME");
-    }
-
-    #[test]
-    fn set_default_model_rewrites_line() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("models.toml");
-        std::fs::write(&path, EMBEDDED_MODELS_TOML).unwrap();
-        set_default_model(&path, "ollama").unwrap();
-        let body = std::fs::read_to_string(&path).unwrap();
-        assert!(body.contains("default_model = \"ollama\""));
-        assert!(!body
-            .lines()
-            .any(|l| l.trim() == "default_model = \"default\""));
-    }
-
-    #[test]
-    fn set_ollama_model_id_updates_alias() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("models.toml");
-        std::fs::write(&path, EMBEDDED_MODELS_TOML).unwrap();
-        set_ollama_model_id(&path, "llama3.2").unwrap();
-        let body = std::fs::read_to_string(&path).unwrap();
-        assert!(body.contains("model = \"llama3.2\""));
     }
 
     #[test]
