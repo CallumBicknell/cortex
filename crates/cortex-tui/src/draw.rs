@@ -100,9 +100,8 @@ fn draw_sessions(f: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
-    // Clone list state for render — ListState is mutated by render_stateful_widget
-    // but we only have &App. Use a local copy.
-    let mut state = app.session_list.clone();
+    // ListState is Copy; render mutates a local copy because we only have &App.
+    let mut state = app.session_list;
     f.render_stateful_widget(list, area, &mut state);
 }
 
