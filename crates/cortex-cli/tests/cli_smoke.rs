@@ -91,6 +91,29 @@ fn setup_and_doctor_use_cortex_home() {
 }
 
 #[test]
+fn setup_default_model_noninteractive() {
+    let home = tempdir().expect("home");
+    let ws = tempdir().expect("ws");
+    cargo_bin_cmd!("cortex")
+        .current_dir(ws.path())
+        .env("CORTEX_HOME", home.path())
+        .args([
+            "setup",
+            "--force",
+            "--default-model",
+            "ollama",
+            "--ollama-model",
+            "llama3.2",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("default_model = \"ollama\""));
+    let body = std::fs::read_to_string(home.path().join("models.toml")).unwrap();
+    assert!(body.contains("default_model = \"ollama\""));
+    assert!(body.contains("model = \"llama3.2\""));
+}
+
+#[test]
 fn run_works_outside_monorepo_with_home_only() {
     let home = tempdir().expect("home");
     let ws = tempdir().expect("ws");

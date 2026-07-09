@@ -41,7 +41,7 @@ Primary docs: [`web3-security.md`](web3-security.md), [`web3-recipes.md`](web3-r
 | CLI `--stream` token deltas | Done (TUI still basic) |
 | Tag release so `install.sh` has assets | Ops (tag `v*`) |
 | TUI stream + run/tool summary | Done |
-| First-run setup wizard | Open |
+| First-run setup wizard | Done (`setup --wizard`) |
 
 ## Later (not scheduled as hard commitments)
 
