@@ -123,6 +123,44 @@ impl Event for AssistantMessageProduced {
     }
 }
 
+/// Streaming text delta from the model (when token streaming is enabled).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssistantTextDelta {
+    /// Session id.
+    pub session_id: SessionId,
+    /// Optional run id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<RunId>,
+    /// Incremental text fragment.
+    pub text: String,
+    /// Event time.
+    pub timestamp: DateTime<Utc>,
+}
+
+impl AssistantTextDelta {
+    /// Create a new delta event.
+    pub fn new(session_id: SessionId, text: impl Into<String>) -> Self {
+        Self {
+            session_id,
+            run_id: None,
+            text: text.into(),
+            timestamp: Utc::now(),
+        }
+    }
+
+    /// Attach a run id.
+    pub fn with_run_id(mut self, run_id: RunId) -> Self {
+        self.run_id = Some(run_id);
+        self
+    }
+}
+
+impl Event for AssistantTextDelta {
+    fn kind(&self) -> &'static str {
+        "agent.assistant_text_delta"
+    }
+}
+
 /// A tool call is about to be executed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolCallRequested {

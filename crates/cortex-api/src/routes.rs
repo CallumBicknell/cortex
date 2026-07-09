@@ -310,6 +310,9 @@ pub fn build_context(
         .render("system", &Default::default())
         .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
     let mut context = ContextBuilder::new(system);
+    if let Some(instr) = cortex_workspace::load_project_instructions(workspace) {
+        context = context.with_project_instructions(instr.to_prompt_section());
+    }
     if let Ok(map) = RepoMap::build(workspace) {
         context = context.with_repo_map(&map);
         let reg = SkillRegistry::with_builtins();

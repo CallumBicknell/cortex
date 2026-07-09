@@ -30,13 +30,26 @@ It replaces earlier aspirational quarterly marketing text.
 Primary docs: [`web3-security.md`](web3-security.md), [`web3-recipes.md`](web3-recipes.md),
 [`loop-quality.md`](loop-quality.md), [`mcp.md`](mcp.md), [`skills.md`](skills.md).
 
-## Next (not scheduled as hard commitments)
+## Next — Wave A “daily driver” (in progress / partial)
+
+| Item | Status |
+|------|--------|
+| Unix install + `~/.cortex` | Done |
+| Project instructions (`AGENTS.md` / `.cortex/instructions.md`) | Done |
+| `cortex init --web3` | Done |
+| `cortex update` | Done |
+| CLI `--stream` token deltas | Done (TUI still basic) |
+| Tag release so `install.sh` has assets | Ops (tag `v*`) |
+| TUI sub-agent / cost summary | Open |
+| First-run setup wizard | Open |
+
+## Later (not scheduled as hard commitments)
 
 - Full LSP (diagnostics/hover) beyond tree-sitter outlines
 - Dynamic cdylib plugins
-- Richer token streaming in TUI
 - LLM-based skill selection when tag scores are ambiguous
 - Optional `plugins/foundry_helpers` fixed-arg forge wrappers
+- Slither/Aderyn structured wrappers
 - Postgres multi-tenant backend
 - Professional-audit productization (out of scope for open-source core)
 
@@ -45,7 +58,8 @@ Primary docs: [`web3-security.md`](web3-security.md), [`web3-recipes.md`](web3-r
 | Version | Meaning |
 |---------|---------|
 | 0.1.0 | Initial MVP snapshot |
-| **0.2.0** | SC security arc + loop quality (this release line) |
-| 0.3.x | Reserved for next major capability wave (TBD) |
+| **0.2.0** | SC security arc + loop quality |
+| **0.2.x** | Install/home + Wave A daily-driver polish |
+| 0.3.x | Loop intelligence / deeper SC tooling (TBD) |
 
 See [`CHANGELOG.md`](../CHANGELOG.md) and [`DECISIONS.md`](../DECISIONS.md).

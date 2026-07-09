@@ -67,7 +67,22 @@ cortex setup          # create/update ~/.cortex
 cortex setup --force  # rewrite home models.toml
 cortex doctor         # paths + env key presence (never prints secrets)
 cortex init           # create project .cortex/ (optional)
+cortex init --web3    # + Foundry MCP stub + Web3 instructions
+cortex update         # print reinstall command (Unix)
+cortex update --dry-run
 ```
+
+### Project instructions
+
+On each run, Cortex injects the first existing file (in order):
+
+1. `.cortex/instructions.md`
+2. `AGENTS.md`
+3. `CLAUDE.md`
+4. `.cursorrules`
+5. `CORTEX.md`
+
+Use this for monorepo rules (same idea as other coding agents).
 
 ## First run
 

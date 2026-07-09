@@ -19,6 +19,7 @@ cortex-prompts = { path = "../cortex-prompts" }
 cortex-skills = { path = "../cortex-skills" }
 cortex-tools = { path = "../cortex-tools" }
 cortex-workspace = { path = "../cortex-workspace" }
+futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -11,6 +11,7 @@ use app::{
 };
 use clap::{Parser, Subcommand};
 use cortex_common::SessionId;
+use cortex_core::{EnvelopeHandler, EventBus, EventEnvelope, InMemoryEventBus};
 use cortex_memory::{open_sqlite, CheckpointState, SessionStore, VectorStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
@@ -79,6 +80,15 @@ enum Commands {
         /// Overwrite models.toml if it exists.
         #[arg(long)]
         force: bool,
+        /// Scaffold Foundry/Web3 MCP + skill hints under `.cortex/`.
+        #[arg(long)]
+        web3: bool,
+    },
+    /// Reinstall / print how to update the cortex binary (Unix).
+    Update {
+        /// Print the install command only (do not execute).
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Run a single agent task and exit.
     Run {
@@ -87,6 +97,9 @@ enum Commands {
         /// Model alias from models.toml (default: configured default).
         #[arg(long, short)]
         model: Option<String>,
+        /// Stream assistant text tokens to stderr (when the provider supports it).
+        #[arg(long)]
+        stream: bool,
         /// Auto-approve all tools (dangerous).
         #[arg(long)]
         yolo: bool,
@@ -425,12 +438,16 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Doctor => {
             cmd_doctor(cli.workspace, cli.config)?;
         }
-        Commands::Init { force } => {
-            cmd_init(cli.workspace, force).await?;
+        Commands::Init { force, web3 } => {
+            cmd_init(cli.workspace, force, web3).await?;
+        }
+        Commands::Update { dry_run } => {
+            cmd_update(dry_run)?;
         }
         Commands::Run {
             prompt,
             model,
+            stream,
             yolo,
             max_turns,
             json,
@@ -446,6 +463,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 cli.config,
                 prompt,
                 model,
+                stream,
                 yolo,
                 max_turns,
                 json,
@@ -929,6 +947,12 @@ fn build_context_for_task(
         .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
 
     let mut context = ContextBuilder::new(system);
+    if let Some(instr) = cortex_workspace::load_project_instructions(workspace) {
+        if !quiet {
+            eprintln!("project instructions: {}", instr.path.display());
+        }
+        context = context.with_project_instructions(instr.to_prompt_section());
+    }
     let map = RepoMap::build(workspace).ok();
     if let Some(ref map) = map {
         if !quiet {
@@ -1214,7 +1238,81 @@ fn cmd_doctor(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()>
     Ok(())
 }
 
-async fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
+/// Print `agent.assistant_text_delta` payloads to stderr for `--stream`.
+struct StreamPrinter;
+
+#[async_trait::async_trait]
+impl EnvelopeHandler for StreamPrinter {
+    async fn handle(&self, event: EventEnvelope) {
+        if event.kind != "agent.assistant_text_delta" {
+            return;
+        }
+        if let Some(text) = event.payload.get("text").and_then(|v| v.as_str()) {
+            let mut err = io::stderr().lock();
+            let _ = write!(err, "{text}");
+            let _ = err.flush();
+        }
+    }
+}
+
+const FOUNDRY_MCP_STUB: &str = include_str!("../../../examples/mcp/foundry.mcp.toml");
+
+const WEB3_INSTRUCTIONS: &str = r#"# Cortex Web3 / smart-contract project
+
+This project was initialized with `cortex init --web3`.
+
+## Guidance for the agent
+
+- Prefer Foundry (`forge build`, `forge test`) when `foundry.toml` is present.
+- For audits use skills `sc_security`, `solidity`, and optionally `sc_xray`.
+- Multi-lens: tool `audit_lenses` (parallel specialty reviewers).
+- Write durable reports with `write_audit_report` under `.cortex/audits/`.
+- Enable Foundry MCP: see `.cortex/mcp.toml` (requires Node + forge on PATH).
+- External packs: https://skills.eth.sh/ — `cortex skills import <url-or-path>`.
+
+## Honest limits
+
+- Assisted review is not a professional audit.
+- Note when Slither/Aderyn/forge are missing; do not invent tool output.
+"#;
+
+fn cmd_update(dry_run: bool) -> Result<()> {
+    let install = "curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh";
+    println!("Cortex update (Linux/macOS)");
+    println!("  current: {}", env!("CARGO_PKG_VERSION"));
+    println!("  reinstall latest release into ~/.local/bin:");
+    println!("    {install}");
+    println!("  pin a version:");
+    println!("    CORTEX_VERSION=v0.2.1 {install}");
+    println!("  from source:");
+    println!(
+        "    cargo install --git https://github.com/CallumBicknell/cortex --locked --bin cortex"
+    );
+    if dry_run {
+        println!("dry-run: not executing install script");
+        return Ok(());
+    }
+    // Only auto-run when stdout is a TTY-ish interactive intent; still require network.
+    // Prefer printing unless CORTEX_UPDATE_EXEC=1 for scripted upgrades.
+    if std::env::var_os("CORTEX_UPDATE_EXEC").is_some() {
+        println!("running install script (CORTEX_UPDATE_EXEC set)…");
+        let status = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(install)
+            .status()
+            .context("run install.sh")?;
+        if !status.success() {
+            anyhow::bail!("install script exited with {status}");
+        }
+    } else {
+        println!("\nTo execute the installer now:");
+        println!("  CORTEX_UPDATE_EXEC=1 cortex update");
+        println!("  # or paste the curl | sh line above");
+    }
+    Ok(())
+}
+
+async fn cmd_init(workspace: Option<PathBuf>, force: bool, web3: bool) -> Result<()> {
     // Ensure user home exists so global defaults are ready.
     let home = cortex_home();
     let _ = bootstrap_home(&home, false);
@@ -1252,12 +1350,54 @@ async fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
     let _ = open_sqlite(&db_path).await.context("init database")?;
     println!("✓ database {}", db_path.display());
 
+    if web3 {
+        let mcp_path = cortex_dir.join("mcp.toml");
+        if mcp_path.exists() && !force {
+            println!(
+                "✓ {} already exists (use --force to overwrite)",
+                mcp_path.display()
+            );
+        } else {
+            std::fs::write(&mcp_path, FOUNDRY_MCP_STUB)
+                .with_context(|| format!("write {}", mcp_path.display()))?;
+            println!("✓ wrote {} (Foundry MCP sample)", mcp_path.display());
+        }
+
+        let instr_path = cortex_dir.join("instructions.md");
+        if instr_path.exists() && !force {
+            println!(
+                "✓ {} already exists (use --force to overwrite)",
+                instr_path.display()
+            );
+        } else {
+            std::fs::write(&instr_path, WEB3_INSTRUCTIONS)
+                .with_context(|| format!("write {}", instr_path.display()))?;
+            println!("✓ wrote {}", instr_path.display());
+        }
+
+        let agents = workspace.join("AGENTS.md");
+        if !agents.exists() {
+            let stub = "# Project agent notes\n\n\
+                        See `.cortex/instructions.md` for Web3/audit defaults.\n\
+                        Prefer `cortex run \"…\" --skills sc_security,solidity`.\n";
+            std::fs::write(&agents, stub).ok();
+            println!("✓ wrote {}", agents.display());
+        }
+    }
+
     println!("\nCortex project initialized in {}", workspace.display());
     println!("User home (global): {}", home.display());
     println!("Next:");
     println!("  export OPENAI_API_KEY=...   # or use ollama");
     println!("  # edit .cortex/models.toml  # project override of default_model");
-    println!("  cortex run \"hello\"");
+    if web3 {
+        println!("  # ensure forge + node/npx on PATH for MCP");
+        println!("  cortex tools list | grep mcp_foundry   # after MCP starts");
+        println!("  cortex run \"Audit this repo\" --skills sc_security,solidity --yolo");
+    } else {
+        println!("  cortex run \"hello\"");
+        println!("  # Web3 scaffold: cortex init --web3");
+    }
     Ok(())
 }
 
@@ -1267,6 +1407,7 @@ async fn cmd_run(
     config: Option<PathBuf>,
     prompt: String,
     model: Option<String>,
+    stream: bool,
     yolo: bool,
     max_turns: u32,
     json: bool,
@@ -1314,6 +1455,7 @@ async fn cmd_run(
     let tool_ctx = app.tool_context(cancel.clone(), store.as_ref(), Some(session_id_for_ctx));
     let (verify_after_writes, verify_command) =
         resolve_verify(verify, verify_cmd, &app.paths.workspace);
+    let want_stream = stream && !json;
     let loop_cfg = AgentLoopConfig {
         max_turns,
         context,
@@ -1321,6 +1463,7 @@ async fn cmd_run(
         plan_mode: plan,
         verify_after_writes,
         verify_command,
+        stream_tokens: want_stream,
         ..Default::default()
     };
     let tools = tools_with_subagent(
@@ -1329,12 +1472,17 @@ async fn cmd_run(
         resolved.model.clone(),
         loop_cfg.clone(),
     );
-    let agent = AgentLoop::new(
+    let mut agent = AgentLoop::new(
         Arc::clone(&resolved.provider),
         resolved.model.clone(),
         tools,
         loop_cfg,
     );
+    if want_stream {
+        let bus = Arc::new(InMemoryEventBus::new(256));
+        bus.subscribe(Arc::new(StreamPrinter)).await;
+        agent = agent.with_event_bus(bus);
+    }
     if let Some(store) = &store {
         if let Ok(Some((_, s))) = store
             .latest_summary(session_id_for_ctx, Some("rolling"))
@@ -1353,6 +1501,11 @@ async fn cmd_run(
         })
         .await
         .context("agent run")?;
+
+    if want_stream {
+        // Finish the streamed line before summary output.
+        let _ = writeln!(io::stderr());
+    }
 
     if let (Some(store), Some(summary)) = (&store, agent.rolling_summary()) {
         let _ = store

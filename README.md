@@ -119,6 +119,10 @@ See [`docs/ci.md`](docs/ci.md) for GitHub Actions, releases, Docker, and Dependa
 cortex setup                  # ~/.cortex (auto-created on first use too)
 cortex doctor
 cortex init                   # project .cortex/ (optional)
+cortex init --web3            # Foundry MCP + Web3 instructions
+cortex update                 # how to reinstall latest release
+# Project rules: AGENTS.md or .cortex/instructions.md (auto-injected)
+cortex run "hello" --stream   # token deltas on stderr
 
 # Offline mock provider (default in models.toml)
 cortex tools list

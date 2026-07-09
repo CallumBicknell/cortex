@@ -200,6 +200,7 @@ pub async fn run_fixture(fixture: &EvalFixture) -> Result<EvalCaseResult> {
             plan_mode: false,
             verify_after_writes: false,
             verify_command: None,
+            stream_tokens: false,
         },
     );
 
