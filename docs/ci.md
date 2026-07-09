@@ -10,6 +10,25 @@ local scripts that mirror CI for pre-push confidence.
 | [`ci.yml`](../.github/workflows/ci.yml) | PR / push | fmt, clippy, tests, evals, smoke, cargo-deny, Python SDK, release binary artifact |
 | [`release.yml`](../.github/workflows/release.yml) | tag `v*` | Multi-OS release binaries + GitHub Release |
 | [`docker.yml`](../.github/workflows/docker.yml) | main / tags (PRs only if Docker files change) | Build & push image to GHCR |
+| [`dependabot-auto-merge.yml`](../.github/workflows/dependabot-auto-merge.yml) | Dependabot PRs | Enable auto-squash for patch/minor; majors need human review |
+
+## Dependabot
+
+Weekly updates via [`.github/dependabot.yml`](../.github/dependabot.yml):
+
+| Ecosystem | Groups | Open PR limit |
+|-----------|--------|---------------|
+| cargo | `tokio-ecosystem`, `ratatui-ecosystem`, `cargo-patch-minor` | 5 |
+| github-actions | `github-actions` (all) | 5 |
+| pip (`sdks/python`) | `python-sdk` (all) | 5 |
+| docker | — | 2 |
+
+**Merge policy**
+
+- **Patch / minor**: `dependabot-auto-merge` enables GitHub auto-merge (squash) once required checks pass.
+- **Major**: no auto-merge; the workflow leaves a review comment. Expect code fixes (path params, trait changes, etc.).
+
+Repo settings: `allow_auto_merge=true`, `delete_branch_on_merge=true`. Prefer **squash** for Dependabot noise.
 
 ## Jobs (CI)
 
