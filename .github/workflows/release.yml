@@ -19,6 +19,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # Unix-first: Linux + Apple Silicon. (Intel macOS runners often queue forever;
+      # Windows install is deferred — see docs/install.md.)
       matrix:
         include:
           - os: ubuntu-latest
@@ -29,14 +31,6 @@ jobs:
             target: aarch64-apple-darwin
             bin: cortex
             asset_ext: tar.gz
-          - os: macos-13
-            target: x86_64-apple-darwin
-            bin: cortex
-            asset_ext: tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bin: cortex.exe
-            asset_ext: zip
 
     steps:
       - uses: actions/checkout@v7
