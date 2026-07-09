@@ -3,11 +3,12 @@
 use anyhow::{bail, Context, Result};
 use cortex_llm::{ModelsConfig, ProviderRegistry, ResolvedModel};
 use cortex_mcp::{load_and_register_mcp, McpConfig};
+use cortex_memory::{open_sqlite, SessionStore, VectorStore};
 use cortex_plugins::{PluginHost, PluginsConfig};
 use cortex_security::{PolicyApprover, SecurityPolicy};
 use cortex_tools::{
-    register_default_tools_with_browser, BrowserConfig, BrowserHandle, ToolContext, ToolExecutor,
-    ToolRegistry,
+    register_default_tools_with_browser, register_memory_tools, BrowserConfig, BrowserHandle,
+    MemoryHandle, ToolContext, ToolExecutor, ToolRegistry,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,7 +19,6 @@ use tracing::info;
 use crate::approver::CliApprover;
 use crate::db_audit::audit_sink_for;
 use cortex_common::SessionId;
-use cortex_memory::SessionStore;
 
 /// Resolved filesystem layout for a Cortex workspace invocation.
 #[derive(Debug, Clone)]
@@ -129,6 +129,14 @@ impl AppContext {
             info!(count = plugins.len(), "plugins loaded");
         }
 
+        // Memory tools when SQLite DB is available (created on first open).
+        if let Ok(pool) = open_sqlite(&paths.database).await {
+            let collection = paths.workspace.to_string_lossy().to_string();
+            let handle = MemoryHandle::new(VectorStore::new(pool), collection);
+            register_memory_tools(&mut tool_reg, handle);
+            info!("memory_search tool registered");
+        }
+
         let tools = ToolExecutor::new(Arc::new(tool_reg));
 
         let security = load_security_policy(&paths, yolo)?;
@@ -141,6 +149,22 @@ impl AppContext {
             security: Arc::new(security),
             plugins,
         })
+    }
+
+    /// Open the session/vector store for this workspace.
+    pub async fn open_store(&self) -> Result<SessionStore> {
+        let pool = open_sqlite(&self.paths.database)
+            .await
+            .with_context(|| format!("open database {}", self.paths.database.display()))?;
+        Ok(SessionStore::new(pool))
+    }
+
+    /// Vector store sharing the workspace database.
+    pub async fn open_vector_store(&self) -> Result<VectorStore> {
+        let pool = open_sqlite(&self.paths.database)
+            .await
+            .with_context(|| format!("open database {}", self.paths.database.display()))?;
+        Ok(VectorStore::new(pool))
     }
 
     /// Resolve a model alias (or default).

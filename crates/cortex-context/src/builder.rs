@@ -33,6 +33,10 @@ pub struct ContextBuilder {
     pub include_repo_map: bool,
     /// Optional skill prompt section (active skill guidance).
     pub skill_prompt_section: Option<String>,
+    /// Rolling conversation summary (injected as system context).
+    pub rolling_summary: Option<String>,
+    /// Retrieved memory / RAG hits (injected as system context).
+    pub retrieval_section: Option<String>,
     /// If set, only expose these tool names to the model.
     pub allowed_tools: Option<Vec<String>>,
 }
@@ -47,6 +51,8 @@ impl Default for ContextBuilder {
             repo_map_section: None,
             include_repo_map: true,
             skill_prompt_section: None,
+            rolling_summary: None,
+            retrieval_section: None,
             allowed_tools: None,
         }
     }
@@ -98,6 +104,18 @@ impl ContextBuilder {
         self
     }
 
+    /// Attach a rolling conversation summary.
+    pub fn with_rolling_summary(mut self, summary: impl Into<String>) -> Self {
+        self.rolling_summary = Some(summary.into());
+        self
+    }
+
+    /// Attach retrieval / memory search hits for the current turn.
+    pub fn with_retrieval(mut self, section: impl Into<String>) -> Self {
+        self.retrieval_section = Some(section.into());
+        self
+    }
+
     /// Restrict tools exposed to the model.
     pub fn with_allowed_tools(
         mut self,
@@ -118,6 +136,23 @@ impl ContextBuilder {
 
         // Skill guidance
         if let Some(section) = &self.skill_prompt_section {
+            if !section.trim().is_empty() {
+                out.push(Message::system(section));
+            }
+        }
+
+        // Rolling summary of earlier turns
+        if let Some(summary) = &self.rolling_summary {
+            if !summary.trim().is_empty() {
+                out.push(Message::system(format!(
+                    "[session summary]\n{}",
+                    summary.trim()
+                )));
+            }
+        }
+
+        // Retrieved memory snippets
+        if let Some(section) = &self.retrieval_section {
             if !section.trim().is_empty() {
                 out.push(Message::system(section));
             }

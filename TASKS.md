@@ -185,13 +185,25 @@
 
 ---
 
+# Phase 12 — Summaries + embeddings
+
+* [x] P12.1 Rolling conversation summarizer (LLM + extractive fallback)
+* [x] P12.2 ContextBuilder: `rolling_summary` + `retrieval` sections
+* [x] P12.3 Agent loop auto-summarize + SQLite `summaries` load/save
+* [x] P12.4 Local embedder + cosine search + `embeddings` migration
+* [x] P12.5 `VectorStore` upsert/search + workspace index
+* [x] P12.6 `memory_search` tool + `memory` skill
+* [x] P12.7 CLI `cortex memory {index,search,stats,summarize}`
+* [x] P12.8 Mock provider embeddings + tests + `docs/memory.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 12 | Summaries + embeddings |
 | 13 | Parser / tree-sitter / LSP |
 | 14 | TUI |
 | 15 | HTTP API + real Python SDK |

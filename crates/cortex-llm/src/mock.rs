@@ -2,7 +2,9 @@
 
 use crate::error::{ProviderError, Result};
 use crate::provider::{ChatStream, Provider};
-use crate::types::{ChatRequest, ChatResponse, FinishReason, StreamEvent, Usage};
+use crate::types::{
+    ChatRequest, ChatResponse, EmbedRequest, EmbedResponse, FinishReason, StreamEvent, Usage,
+};
 use async_trait::async_trait;
 use cortex_models::Message;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -160,6 +162,44 @@ impl Provider for MockProvider {
         };
         Ok(Box::pin(stream))
     }
+
+    async fn embeddings(&self, req: EmbedRequest) -> Result<EmbedResponse> {
+        if let Some(c) = &req.cancel {
+            if c.is_cancelled() {
+                return Err(ProviderError::cancelled("mock embeddings aborted"));
+            }
+        }
+        // Deterministic pseudo-embedding from content hash (64-d).
+        let embeddings = req.input.iter().map(|t| mock_embed(t)).collect::<Vec<_>>();
+        Ok(EmbedResponse {
+            model: req.model,
+            embeddings,
+            usage: Usage {
+                prompt_tokens: req.input.iter().map(|t| t.len() as u32 / 4).sum(),
+                completion_tokens: 0,
+                total_tokens: req.input.iter().map(|t| t.len() as u32 / 4).sum(),
+            },
+        })
+    }
+}
+
+fn mock_embed(text: &str) -> Vec<f32> {
+    const DIMS: usize = 64;
+    let mut v = vec![0.0f32; DIMS];
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in text.bytes() {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x100000001b3);
+        let idx = (h as usize) % DIMS;
+        v[idx] += 1.0;
+    }
+    let n: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+    if n > 0.0 {
+        for x in &mut v {
+            *x /= n;
+        }
+    }
+    v
 }
 
 #[cfg(test)]

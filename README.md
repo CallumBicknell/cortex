@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–11 complete: agent OS core through MCP, CDP browser tools, and in-process plugins. Still missing: TUI, dynamic plugin loading, and OS-level sandboxing (bubblewrap/firejail).
+**Early development (v0.1.0).** Phases 0–12 complete: agent OS core through MCP, CDP browser, plugins, conversation summaries, and local vector memory. Still missing: TUI, tree-sitter/LSP, dynamic plugins, and OS-level sandboxing.
 
 | Area | Status |
 |------|--------|
@@ -29,6 +29,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | MCP client + docker/search/patch tools | Implemented |
 | Browser tools via CDP (Obscura/Chrome) | Implemented |
 | In-process plugins (`echo` demo) | Implemented |
+| Rolling summaries + local vector memory | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
 | Python SDK | Stub only |
 | TUI / HTTP API / dynamic plugins | Planned (later) |
@@ -55,7 +56,7 @@ crates/
   cortex-core/      # Kernel, config, event bus, service registry, cancel
   cortex-events/    # Lifecycle re-exports + agent loop events
   cortex-runtime/   # Kernel facade + AgentLoop
-  cortex-memory/    # SQLite sessions, checkpoints, events
+  cortex-memory/    # SQLite sessions, checkpoints, summaries, vectors
   cortex-workspace/ # Root detect, ignore, project, repo map
   cortex-context/   # Token budgets, history compression
   cortex-prompts/   # Markdown prompts + templates
@@ -118,13 +119,15 @@ cargo run -p cortex-cli -- skills select "audit solidity with forge"
 cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
 cargo run -p cortex-cli -- security show
 cargo run -p cortex-cli -- plugins list
+cargo run -p cortex-cli -- memory index
+cargo run -p cortex-cli -- memory search "agent loop"
 
 # Browser via CDP (Obscura default — start `obscura` or Chrome first)
 # cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), and [`docs/plugin-system.md`](docs/plugin-system.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), and [`docs/memory.md`](docs/memory.md).
 
 ### Configuration
 

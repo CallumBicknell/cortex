@@ -9,11 +9,13 @@ mod agent_loop;
 mod context;
 mod error;
 mod runtime;
+mod summarize;
 
 pub use agent_loop::{AgentLoop, AgentLoopConfig, RunInput, RunOutput};
 pub use context::{ContextBuilder, DEFAULT_SYSTEM_PROMPT};
 pub use error::{Result, RuntimeError};
 pub use runtime::Runtime;
+pub use summarize::{maybe_summarize, SummarizeConfig, SummarizeOutcome};
 
 // Re-export loop phase and workspace helpers for callers.
 pub use cortex_events::LoopPhase;

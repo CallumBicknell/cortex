@@ -15,7 +15,8 @@ mod tool;
 
 pub use builtins::{
     default_tool_names, register_default_tools, register_default_tools_with_browser,
-    BrowserBackend, BrowserConfig, BrowserHandle,
+    register_memory_tools, BrowserBackend, BrowserConfig, BrowserHandle, MemoryHandle,
+    MemorySearchTool,
 };
 pub use error::{Result, ToolError};
 pub use executor::ToolExecutor;

@@ -32,6 +32,12 @@ pub fn builtin_skills() -> Vec<Skill> {
             .prompts(["skills/web"])
             .tags(["web", "http", "docs", "fetch", "url", "search"]),
         Skill::new(
+            "memory",
+            "Semantic memory search over indexed workspace content",
+        )
+        .tools(["memory_search"])
+        .tags(["memory", "search", "rag", "embeddings", "index", "retrieve"]),
+        Skill::new(
             "browser",
             "Headless browser via CDP (Obscura, Chrome, Chromium, custom)",
         )

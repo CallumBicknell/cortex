@@ -8,10 +8,13 @@ use anyhow::{Context, Result};
 use app::{init_tracing, load_dotenv, write_default_models_toml, AppContext, Paths};
 use clap::{Parser, Subcommand};
 use cortex_common::SessionId;
-use cortex_memory::{open_sqlite, CheckpointState, SessionStore};
+use cortex_memory::{open_sqlite, CheckpointState, SessionStore, VectorStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
-use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
+use cortex_runtime::{
+    maybe_summarize, AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput,
+    SummarizeConfig,
+};
 use cortex_security::{redact_text, SecurityPolicy};
 use cortex_skills::{select_skills, SkillRegistry};
 use cortex_workspace::RepoMap;
@@ -140,6 +143,11 @@ enum Commands {
         #[command(subcommand)]
         command: PluginsCmd,
     },
+    /// Vector memory index and search.
+    Memory {
+        #[command(subcommand)]
+        command: MemoryCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -190,6 +198,37 @@ enum SecurityCmd {
 enum PluginsCmd {
     /// List loaded plugins and known builtins.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+enum MemoryCmd {
+    /// Index workspace text files into the local vector store.
+    Index {
+        /// Max files to index.
+        #[arg(long, default_value_t = 200)]
+        max_files: usize,
+        /// Clear collection before indexing.
+        #[arg(long)]
+        clear: bool,
+    },
+    /// Semantic search the memory index.
+    Search {
+        /// Query text.
+        query: String,
+        /// Number of hits.
+        #[arg(long, short = 'k', default_value_t = 5)]
+        top_k: usize,
+    },
+    /// Show index stats.
+    Stats,
+    /// Summarize a session (LLM or extractive) and store the result.
+    Summarize {
+        /// Session id.
+        session: String,
+        /// Use extractive-only (no LLM call).
+        #[arg(long)]
+        extractive: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -319,8 +358,143 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Plugins { command } => {
             return cmd_plugins(cli.workspace, cli.config, command).await;
         }
+        Commands::Memory { command } => {
+            return cmd_memory(cli.workspace, cli.config, command).await;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_memory(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    command: MemoryCmd,
+) -> Result<ExitCode> {
+    let paths = Paths::resolve(workspace, config)?;
+    let app = AppContext::bootstrap(paths, false).await?;
+    let collection = app.paths.workspace.to_string_lossy().to_string();
+    let store = app.open_vector_store().await?;
+
+    match command {
+        MemoryCmd::Stats => {
+            let n = store.count(&collection).await?;
+            println!("collection: {collection}");
+            println!("chunks: {n}");
+            println!("db: {}", app.paths.database.display());
+        }
+        MemoryCmd::Search { query, top_k } => {
+            let hits = store
+                .search_text_local(&collection, &query, top_k)
+                .await
+                .context("memory search")?;
+            if hits.is_empty() {
+                println!("no hits (try `cortex memory index` first)");
+            } else {
+                for (i, h) in hits.iter().enumerate() {
+                    println!(
+                        "[{}] score={:.3} {} ({})",
+                        i + 1,
+                        h.score,
+                        h.chunk.source_id,
+                        h.chunk.source_kind
+                    );
+                    let preview: String = h.chunk.content.chars().take(200).collect();
+                    println!("    {preview}");
+                    println!();
+                }
+            }
+        }
+        MemoryCmd::Index { max_files, clear } => {
+            if clear {
+                let n = store.clear_collection(&collection).await?;
+                eprintln!("cleared {n} chunks");
+            }
+            let indexed =
+                index_workspace_files(&store, &app.paths.workspace, &collection, max_files).await?;
+            println!("indexed {indexed} files into collection");
+            println!("total chunks: {}", store.count(&collection).await?);
+        }
+        MemoryCmd::Summarize {
+            session,
+            extractive,
+        } => {
+            let sid = parse_session_id(&session)?;
+            let session_store = app.open_store().await?;
+            let sess = session_store.load_session(sid).await?;
+            let resolved = app.resolve_model(None)?;
+            let cfg = SummarizeConfig {
+                enabled: true,
+                message_threshold: 1,
+                token_threshold: 0,
+                keep_recent: 4,
+                use_llm: !extractive,
+                extractive_max_chars: 3000,
+            };
+            let outcome = maybe_summarize(
+                &resolved.provider,
+                &resolved.model,
+                &sess.messages,
+                None,
+                &cfg,
+            )
+            .await
+            .ok_or_else(|| anyhow::anyhow!("session too short to summarize"))?;
+            session_store
+                .save_summary(sid, "rolling", &outcome.summary)
+                .await?;
+            println!(
+                "saved summary (llm={}, folded={}):\n{}",
+                outcome.used_llm, outcome.folded_messages, outcome.summary
+            );
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn index_workspace_files(
+    store: &VectorStore,
+    workspace: &std::path::Path,
+    collection: &str,
+    max_files: usize,
+) -> Result<usize> {
+    let files = cortex_workspace::list_files(workspace, max_files).context("list files")?;
+    let mut count = 0usize;
+    for rel in files {
+        let path = workspace.join(&rel);
+        let Ok(meta) = std::fs::metadata(&path) else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() > 256 * 1024 {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        // Skip likely-binary / empty.
+        if text
+            .chars()
+            .filter(|c| c.is_control() && *c != '\n' && *c != '\t')
+            .count()
+            > 8
+        {
+            continue;
+        }
+        if text.trim().is_empty() {
+            continue;
+        }
+        let source_id = rel.to_string_lossy().to_string();
+        let content = if text.len() > 12_000 {
+            format!("{}…", &text[..12_000])
+        } else {
+            text
+        };
+        store
+            .index_text_local(collection, &source_id, "file", &content)
+            .await
+            .with_context(|| format!("index {source_id}"))?;
+        count += 1;
+    }
+    Ok(count)
 }
 
 async fn cmd_plugins(
@@ -603,8 +777,17 @@ async fn cmd_run(
             temperature: None,
             max_tokens: None,
             stop_on_max_turns: true,
+            summarize: SummarizeConfig::default(),
         },
     );
+    if let Some(store) = &store {
+        if let Ok(Some((_, s))) = store
+            .latest_summary(session_id_for_ctx, Some("rolling"))
+            .await
+        {
+            agent.set_rolling_summary(Some(s));
+        }
+    }
 
     let output = agent
         .run(RunInput {
@@ -615,6 +798,12 @@ async fn cmd_run(
         })
         .await
         .context("agent run")?;
+
+    if let (Some(store), Some(summary)) = (&store, agent.rolling_summary()) {
+        let _ = store
+            .save_summary(session_id_for_ctx, "rolling", &summary)
+            .await;
+    }
 
     let checkpoint_id = if let Some(store) = &store {
         Some(persist_output(store, &output).await?)
@@ -715,8 +904,12 @@ async fn cmd_chat(
                 temperature: None,
                 max_tokens: None,
                 stop_on_max_turns: true,
+                summarize: SummarizeConfig::default(),
             },
         );
+        if let Ok(Some((_, s))) = store.latest_summary(session.id, Some("rolling")).await {
+            agent.set_rolling_summary(Some(s));
+        }
 
         let output = agent
             .run(RunInput {
@@ -728,6 +921,12 @@ async fn cmd_chat(
             .await
             .context("chat turn")?;
         ctrl.abort();
+
+        if let Some(summary) = agent.rolling_summary() {
+            let _ = store
+                .save_summary(output.session.id, "rolling", &summary)
+                .await;
+        }
 
         session = output.session.clone();
         let _ = persist_output(&store, &output).await?;

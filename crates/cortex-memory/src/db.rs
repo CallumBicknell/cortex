@@ -33,9 +33,13 @@ pub async fn open_sqlite(path: impl AsRef<Path>) -> Result<SqlitePool> {
 
 /// Apply embedded SQL migrations (idempotent).
 pub async fn migrate(pool: &SqlitePool) -> Result<()> {
-    let sql = include_str!("../../../migrations/001_init.sql");
-    for stmt in sql_statements(sql) {
-        sqlx::query(&stmt).execute(pool).await?;
+    for path in [
+        include_str!("../../../migrations/001_init.sql"),
+        include_str!("../../../migrations/002_embeddings.sql"),
+    ] {
+        for stmt in sql_statements(path) {
+            sqlx::query(&stmt).execute(pool).await?;
+        }
     }
     Ok(())
 }

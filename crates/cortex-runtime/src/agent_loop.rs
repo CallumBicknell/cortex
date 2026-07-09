@@ -2,6 +2,7 @@
 
 use crate::context::ContextBuilder;
 use crate::error::{Result, RuntimeError};
+use crate::summarize::{maybe_summarize, SummarizeConfig};
 use cortex_common::RunId;
 use cortex_core::{EventBus, InMemoryEventBus};
 use cortex_events::{
@@ -29,6 +30,8 @@ pub struct AgentLoopConfig {
     pub max_tokens: Option<u32>,
     /// If true, stop when max turns hit even mid-tool-use (default true).
     pub stop_on_max_turns: bool,
+    /// Rolling history summarization.
+    pub summarize: SummarizeConfig,
 }
 
 impl Default for AgentLoopConfig {
@@ -39,6 +42,7 @@ impl Default for AgentLoopConfig {
             temperature: None,
             max_tokens: None,
             stop_on_max_turns: true,
+            summarize: SummarizeConfig::default(),
         }
     }
 }
@@ -85,6 +89,8 @@ pub struct AgentLoop {
     tools: ToolExecutor,
     config: AgentLoopConfig,
     event_bus: Option<Arc<InMemoryEventBus>>,
+    /// Rolling summary carried across turns of a run.
+    rolling_summary: std::sync::Mutex<Option<String>>,
 }
 
 impl AgentLoop {
@@ -101,7 +107,18 @@ impl AgentLoop {
             tools,
             config,
             event_bus: None,
+            rolling_summary: std::sync::Mutex::new(None),
         }
+    }
+
+    /// Seed or replace the rolling conversation summary (e.g. from SQLite).
+    pub fn set_rolling_summary(&self, summary: Option<String>) {
+        *self.rolling_summary.lock().expect("summary lock") = summary;
+    }
+
+    /// Current rolling summary, if any.
+    pub fn rolling_summary(&self) -> Option<String> {
+        self.rolling_summary.lock().expect("summary lock").clone()
     }
 
     /// Attach an event bus for observability.
@@ -242,11 +259,28 @@ impl AgentLoop {
             *turns += 1;
             let turn = *turns;
 
-            let messages = self.config.context.build_messages(&session.messages);
-            let tools = self
-                .config
-                .context
-                .build_tools(self.tools.registry().specs());
+            // Fold long histories into a rolling summary before building context.
+            {
+                let prev = self.rolling_summary();
+                if let Some(outcome) = maybe_summarize(
+                    &self.provider,
+                    &self.model,
+                    &session.messages,
+                    prev.as_deref(),
+                    &self.config.summarize,
+                )
+                .await
+                {
+                    self.set_rolling_summary(Some(outcome.summary));
+                }
+            }
+
+            let mut ctx = self.config.context.clone();
+            if let Some(summary) = self.rolling_summary() {
+                ctx = ctx.with_rolling_summary(summary);
+            }
+            let messages = ctx.build_messages(&session.messages);
+            let tools = ctx.build_tools(self.tools.registry().specs());
 
             let mut req = ChatRequest::new(&self.model, messages)
                 .with_tools(tools)

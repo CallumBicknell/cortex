@@ -64,6 +64,10 @@ async fn multi_step_write_file_then_finish() {
             temperature: None,
             max_tokens: None,
             stop_on_max_turns: true,
+            summarize: cortex_runtime::SummarizeConfig {
+                enabled: false,
+                ..Default::default()
+            },
         },
     )
     .with_event_bus(Arc::clone(&bus));

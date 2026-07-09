@@ -9,6 +9,7 @@ description = "Tool trait, registry, executor, permissions, and builtin tools fo
 [dependencies]
 async-trait = { workspace = true }
 cortex-common = { path = "../cortex-common" }
+cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
 glob = { workspace = true }
 futures = { workspace = true }

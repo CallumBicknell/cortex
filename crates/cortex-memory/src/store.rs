@@ -378,7 +378,7 @@ impl SessionStore {
         Ok(())
     }
 
-    /// Save a summary row (schema ready; generation is later).
+    /// Save a summary row.
     pub async fn save_summary(
         &self,
         session_id: SessionId,
@@ -399,6 +399,71 @@ impl SessionStore {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Latest summary for a session (optional scope filter).
+    pub async fn latest_summary(
+        &self,
+        session_id: SessionId,
+        scope: Option<&str>,
+    ) -> Result<Option<(String, String)>> {
+        let row = if let Some(scope) = scope {
+            sqlx::query(
+                r#"
+                SELECT scope, content FROM summaries
+                WHERE session_id = ? AND scope = ?
+                ORDER BY created_at DESC LIMIT 1
+                "#,
+            )
+            .bind(session_id.to_string())
+            .bind(scope)
+            .fetch_optional(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT scope, content FROM summaries
+                WHERE session_id = ?
+                ORDER BY created_at DESC LIMIT 1
+                "#,
+            )
+            .bind(session_id.to_string())
+            .fetch_optional(&self.pool)
+            .await?
+        };
+        Ok(match row {
+            Some(r) => Some((r.try_get("scope")?, r.try_get("content")?)),
+            None => None,
+        })
+    }
+
+    /// List summaries for a session (newest first).
+    pub async fn list_summaries(
+        &self,
+        session_id: SessionId,
+        limit: u32,
+    ) -> Result<Vec<(String, String, String)>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT scope, content, created_at FROM summaries
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(session_id.to_string())
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push((
+                r.try_get("scope")?,
+                r.try_get("content")?,
+                r.try_get("created_at")?,
+            ));
+        }
+        Ok(out)
     }
 
     /// Export a session as a JSON value (session + checkpoints + events).

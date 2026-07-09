@@ -56,6 +56,7 @@ impl Default for PermissionPolicy {
             "browser_snapshot",
             "browser_content",
             "browser_evaluate",
+            "memory_search",
         ] {
             tools.insert(name.to_string(), PermissionMode::Allow);
         }

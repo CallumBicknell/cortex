@@ -6,6 +6,7 @@ pub mod docker;
 pub mod filesystem;
 pub mod git;
 pub mod http;
+pub mod memory;
 pub mod search;
 pub mod shell;
 
@@ -21,6 +22,7 @@ use shell::ShellTool;
 use std::sync::Arc;
 
 pub use browser::{register_browser_tools, BrowserBackend, BrowserConfig, BrowserHandle};
+pub use memory::{MemoryHandle, MemorySearchTool};
 
 /// Register the default builtin tool set (including browser tools with default Obscura config).
 pub fn register_default_tools(registry: &mut ToolRegistry) -> Result<()> {
@@ -75,5 +77,11 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "browser_content",
         "browser_click",
         "browser_close",
+        "memory_search",
     ]
+}
+
+/// Register optional memory tools when a handle is available.
+pub fn register_memory_tools(registry: &mut ToolRegistry, handle: MemoryHandle) {
+    let _ = registry.register(Arc::new(MemorySearchTool::new(handle)));
 }

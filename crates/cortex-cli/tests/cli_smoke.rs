@@ -13,12 +13,15 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn tools_list_prints_read_file() {
+    let root = repo_root();
     cargo_bin_cmd!("cortex")
+        .current_dir(&root)
         .arg("tools")
         .arg("list")
         .assert()
         .success()
-        .stdout(predicate::str::contains("read_file"));
+        .stdout(predicate::str::contains("read_file"))
+        .stdout(predicate::str::contains("memory_search"));
 }
 
 #[test]
