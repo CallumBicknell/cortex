@@ -313,11 +313,20 @@ Optional later: `plugins/foundry_helpers` fixed-arg forge wrappers.
 
 ---
 
+# Phase 22 — Audit artifacts + evals
+
+* [x] P22.1 `write_audit_report` tool → `.cortex/audits/`
+* [x] P22.2 Meta sidecar with session_id + fingerprint
+* [x] P22.3 Optional findings JSON + memory index tip
+* [x] P22.4 Eval fixtures (`evals/fixtures/vulns/*`) + sc_* eval TOMLs
+* [x] P22.5 Wire into sc_security / sc_xray; docs
+
+---
+
 # Upcoming (planned)
 
 | Phase | Theme |
 |-------|--------|
-| P22 | Audit artifacts + SC eval fixtures |
 | P23 | Web3 skill import / skills.eth.sh bridge |
 | P24 | Parallel read tools, plan/verify polish |
 | P25 | Docs/release productization |

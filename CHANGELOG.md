@@ -33,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   servers (Blockscout, Tenderly, CoinGecko, …); header env expansion; local-host guard
 - **SC tooling depth (P21)**: `sc_xray` pre-audit skill; `sc_analyzers` / `sc_poc` /
   `findings_schema` prompts; demo reentrancy PoC under `examples/foundry-vault`
+- **Audit artifacts (P22)**: `write_audit_report` tool (markdown/JSON under
+  `.cortex/audits/`); vuln fixtures + SC eval cases
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`

@@ -1,0 +1,25 @@
+id = "sc_reentrancy_finding"
+description = "Mock audit of reentrancy fixture mentions CEI / reentrancy"
+prompt = """
+Audit evals/fixtures/vulns/reentrancy_vault.sol for security issues.
+Report findings with severity and root cause. Prefer write_audit_report if available.
+"""
+max_turns = 2
+expect_contains = ["reentrancy", "withdraw", "severity"]
+expect_status = "succeeded"
+
+[[mock]]
+type = "text"
+content = """
+### [High] Reentrancy on withdraw
+- **id:** F-001
+- **Contract / function:** reentrancy_vault.sol:withdraw
+- **Bug class:** reentrancy
+- **Root cause:** balances zeroed after external call (CEI violation)
+- **Impact:** attacker contract drains ETH via receive callback
+- **Proof:** classic reentrancy pattern in withdraw
+- **Minimal fix:** zero balance before call; add nonReentrant
+- **Confidence:** high
+
+Severity: 1 High. Fixture is intentionally vulnerable.
+"""

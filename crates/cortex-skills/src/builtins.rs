@@ -264,8 +264,10 @@ pub fn builtin_skills() -> Vec<Skill> {
             "code_definition",
             "spawn_subagent",
             "audit_lenses",
+            "write_audit_report",
             "http_request",
             "web_search",
+            "memory_search",
         ])
         .prompts([
             "skills/sc_security",
@@ -332,6 +334,8 @@ pub fn builtin_skills() -> Vec<Skill> {
             "git_status",
             "git_log",
             "git_diff",
+            "write_audit_report",
+            "memory_search",
         ])
         .prompts([
             "skills/sc_xray",

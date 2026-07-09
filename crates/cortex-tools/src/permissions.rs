@@ -82,6 +82,7 @@ impl Default for PermissionPolicy {
             "browser_close",
             "spawn_subagent",
             "audit_lenses",
+            "write_audit_report",
             "skill_save",
             "skill_promote",
         ] {

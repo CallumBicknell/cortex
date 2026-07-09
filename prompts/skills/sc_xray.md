@@ -71,4 +71,5 @@ Write markdown covering:
 - Prefer tools (`list_dir`, `glob_files`, `code_outline`, `read_file`, `shell`, `git_log`) over guessing.
 - Do **not** claim Critical vulns without proof — those belong in a full audit.
 - If the user wants findings, hand off to multi-lens audit after the x-ray.
-- Write the report to disk only when the user wants a file (or when clearly implied by “produce a report”).
+- Prefer **`write_audit_report`** with `kind: "xray"` when producing a durable
+  report (user asked for a file/report, or prep is clearly the deliverable).

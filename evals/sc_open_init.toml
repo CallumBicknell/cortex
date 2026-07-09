@@ -1,0 +1,19 @@
+id = "sc_open_init"
+description = "Mock finding for unprotected initialize"
+prompt = "Review evals/fixtures/vulns/open_init.sol for access control issues"
+max_turns = 2
+expect_contains = ["initialize", "owner"]
+expect_status = "succeeded"
+
+[[mock]]
+type = "text"
+content = """
+### [Critical] Unprotected initialize
+- **Contract / function:** open_init.sol:initialize
+- **Bug class:** access-control
+- **Root cause:** anyone can set owner via initialize with no initializer guard
+- **Impact:** attacker becomes owner and sweeps funds
+- **Proof:** no onlyOwner / initializer modifier; first caller wins
+- **Minimal fix:** use OpenZeppelin Initializable; disable on implementation
+- **Confidence:** high
+"""

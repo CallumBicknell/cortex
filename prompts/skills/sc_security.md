@@ -141,6 +141,20 @@ End with:
 - Residual risks
 - Suggested next steps (fuzz campaigns, formal, professional audit)
 
+## Durable artifacts
+
+When the audit is complete (or the user asks for a saved report), call
+**`write_audit_report`** with:
+
+- `markdown` — full report (findings schema)
+- `findings_json` — optional structured findings (`schema_version` + `findings`)
+- `kind` — `"audit"`
+- `title` — short slug (e.g. protocol name)
+
+This writes under `.cortex/audits/` (markdown + optional JSON + meta). Mention the
+path in your final answer. Optionally suggest `cortex memory index` so reports
+are searchable later.
+
 ## External Web3 skills (skills.eth.sh)
 
 When the user wants deeper methodology or onchain context, point them (or

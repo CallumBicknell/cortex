@@ -1,5 +1,6 @@
 //! Builtin tools shipped with Cortex.
 
+pub mod audit;
 pub mod browser;
 pub mod code;
 pub mod diff;
@@ -24,6 +25,7 @@ use search::WebSearchTool;
 use shell::ShellTool;
 use std::sync::Arc;
 
+pub use audit::WriteAuditReportTool;
 pub use browser::{register_browser_tools, BrowserBackend, BrowserConfig, BrowserHandle};
 pub use memory::{MemoryHandle, MemorySearchTool};
 pub use skills::{
@@ -58,6 +60,7 @@ pub fn register_default_tools_with_browser(
     registry.register(Arc::new(HttpRequestTool::new()))?;
     registry.register(Arc::new(DockerRunTool))?;
     registry.register(Arc::new(WebSearchTool::from_env()))?;
+    registry.register(Arc::new(WriteAuditReportTool))?;
     register_browser_tools(registry, browser);
     Ok(())
 }
@@ -93,6 +96,7 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "skill_promote",
         "workspace_symbols",
         "code_definition",
+        "write_audit_report",
     ]
 }
 

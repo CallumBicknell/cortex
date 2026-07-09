@@ -65,6 +65,18 @@ Specialty prompts live under `prompts/skills/audit_lenses/`.
 
 Demo PoC sketch: `examples/foundry-vault/test/exploit/ReentrancyPoC.t.sol`.
 
+### Audit artifacts (P22)
+
+End of audit / x-ray → tool **`write_audit_report`**:
+
+- Path: `.cortex/audits/<ts>-<title>-{audit|xray}-report.md`
+- Optional: sibling `.json` findings + `.meta.json` (session id, fingerprint)
+- Eval fixtures: `evals/fixtures/vulns/` + `evals/sc_*.toml`
+
+```bash
+cortex eval run   # includes sc_reentrancy_finding, sc_xray_shape, …
+```
+
 This is **not** a vendored Pashov 12-agent tree; deeper external packs remain at
 [skills.eth.sh](https://skills.eth.sh/) (Pashov, QuillShield).
 
