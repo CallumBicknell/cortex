@@ -37,17 +37,6 @@ cargo build --release -p cortex-cli
 # binary: target/release/cortex
 ```
 
-## Windows
-
-Use a release `.zip` from GitHub Releases, or:
-
-```powershell
-cargo install --git https://github.com/CallumBicknell/cortex --locked --bin cortex
-cortex setup
-```
-
-A PowerShell installer is not shipped yet.
-
 ## Home vs project
 
 | Path | Role |
