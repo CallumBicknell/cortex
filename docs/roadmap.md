@@ -40,7 +40,7 @@ Primary docs: [`web3-security.md`](web3-security.md), [`web3-recipes.md`](web3-r
 | `cortex update` | Done |
 | CLI `--stream` token deltas | Done (TUI still basic) |
 | Tag release so `install.sh` has assets | Ops (tag `v*`) |
-| TUI sub-agent / cost summary | Open |
+| TUI stream + run/tool summary | Done |
 | First-run setup wizard | Open |
 
 ## Later (not scheduled as hard commitments)

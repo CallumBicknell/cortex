@@ -11,7 +11,7 @@ mod host;
 pub use host::TuiHost;
 
 use anyhow::{Context, Result};
-use app::{App, MessageLine, RunUpdate};
+use app::{App, MessageLine, UiEvent};
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -50,7 +50,7 @@ async fn run_loop(
 ) -> Result<()> {
     let mut app = App::new(&host).await?;
     let mut events = EventStream::new();
-    let (tx, mut rx) = mpsc::unbounded_channel::<RunUpdate>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<UiEvent>();
     let mut run_cancel: Option<CancellationToken> = None;
 
     loop {
@@ -123,11 +123,12 @@ async fn run_loop(
                                     let max_turns = app.max_turns;
                                     let skills = app.skills.clone();
                                     let tx = tx.clone();
+                                    app.streaming = None;
                                     tokio::spawn(async move {
-                                        let update = host
-                                            .run_turn(session, prompt, yolo, max_turns, skills, cancel)
-                                            .await;
-                                        let _ = tx.send(update);
+                                        host.run_turn(
+                                            session, prompt, yolo, max_turns, skills, cancel, tx,
+                                        )
+                                        .await;
                                     });
                                 }
                             }
@@ -156,12 +157,15 @@ async fn run_loop(
                     _ => {}
                 }
             }
-            Some(update) = rx.recv() => {
-                run_cancel = None;
-                app.running = false;
-                app.apply_run_update(update);
-                if let Err(e) = app.reload_sessions(&host).await {
-                    app.status = format!("{}, reload warn: {e}", app.status);
+            Some(event) = rx.recv() => {
+                let is_done = matches!(event, UiEvent::Done(_));
+                app.apply_ui_event(event);
+                if is_done {
+                    run_cancel = None;
+                    app.running = false;
+                    if let Err(e) = app.reload_sessions(&host).await {
+                        app.status = format!("{}, reload warn: {e}", app.status);
+                    }
                 }
             }
         }

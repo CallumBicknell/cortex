@@ -1,7 +1,9 @@
 //! Host bindings: provider, tools, store, context assembly.
 
-use crate::app::RunUpdate;
+use crate::app::{RunUpdate, UiEvent};
 use anyhow::{Context, Result};
+use async_trait::async_trait;
+use cortex_core::{EnvelopeHandler, EventBus, EventEnvelope, InMemoryEventBus};
 use cortex_llm::Provider;
 use cortex_memory::{CheckpointState, SessionStore};
 use cortex_models::{Role, Session, SessionStatus, TaskStatus};
@@ -15,6 +17,7 @@ use cortex_workspace::RepoMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 /// Everything the TUI needs to run agent turns.
@@ -69,6 +72,10 @@ impl TuiHost {
             .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
         let mut context = ContextBuilder::new(system);
 
+        if let Some(instr) = cortex_workspace::load_project_instructions(&self.workspace) {
+            context = context.with_project_instructions(instr.to_prompt_section());
+        }
+
         if let Ok(map) = RepoMap::build(&self.workspace) {
             context = context.with_repo_map(&map);
             let project = Some(&map.project);
@@ -91,7 +98,7 @@ impl TuiHost {
         context
     }
 
-    /// Run one agent turn and return a UI update.
+    /// Run one agent turn, streaming live events on `tx`, and return completion via `Done`.
     pub async fn run_turn(
         &self,
         session: Session,
@@ -100,10 +107,12 @@ impl TuiHost {
         max_turns: u32,
         skills: Vec<String>,
         cancel: CancellationToken,
-    ) -> RunUpdate {
+        tx: UnboundedSender<UiEvent>,
+    ) {
+        let _ = tx.send(UiEvent::Status("running…".into()));
         let context = self.build_context(&prompt, &skills);
         let tool_ctx = self.make_tool_context(cancel.clone(), yolo, Some(session.id));
-        let agent = AgentLoop::new(
+        let mut agent = AgentLoop::new(
             Arc::clone(&self.provider),
             self.model.clone(),
             self.tools.clone(),
@@ -111,9 +120,15 @@ impl TuiHost {
                 max_turns,
                 context,
                 summarize: SummarizeConfig::default(),
+                stream_tokens: true,
                 ..Default::default()
             },
         );
+
+        let bus = Arc::new(InMemoryEventBus::new(512));
+        bus.subscribe(Arc::new(TuiBusBridge { tx: tx.clone() }))
+            .await;
+        agent = agent.with_event_bus(bus);
 
         if let Ok(Some((_, s))) = self.store.latest_summary(session.id, Some("rolling")).await {
             agent.set_rolling_summary(Some(s));
@@ -128,7 +143,7 @@ impl TuiHost {
             })
             .await;
 
-        match result {
+        let update = match result {
             Ok(output) => {
                 if let Some(summary) = agent.rolling_summary() {
                     let _ = self
@@ -137,10 +152,17 @@ impl TuiHost {
                         .await;
                 }
                 let _ = self.persist(&output.session, &output).await;
+                let mut tools_ok = 0u32;
+                let mut tools_err = 0u32;
                 let logs: Vec<String> = output
                     .tool_results
                     .iter()
                     .map(|t| {
+                        if t.is_error {
+                            tools_err += 1;
+                        } else {
+                            tools_ok += 1;
+                        }
                         let flag = if t.is_error { "ERR" } else { "ok" };
                         let preview: String = t.output.chars().take(120).collect();
                         format!("[{flag}] {} — {preview}", t.name)
@@ -165,10 +187,18 @@ impl TuiHost {
                     assistant,
                     logs,
                     status: format!(
-                        "{:?} · {} turns · {}ms",
-                        output.status, output.turns, output.duration_ms
+                        "{:?} · {} turns · tools {}/{} · {}ms",
+                        output.status,
+                        output.turns,
+                        tools_ok,
+                        tools_ok + tools_err,
+                        output.duration_ms
                     ),
                     error: output.error,
+                    turns: output.turns,
+                    duration_ms: output.duration_ms,
+                    tools_ok,
+                    tools_err,
                 }
             }
             Err(e) => RunUpdate {
@@ -178,8 +208,13 @@ impl TuiHost {
                 logs: Vec::new(),
                 status: "failed".into(),
                 error: Some(e.to_string()),
+                turns: 0,
+                duration_ms: 0,
+                tools_ok: 0,
+                tools_err: 0,
             },
-        }
+        };
+        let _ = tx.send(UiEvent::Done(Box::new(update)));
     }
 
     fn make_tool_context(
@@ -244,5 +279,76 @@ impl TuiHost {
     /// Load a session by id.
     pub async fn load_session(&self, id: cortex_common::SessionId) -> Result<Session> {
         self.store.load_session(id).await.context("load session")
+    }
+}
+
+/// Bridge agent event bus → TUI channel.
+struct TuiBusBridge {
+    tx: UnboundedSender<UiEvent>,
+}
+
+#[async_trait]
+impl EnvelopeHandler for TuiBusBridge {
+    async fn handle(&self, event: EventEnvelope) {
+        match event.kind.as_str() {
+            "agent.assistant_text_delta" => {
+                if let Some(text) = event.payload.get("text").and_then(|v| v.as_str()) {
+                    if !text.is_empty() {
+                        let _ = self.tx.send(UiEvent::StreamDelta(text.to_string()));
+                    }
+                }
+            }
+            "agent.tool_call.requested" => {
+                let name = event
+                    .payload
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tool");
+                let _ = self.tx.send(UiEvent::ToolLog(format!("→ {name}")));
+                let _ = self.tx.send(UiEvent::Status(format!("tool: {name}")));
+            }
+            "agent.tool_call.completed" => {
+                let name = event
+                    .payload
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tool");
+                let err = event
+                    .payload
+                    .get("is_error")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let flag = if err { "ERR" } else { "ok" };
+                let _ = self.tx.send(UiEvent::ToolLog(format!("[{flag}] {name}")));
+            }
+            "agent.tool_call.failed" => {
+                let name = event
+                    .payload
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tool");
+                let _ = self.tx.send(UiEvent::ToolLog(format!("[ERR] {name}")));
+            }
+            "agent.subagent.started" => {
+                let _ = self.tx.send(UiEvent::ToolLog("↳ sub-agent started".into()));
+                let _ = self.tx.send(UiEvent::Status("sub-agent…".into()));
+            }
+            "agent.subagent.finished" => {
+                let _ = self
+                    .tx
+                    .send(UiEvent::ToolLog("↳ sub-agent finished".into()));
+            }
+            "agent.loop.phase_changed" => {
+                if let Some(phase) = event
+                    .payload
+                    .get("to")
+                    .or_else(|| event.payload.get("phase"))
+                    .and_then(|v| v.as_str())
+                {
+                    let _ = self.tx.send(UiEvent::Status(format!("phase: {phase}")));
+                }
+            }
+            _ => {}
+        }
     }
 }
