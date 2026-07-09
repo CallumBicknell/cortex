@@ -24,18 +24,38 @@ CORTEX_VERSION=v0.2.0 sh scripts/install.sh
 cortex doctor
 ```
 
-## From source
+## From source (dev machine — recommended while hacking)
+
+After each feature merge, reinstall so `cortex` is available **from any directory**:
+
+```bash
+# From a clone of this repo:
+make install          # release build → ~/.local/bin/cortex
+# or: just install
+# or: ./scripts/install-local.sh
+
+# Faster iteration (debug binary):
+make install-debug
+```
+
+Requires `~/.local/bin` on your `PATH` (already common on Linux). Override with:
+
+```bash
+CORTEX_INSTALL_DIR=/usr/local/bin make install
+```
+
+Also works:
+
+```bash
+cargo install --path crates/cortex-cli --locked --force
+# installs to ~/.cargo/bin
+```
+
+From Git only (no clone):
 
 ```bash
 cargo install --git https://github.com/CallumBicknell/cortex --locked --bin cortex
 cortex setup
-```
-
-Or from a clone:
-
-```bash
-cargo build --release -p cortex-cli
-# binary: target/release/cortex
 ```
 
 ## Home vs project
@@ -64,6 +84,7 @@ cargo build --release -p cortex-cli
 ### Commands
 
 ```bash
+make install          # (from repo) rebuild + install to ~/.local/bin
 cortex setup          # create/update ~/.cortex
 cortex setup --force  # rewrite home models.toml
 cortex setup --wizard # interactive default model picker (TTY)

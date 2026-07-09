@@ -1,5 +1,5 @@
 # Local build / CI parity for Cortex
-.PHONY: help all build release test lint fmt clippy eval smoke deny python-test ci docker clean
+.PHONY: help all build release install install-debug test lint fmt clippy eval smoke deny python-test ci docker clean
 
 CARGO ?= cargo
 PYTHON ?= python3
@@ -9,6 +9,8 @@ help:
 	@echo "  all          build + test"
 	@echo "  build        debug build"
 	@echo "  release      release cortex-cli"
+	@echo "  install      release build → ~/.local/bin/cortex (dev machine)"
+	@echo "  install-debug debug build → ~/.local/bin/cortex (faster iterate)"
 	@echo "  test         cargo test --workspace"
 	@echo "  lint         fmt check + clippy -D warnings"
 	@echo "  fmt          cargo fmt --all"
@@ -28,6 +30,13 @@ build:
 
 release:
 	$(CARGO) build --release -p cortex-cli
+
+# Install current tree so `cortex` works from any directory (~/.local/bin).
+install:
+	./scripts/install-local.sh
+
+install-debug:
+	CORTEX_BUILD_PROFILE=debug ./scripts/install-local.sh
 
 test:
 	$(CARGO) test --workspace --all-targets

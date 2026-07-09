@@ -84,9 +84,24 @@ docs/               # Architecture and design notes
 
 ### Install (recommended)
 
+**Release binary (Linux / macOS aarch64):**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh
 cortex doctor
+```
+
+**While developing this repo** (rebuild + put `cortex` on PATH after each change):
+
+```bash
+make install          # → ~/.local/bin/cortex
+# make install-debug  # faster, unoptimized
+cortex doctor
+```
+
+Then:
+
+```bash
 export OPENAI_API_KEY=…   # or use ollama / mock in ~/.cortex/models.toml
 cd my-project && cortex run "hello"
 ```
