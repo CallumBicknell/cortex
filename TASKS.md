@@ -67,17 +67,17 @@
 
 # Phase 3 — Tools
 
-* [ ] P3.1 `Tool` trait + `ToolResult`
-* [ ] P3.2 `ToolRegistry`
-* [ ] P3.3 `ToolExecutor`
-* [ ] P3.4 `ToolContext`
-* [ ] P3.5 Permissions / path sandbox
-* [ ] P3.6 Filesystem tools
-* [ ] P3.7 Shell tool
-* [ ] P3.8 Git tools
-* [ ] P3.9 HTTP tool (SSRF-safe)
-* [ ] P3.10 JSON Schema for tool-calling
-* [ ] P3.11 Unit tests
+* [x] P3.1 `Tool` trait + `ToolResult` integration
+* [x] P3.2 `ToolRegistry`
+* [x] P3.3 `ToolExecutor`
+* [x] P3.4 `ToolContext`
+* [x] P3.5 Permissions / path sandbox
+* [x] P3.6 Filesystem tools
+* [x] P3.7 Shell tool
+* [x] P3.8 Git tools
+* [x] P3.9 HTTP tool (SSRF-safe)
+* [x] P3.10 JSON Schema for tool-calling (`Tool::spec`)
+* [x] P3.11 Unit tests
 
 ---
 

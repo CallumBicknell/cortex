@@ -1,0 +1,25 @@
+[package]
+name = "cortex-tools"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+description = "Tool trait, registry, executor, permissions, and builtin tools for Cortex"
+
+[dependencies]
+async-trait = { workspace = true }
+cortex-common = { path = "../cortex-common" }
+cortex-models = { path = "../cortex-models" }
+glob = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
