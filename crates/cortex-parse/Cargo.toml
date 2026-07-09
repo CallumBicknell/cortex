@@ -1,0 +1,19 @@
+[package]
+name = "cortex-parse"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+description = "Tree-sitter based code outlines and symbol extraction for Cortex"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-rust = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

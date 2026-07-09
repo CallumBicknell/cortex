@@ -13,9 +13,10 @@ pub fn builtin_skills() -> Vec<Skill> {
                 "list_dir",
                 "glob_files",
                 "apply_patch",
+                "code_outline",
             ])
             .prompts(["coding", "security"])
-            .tags(["coding", "files", "edit", "patch"])
+            .tags(["coding", "files", "edit", "patch", "outline", "symbols"])
             .always_on(),
         Skill::new("shell", "Run shell commands in the workspace")
             .tools(["shell"])

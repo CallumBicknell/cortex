@@ -1,6 +1,7 @@
 //! Builtin tools shipped with Cortex.
 
 pub mod browser;
+pub mod code;
 pub mod diff;
 pub mod docker;
 pub mod filesystem;
@@ -12,6 +13,7 @@ pub mod shell;
 
 use crate::error::Result;
 use crate::registry::ToolRegistry;
+use code::CodeOutlineTool;
 use diff::ApplyPatchTool;
 use docker::DockerRunTool;
 use filesystem::{EditFileTool, GlobFilesTool, ListDirTool, ReadFileTool, WriteFileTool};
@@ -40,6 +42,7 @@ pub fn register_default_tools_with_browser(
     registry.register(Arc::new(ListDirTool))?;
     registry.register(Arc::new(GlobFilesTool))?;
     registry.register(Arc::new(ApplyPatchTool))?;
+    registry.register(Arc::new(CodeOutlineTool))?;
     registry.register(Arc::new(ShellTool))?;
     registry.register(Arc::new(GitStatusTool))?;
     registry.register(Arc::new(GitDiffTool))?;
@@ -62,6 +65,7 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "list_dir",
         "glob_files",
         "apply_patch",
+        "code_outline",
         "shell",
         "git_status",
         "git_diff",

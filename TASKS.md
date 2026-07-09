@@ -198,13 +198,23 @@
 
 ---
 
+# Phase 13 — Parser / tree-sitter (outline MVP)
+
+* [x] P13.1 `cortex-parse` crate with tree-sitter Rust + Python
+* [x] P13.2 Symbol outline extraction (walk-based)
+* [x] P13.3 `code_outline` tool + coding skill
+* [x] P13.4 CLI `cortex parse outline`
+* [x] P13.5 Tests + `docs/parse.md`
+* [ ] P13.6 Full LSP (deferred)
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 13 | Parser / tree-sitter / LSP |
 | 14 | TUI |
 | 15 | HTTP API + real Python SDK |
 | 16 | Hardening, sub-agents, evals |

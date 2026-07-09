@@ -11,6 +11,7 @@ async-trait = { workspace = true }
 cortex-common = { path = "../cortex-common" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
+cortex-parse = { path = "../cortex-parse" }
 glob = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }

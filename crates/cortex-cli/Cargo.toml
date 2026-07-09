@@ -23,6 +23,7 @@ cortex-llm = { path = "../cortex-llm" }
 cortex-mcp = { path = "../cortex-mcp" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
+cortex-parse = { path = "../cortex-parse" }
 cortex-plugins = { path = "../cortex-plugins" }
 cortex-prompts = { path = "../cortex-prompts" }
 cortex-runtime = { path = "../cortex-runtime" }

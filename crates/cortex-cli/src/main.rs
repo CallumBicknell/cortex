@@ -148,6 +148,11 @@ enum Commands {
         #[command(subcommand)]
         command: MemoryCmd,
     },
+    /// Tree-sitter code outlines (Rust / Python).
+    Parse {
+        #[command(subcommand)]
+        command: ParseCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -198,6 +203,18 @@ enum SecurityCmd {
 enum PluginsCmd {
     /// List loaded plugins and known builtins.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+enum ParseCmd {
+    /// Print a symbol outline for a source file.
+    Outline {
+        /// File path (relative to workspace or absolute).
+        path: PathBuf,
+        /// Emit JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -361,8 +378,32 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Memory { command } => {
             return cmd_memory(cli.workspace, cli.config, command).await;
         }
+        Commands::Parse { command } => {
+            cmd_parse(cli.workspace, command)?;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_parse(workspace: Option<PathBuf>, command: ParseCmd) -> Result<()> {
+    match command {
+        ParseCmd::Outline { path, json } => {
+            let paths = Paths::resolve(workspace, None)?;
+            let full = if path.is_absolute() {
+                path
+            } else {
+                paths.workspace.join(&path)
+            };
+            let outline = cortex_parse::outline_file(&full)
+                .with_context(|| format!("outline {}", full.display()))?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&outline)?);
+            } else {
+                print!("{}", cortex_parse::format_outline(&outline));
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn cmd_memory(
