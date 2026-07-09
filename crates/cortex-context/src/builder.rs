@@ -37,6 +37,8 @@ pub struct ContextBuilder {
     pub rolling_summary: Option<String>,
     /// Retrieved memory / RAG hits (injected as system context).
     pub retrieval_section: Option<String>,
+    /// Project instruction file (AGENTS.md / .cortex/instructions.md / …).
+    pub project_instructions: Option<String>,
     /// If set, only expose these tool names to the model.
     pub allowed_tools: Option<Vec<String>>,
 }
@@ -53,6 +55,7 @@ impl Default for ContextBuilder {
             skill_prompt_section: None,
             rolling_summary: None,
             retrieval_section: None,
+            project_instructions: None,
             allowed_tools: None,
         }
     }
@@ -116,6 +119,12 @@ impl ContextBuilder {
         self
     }
 
+    /// Attach project instruction markdown (from AGENTS.md / similar).
+    pub fn with_project_instructions(mut self, section: impl Into<String>) -> Self {
+        self.project_instructions = Some(section.into());
+        self
+    }
+
     /// Restrict tools exposed to the model.
     pub fn with_allowed_tools(
         mut self,
@@ -136,6 +145,13 @@ impl ContextBuilder {
 
         // Skill guidance
         if let Some(section) = &self.skill_prompt_section {
+            if !section.trim().is_empty() {
+                out.push(Message::system(section));
+            }
+        }
+
+        // Project instructions (AGENTS.md etc.) — after skills, before memory
+        if let Some(section) = &self.project_instructions {
             if !section.trim().is_empty() {
                 out.push(Message::system(section));
             }

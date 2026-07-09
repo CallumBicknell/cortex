@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Install**: `scripts/install.sh` (curl → `~/.local/bin`), `cortex setup`,
   `cortex doctor`, user home `~/.cortex` (`CORTEX_HOME`), docs/install.md
+- **Project instructions**: auto-load `.cortex/instructions.md` / `AGENTS.md` /
+  `CLAUDE.md` (etc.) into agent context
+- **`cortex init --web3`**: Foundry MCP sample + Web3 instruction scaffold
+- **`cortex update`**: reinstall guidance (Unix; optional `CORTEX_UPDATE_EXEC=1`)
+- **`cortex run --stream`**: stream assistant text deltas to stderr
 
 ### Changed
 

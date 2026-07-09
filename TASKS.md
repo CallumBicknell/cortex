@@ -358,15 +358,26 @@ Deferred: LLM skill-pick step; richer TUI sub-agent UX; full token streaming pol
 
 Post-MVP coding agent + smart-contract security wave is **done**.
 
-Still open (later, not blocking 0.2.0):
+# Phase 26 — Wave A daily driver (partial)
+
+* [x] P26.1 User home `~/.cortex` + install.sh + setup/doctor
+* [x] P26.2 Project instructions auto-load (AGENTS.md / …)
+* [x] P26.3 `cortex init --web3`
+* [x] P26.4 `cortex update`
+* [x] P26.5 CLI `--stream` (text deltas via event bus)
+* [ ] P26.6 GitHub Release tag so install.sh has assets
+* [ ] P26.7 TUI stream + sub-agent summary
+* [ ] P26.8 Interactive setup wizard
+
+Still open (later):
 
 | Theme | Notes |
 |-------|--------|
 | Full LSP | Diagnostics, hover, true go-to via language servers |
 | Dynamic cdylib | Unsafe plugin ABI |
 | Firejail/seccomp | Stronger OS isolation |
-| Token streaming | Provider token deltas over SSE |
 | LLM skill-pick | When tag heuristics are ambiguous |
+| Foundry helpers plugin | Fixed-arg forge tools |
 | Foundry helper plugin | Fixed-arg forge wrappers |
 
 See [`docs/roadmap.md`](docs/roadmap.md).

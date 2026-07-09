@@ -6,12 +6,13 @@ use crate::summarize::{maybe_summarize, SummarizeConfig};
 use cortex_common::RunId;
 use cortex_core::{EventBus, InMemoryEventBus};
 use cortex_events::{
-    AssistantMessageProduced, ErrorRaised, LoopPhase, LoopPhaseChanged, ToolCallCompleted,
-    ToolCallFailed, ToolCallRequested, UserMessageReceived,
+    AssistantMessageProduced, AssistantTextDelta, ErrorRaised, LoopPhase, LoopPhaseChanged,
+    ToolCallCompleted, ToolCallFailed, ToolCallRequested, UserMessageReceived,
 };
-use cortex_llm::{ChatRequest, FinishReason, Provider};
+use cortex_llm::{ChatRequest, FinishReason, Provider, StreamEvent};
 use cortex_models::{Message, Session, TaskStatus, ToolCall, ToolResult};
 use cortex_tools::{is_file_mutating, ToolContext, ToolExecutor};
+use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio_util::sync::CancellationToken;
@@ -46,6 +47,8 @@ pub struct AgentLoopConfig {
     pub verify_after_writes: bool,
     /// Shell command for verify (e.g. `cargo test` / `forge test`). Required when verify is on.
     pub verify_command: Option<String>,
+    /// When true, use provider streaming and emit [`AssistantTextDelta`] events.
+    pub stream_tokens: bool,
 }
 
 impl Default for AgentLoopConfig {
@@ -64,6 +67,7 @@ impl Default for AgentLoopConfig {
             plan_mode: false,
             verify_after_writes: false,
             verify_command: None,
+            stream_tokens: false,
         }
     }
 }
@@ -337,8 +341,43 @@ impl AgentLoop {
                 req = req.with_max_tokens(m);
             }
 
-            debug!(turn, model = %self.model, "calling provider");
-            let response = self.provider.chat(req).await?;
+            debug!(
+                turn,
+                model = %self.model,
+                stream = self.config.stream_tokens,
+                "calling provider"
+            );
+            let response = if self.config.stream_tokens {
+                let mut stream = self.provider.stream(req).await?;
+                let mut final_response = None;
+                while let Some(item) = stream.next().await {
+                    let ev = item?;
+                    match ev {
+                        StreamEvent::TextDelta { text } => {
+                            if !text.is_empty() {
+                                self.publish(
+                                    AssistantTextDelta::new(session.id, text).with_run_id(run_id),
+                                )
+                                .await;
+                            }
+                        }
+                        StreamEvent::ToolCallDelta { .. } => {
+                            // Aggregated in Done; ignore fragments for now.
+                        }
+                        StreamEvent::Done { response } => {
+                            final_response = Some(response);
+                        }
+                        StreamEvent::Error { message } => {
+                            warn!(%message, "provider stream error event");
+                        }
+                    }
+                }
+                final_response.ok_or_else(|| {
+                    RuntimeError::Invalid("stream ended without Done event".into())
+                })?
+            } else {
+                self.provider.chat(req).await?
+            };
 
             let assistant = response.message.clone();
             self.publish(

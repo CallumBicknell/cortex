@@ -781,6 +781,7 @@ dependencies = [
  "cortex-skills",
  "cortex-tools",
  "cortex-workspace",
+ "futures",
  "serde",
  "serde_json",
  "tempfile",
