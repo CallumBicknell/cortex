@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Install Cortex CLI from GitHub Releases into ~/.local/bin (no sudo).
 #
+# Platforms: Linux and macOS only (no Windows).
+#
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh
 #
