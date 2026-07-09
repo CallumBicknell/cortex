@@ -1,5 +1,19 @@
 //! Cortex Events
 //!
-//! This crate re-exports event types from the cortex-core crate.
+//! Lifecycle events live in `cortex-core`. Agent-loop events are defined here.
+//! Bus primitives are re-exported for convenience.
 
-pub use cortex_core::{KernelStarted, KernelStopped, LoopIterationCompleted, LoopIterationStarted};
+#![deny(missing_docs)]
+
+mod agent;
+
+pub use agent::{
+    AssistantMessageProduced, CheckpointSaved, ErrorRaised, LoopPhase, LoopPhaseChanged,
+    MessageAppended, PlanUpdated, SubAgentFinished, SubAgentStarted, ToolCallCompleted,
+    ToolCallFailed, ToolCallRequested, UserMessageReceived,
+};
+
+pub use cortex_core::{
+    EnvelopeHandler, Event, EventBus, EventEnvelope, EventHandler, InMemoryEventBus, KernelStarted,
+    KernelStopped, LoopIterationCompleted, LoopIterationStarted, SubscriptionId,
+};

@@ -1,0 +1,17 @@
+id = "read_note"
+description = "Agent reads note.txt via read_file tool"
+prompt = "Read note.txt and quote its contents"
+max_turns = 4
+expect_tools = ["read_file"]
+expect_contains = ["secret-note"]
+
+[[mock]]
+type = "tools"
+content = "I'll read the file."
+[[mock.calls]]
+name = "read_file"
+arguments = { path = "note.txt" }
+
+[[mock]]
+type = "text"
+content = "note.txt contains: secret-note-value"

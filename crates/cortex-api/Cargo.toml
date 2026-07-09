@@ -1,0 +1,38 @@
+[package]
+name = "cortex-api"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+description = "HTTP API server for Cortex (axum)"
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+cortex-common = { path = "../cortex-common" }
+cortex-llm = { path = "../cortex-llm" }
+cortex-memory = { path = "../cortex-memory" }
+cortex-models = { path = "../cortex-models" }
+cortex-prompts = { path = "../cortex-prompts" }
+cortex-runtime = { path = "../cortex-runtime" }
+cortex-skills = { path = "../cortex-skills" }
+cortex-tools = { path = "../cortex-tools" }
+cortex-workspace = { path = "../cortex-workspace" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client"] }
+tower = { workspace = true, features = ["util"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

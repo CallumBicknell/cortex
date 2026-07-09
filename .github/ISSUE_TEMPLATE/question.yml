@@ -1,0 +1,27 @@
+name: Question
+description: Ask a question about the project
+title: "[QUESTION] "
+labels: ["question"]
+assignees: ''
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking a question!
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Please ask your question here.
+      placeholder: |
+        What do you want to know?
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

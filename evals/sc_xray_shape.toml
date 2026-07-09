@@ -1,0 +1,30 @@
+id = "sc_xray_shape"
+description = "Mock x-ray readiness report includes entry points and trust model"
+prompt = "Produce an x-ray readiness report for evals/fixtures/vulns/reentrancy_vault.sol"
+max_turns = 2
+expect_contains = ["entry", "trust", "risk"]
+expect_status = "succeeded"
+
+[[mock]]
+type = "text"
+content = """
+# X-ray: ReentrancyVault
+
+## Overview
+Single vault holding ETH with deposit/withdraw.
+
+## Entry points
+| contract | function | access | value-moving |
+|----------|----------|--------|--------------|
+| ReentrancyVault | deposit | public | yes |
+| ReentrancyVault | withdraw | public | yes |
+
+## Trust model
+No admin. Users trust contract accounting.
+
+## Risk surfaces
+1. withdraw reentrancy (high priority for full audit)
+2. No access control by design
+
+Next: sc_security / audit_lenses on withdraw.
+"""

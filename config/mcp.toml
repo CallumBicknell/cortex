@@ -1,0 +1,75 @@
+# MCP server configuration
+# Copy to .cortex/mcp.toml and enable servers as needed.
+# Disabled by default so `cortex run` works offline without extra processes.
+#
+# Web3 catalog: https://skills.eth.sh/  |  https://skills.eth.sh/llms.txt
+#
+# Transports:
+#   stdio            — local process (command + args)
+#   http / streamable_http — Streamable HTTP (MCP 2025-03-26)
+#   sse              — same as http; falls back to legacy HTTP+SSE endpoint discovery
+#
+# Local/private hosts are blocked by default; set CORTEX_MCP_ALLOW_LOCAL=1 for localhost.
+# Header values may use $ENV_VAR or ${ENV_VAR} expansion.
+
+# Example (stdio):
+# [[servers]]
+# name = "filesystem"
+# enabled = true
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/absolute/path"]
+# tool_prefix = "mcp_fs"
+
+# --- Web3 / smart-contract security (from skills.eth.sh) ---
+
+# Foundry MCP — Anvil, cast, forge workspace, Heimdall decompile
+# https://github.com/PraneshASP/foundry-mcp-server
+# [[servers]]
+# name = "foundry"
+# enabled = false
+# transport = "stdio"
+# command = "npx"
+# args = ["-y", "@pranesh.asp/foundry-mcp-server"]
+# tool_prefix = "mcp_foundry"
+
+# Blockscout — verified source, ABI, balances, multichain reads
+# https://mcp.blockscout.com/
+# [[servers]]
+# name = "blockscout"
+# enabled = false
+# transport = "http"
+# url = "https://mcp.blockscout.com/mcp"
+# tool_prefix = "mcp_blockscout"
+
+# Tenderly — simulation, traces (OAuth / project context)
+# https://docs.tenderly.co/ai-tools/quickstart
+# [[servers]]
+# name = "tenderly"
+# enabled = false
+# transport = "http"
+# url = "https://mcp.tenderly.co/mcp"
+# tool_prefix = "mcp_tenderly"
+# headers = { Authorization = "Bearer $TENDERLY_ACCESS_KEY" }
+
+# CoinGecko market data (public)
+# [[servers]]
+# name = "coingecko"
+# enabled = false
+# transport = "http"
+# url = "https://mcp.api.coingecko.com/mcp"
+# tool_prefix = "mcp_cg"
+
+# Cryo — historical chain extraction (needs ETH_RPC_URL)
+# [[servers]]
+# name = "cryo"
+# enabled = false
+# transport = "stdio"
+# command = "uvx"
+# args = ["cryo-mcp", "--rpc-url", "${ETH_RPC_URL}"]
+# tool_prefix = "mcp_cryo"
+
+[[servers]]
+name = "example_disabled"
+enabled = false
+command = "echo"
+args = ["not-used"]

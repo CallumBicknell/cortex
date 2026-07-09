@@ -1,0 +1,13 @@
+id = "example_echo"
+name = "Example Echo"
+version = "0.1.0"
+description = "Sample external plugin (printf-based echo)"
+
+[[tools]]
+name = "ext_example_echo"
+description = "Echo a message via external plugin"
+command = ["printf", "%s", "{arg:message}"]
+timeout_secs = 10
+
+[tools.parameters]
+message = { type = "string", description = "Text to echo" }

@@ -1,0 +1,21 @@
+id = "sc_security_report_shape"
+description = "Mock audit reply includes severity and root cause structure"
+prompt = "Audit this vault for reentrancy and report findings"
+max_turns = 2
+expect_contains = ["severity", "root cause", "reentrancy"]
+expect_status = "succeeded"
+
+[[mock]]
+type = "text"
+content = """
+### [High] Reentrancy on withdraw
+- **Contract / function:** Vault.sol:withdraw
+- **Bug class:** reentrancy
+- **Root cause:** balance updated after external call
+- **Impact:** attacker drains ETH
+- **Proof:** classic CEI violation in withdraw
+- **Minimal fix:** zero balance before call + nonReentrant
+- **Confidence:** high
+
+Severity counts: 1 High. Residual risk: no forge PoC run in this mock eval.
+"""

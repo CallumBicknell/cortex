@@ -1,0 +1,21 @@
+[package]
+name = "cortex-plugins"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+description = "In-process plugin host: lifecycle, config, and tool contribution"
+
+[dependencies]
+async-trait = { workspace = true }
+cortex-tools = { path = "../cortex-tools" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

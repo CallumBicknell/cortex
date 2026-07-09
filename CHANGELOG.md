@@ -1,0 +1,67 @@
+# Changelog
+
+All notable changes to Cortex are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Added
+
+(nothing yet)
+
+## [0.2.0] — 2026-07-09
+
+Coding agent OS + smart-contract security arc (Phases 17–25).
+
+### Added
+
+- Full agent OS MVP (phases 0–16) and post-MVP follow-ups
+- **CLI**: `run`, `chat`, `init`, `tools`, `models`, `sessions`, `workspace`,
+  `skills`, `security`, `plugins`, `memory`, `parse`, `tui`, `serve`, `eval`
+- **Providers**: OpenAI-compatible, Anthropic, mock (offline)
+- **Tools**: filesystem, shell (optional bubblewrap), git, HTTP, docker,
+  web search, apply_patch, browser CDP (Obscura/Chrome), memory search,
+  code outline / workspace symbols / definition, skill evolution tools
+- **Skills**: capability packs including `skill_creator` and `frontend_design`
+  (adapted from Anthropic skills guidance)
+- **Smart contract security**: builtin `sc_security` skill + hardened `solidity`
+  prompts (ETHSkills-style checklist, audit report format, Foundry/Slither
+  workflow); system identity as coding agent + SC security; project markers for
+  remappings/Slither; MCP examples and docs for [skills.eth.sh](https://skills.eth.sh/)
+  (Pashov, QuillShield, Foundry MCP, Blockscout, Tenderly)
+- **Multi-lens audits (P17)**: `audit_lenses` tool runs parallel specialty
+  sub-agents (access, reentrancy, economic, proxy, invariants) with shared
+  Solidity source bundles under `.cortex/tmp/`
+- **Solidity outlines (P18)**: tree-sitter Solidity for `code_outline` /
+  workspace symbols (contracts, functions, modifiers, events, …)
+- **Foundry samples (P19)**: `examples/foundry-vault/`, `examples/mcp/foundry.mcp.toml`,
+  `scripts/smoke_foundry.sh`
+- **MCP HTTP (P20)**: Streamable HTTP transport + legacy SSE fallback for remote
+  servers (Blockscout, Tenderly, CoinGecko, …); header env expansion; local-host guard
+- **SC tooling depth (P21)**: `sc_xray` pre-audit skill; `sc_analyzers` / `sc_poc` /
+  `findings_schema` prompts; demo reentrancy PoC under `examples/foundry-vault`
+- **Audit artifacts (P22)**: `write_audit_report` tool (markdown/JSON under
+  `.cortex/audits/`); vuln fixtures + SC eval cases
+- **Web3 skill bridge (P23)**: `cortex skills import` for SKILL.md; `web3_catalog`
+  skill; recipes for skills.eth.sh MCP/packs; load `.cortex/prompts`
+- **Loop quality (P24)**: parallel read-only tool batches; `--plan` mode;
+  `--verify` / `--verify-cmd` after file writes
+- **Productization (P25)**: honest roadmap, DECISIONS ADRs, README status for 0.2.0
+- **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
+- **Plugins**: builtins + external `plugin.toml` directory plugins
+- **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`
+- **Python SDK**: sync/async HTTP client under `sdks/python`
+- **Evals**: fixture suite under `evals/` (`cortex eval run`)
+- **CI/CD**: GitHub Actions (lint, test, eval, smoke, deny, Python, release
+  builds), Dependabot, Docker/GHCR workflow, `scripts/ci_local.sh`, Makefile
+
+### Security
+
+- Policy TOML, path sandbox, shell denylists, env scrub, HTTP host blocks
+- Optional bubblewrap isolation for shell (`shell_use_bubblewrap`)
+- Optional API bearer token (`CORTEX_API_TOKEN`)
+
+## [0.1.0] — 2026-07-09
+
+Initial early development snapshot (agent OS MVP through Phase 16 + early follow-ups).

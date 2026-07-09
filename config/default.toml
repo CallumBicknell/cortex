@@ -1,0 +1,14 @@
+# Cortex default configuration
+# Environment variables override these values:
+#   CORTEX_LOOP_INTERVAL_MS
+#   CORTEX_LOG_LEVEL
+#   CORTEX_EVENT_HISTORY_SIZE
+
+# Kernel heartbeat interval (ms). Not the agent loop.
+loop_interval_ms = 100
+
+# Tracing level: trace | debug | info | warn | error | off
+log_level = "info"
+
+# In-memory event bus history capacity
+event_history_size = 1024

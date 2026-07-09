@@ -1,0 +1,3 @@
+# rustfmt configuration for the Cortex project
+max_width = 100
+use_try_shorthand = true
