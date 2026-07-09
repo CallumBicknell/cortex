@@ -1,4 +1,4 @@
-# Dependabot — weekly dependency PRs
+# Dependabot — weekly dependency PRs (grouped to avoid PR floods)
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -7,20 +7,39 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels: ["dependencies", "rust"]
-    # Group noisy transitive bumps when possible
     groups:
       tokio-ecosystem:
         patterns:
           - "tokio*"
           - "hyper*"
           - "tower*"
+      ratatui-ecosystem:
+        patterns:
+          - "ratatui*"
+          - "crossterm*"
+      # Patch/minor of everything else in one PR when possible
+      cargo-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+        # Exclude groups that already have dedicated PRs
+        exclude-patterns:
+          - "tokio*"
+          - "hyper*"
+          - "tower*"
+          - "ratatui*"
+          - "crossterm*"
 
   - package-ecosystem: "pip"
     directory: "/sdks/python"
@@ -28,6 +47,10 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies", "python"]
+    groups:
+      python-sdk:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/"
