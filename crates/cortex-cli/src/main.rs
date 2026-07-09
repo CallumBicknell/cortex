@@ -153,6 +153,24 @@ enum Commands {
         #[command(subcommand)]
         command: ParseCmd,
     },
+    /// Start the HTTP API server.
+    Serve {
+        /// Bind address (host:port).
+        #[arg(long, default_value = "127.0.0.1:8080")]
+        bind: String,
+        /// Auto-approve tools for API runs by default.
+        #[arg(long, default_value_t = true)]
+        yolo: bool,
+        /// Disable default yolo for API runs.
+        #[arg(long)]
+        no_yolo: bool,
+        /// Default max turns for runs.
+        #[arg(long, default_value_t = 32)]
+        max_turns: u32,
+        /// Optional API bearer token (or set CORTEX_API_TOKEN).
+        #[arg(long, env = "CORTEX_API_TOKEN")]
+        token: Option<String>,
+    },
     /// Interactive terminal UI (chat, sessions, tool log).
     Tui {
         /// Model alias.
@@ -416,7 +434,68 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             )
             .await;
         }
+        Commands::Serve {
+            bind,
+            yolo,
+            no_yolo,
+            max_turns,
+            token,
+        } => {
+            return cmd_serve(
+                cli.workspace,
+                cli.config,
+                bind,
+                yolo && !no_yolo,
+                max_turns,
+                token,
+            )
+            .await;
+        }
     }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_serve(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    bind: String,
+    yolo: bool,
+    max_turns: u32,
+    token: Option<String>,
+) -> Result<ExitCode> {
+    let paths = Paths::resolve(workspace, config)?;
+    let app = AppContext::bootstrap(paths, yolo).await?;
+    let store = app.open_store().await?;
+    let addr: std::net::SocketAddr = bind
+        .parse()
+        .with_context(|| format!("invalid --bind address: {bind}"))?;
+
+    let state = cortex_api::ApiState {
+        workspace: app.paths.workspace.clone(),
+        models_config: app.paths.models_config.clone(),
+        database: app.paths.database.clone(),
+        registry: app.registry,
+        tools: app.tools,
+        store,
+        default_yolo: yolo,
+        default_max_turns: max_turns,
+        api_token: token.filter(|t| !t.is_empty()),
+        version: env!("CARGO_PKG_VERSION").into(),
+    };
+
+    eprintln!("Cortex API listening on http://{addr}");
+    eprintln!("  GET  /health");
+    eprintln!("  GET  /v1/info /v1/models /v1/tools /v1/sessions");
+    eprintln!("  POST /v1/runs");
+    if state.api_token.is_some() {
+        eprintln!("  auth: bearer token required");
+    } else {
+        eprintln!("  auth: open (set --token or CORTEX_API_TOKEN to require auth)");
+    }
+
+    cortex_api::serve(state, addr)
+        .await
+        .context("HTTP server")?;
     Ok(ExitCode::SUCCESS)
 }
 

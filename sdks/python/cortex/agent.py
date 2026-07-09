@@ -1,65 +1,76 @@
-# Copyright (c) 2024 Cortex Developers
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Agent abstraction for the Cortex Python SDK."""
+"""Lightweight agent helper that runs prompts via the Cortex HTTP API."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional
+from typing import Any, List, Optional, Sequence
 
+from .client import AsyncCortexClient, CortexClient, RunResult
 from .tool import Tool
 
 
 class Agent:
-    """An autonomous agent that runs in the Cortex runtime."""
+    """Convenience wrapper: holds metadata and runs prompts through a client.
+
+    Remote tool execution uses the server's builtin tools (not local Python
+    callables). Local :class:`Tool` instances are kept for documentation /
+    future remote registration.
+    """
 
     def __init__(
         self,
-        name: str,
+        name: str = "agent",
         description: Optional[str] = None,
         tools: Optional[List[Tool]] = None,
-    ):
-        """Initialize the agent.
-
-        Args:
-            name: The name of the agent.
-            description: Optional description of the agent.
-            tools: Optional list of tools the agent can use.
-        """
+        *,
+        client: Optional[CortexClient] = None,
+        model: Optional[str] = None,
+        skills: Optional[Sequence[str]] = None,
+        yolo: bool = True,
+        max_turns: int = 32,
+    ) -> None:
         self.name = name
         self.description = description
-        self.tools = tools or []
+        self.tools = list(tools or [])
+        self.client = client
+        self.model = model
+        self.skills = list(skills or [])
+        self.yolo = yolo
+        self.max_turns = max_turns
+        self.session_id: Optional[str] = None
 
     def add_tool(self, tool: Tool) -> None:
-        """Add a tool to the agent.
-
-        Args:
-            tool: The tool to add.
-        """
         self.tools.append(tool)
 
-    async def run(self) -> None:
-        """Run the agent's main loop.
+    def run(self, prompt: str, **kwargs: Any) -> RunResult:
+        """Run a prompt (sync). Requires ``client`` to be set."""
+        if self.client is None:
+            raise RuntimeError("Agent.client is not set; pass client=CortexClient(...)")
+        result = self.client.run(
+            prompt,
+            model=kwargs.get("model", self.model),
+            session_id=kwargs.get("session_id", self.session_id),
+            yolo=kwargs.get("yolo", self.yolo),
+            max_turns=kwargs.get("max_turns", self.max_turns),
+            skills=list(kwargs.get("skills", self.skills)) or None,
+        )
+        self.session_id = result.session_id
+        return result
 
-        This is a placeholder implementation.
-        """
-        # In a real implementation, this would connect to the Cortex runtime
-        # and execute the agent loop.
-        print(f"Agent {self.name} is running with {len(self.tools)} tools.")
-        # Simulate some work
-        for tool in self.tools:
-            print(f"  - Tool: {tool.name}")
+    async def arun(self, prompt: str, client: Optional[AsyncCortexClient] = None, **kwargs: Any) -> RunResult:
+        """Run a prompt (async)."""
+        c = client
+        if c is None:
+            raise RuntimeError("pass an AsyncCortexClient to arun()")
+        result = await c.run(
+            prompt,
+            model=kwargs.get("model", self.model),
+            session_id=kwargs.get("session_id", self.session_id),
+            yolo=kwargs.get("yolo", self.yolo),
+            max_turns=kwargs.get("max_turns", self.max_turns),
+            skills=list(kwargs.get("skills", self.skills)) or None,
+        )
+        self.session_id = result.session_id
+        return result
 
     def __repr__(self) -> str:
-        return f"Agent(name={self.name!r}, tools={len(self.tools)})"
+        return f"Agent(name={self.name!r}, tools={len(self.tools)}, session={self.session_id!r})"

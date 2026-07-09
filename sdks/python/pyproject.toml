@@ -29,6 +29,12 @@ dependencies = [
     "typing-extensions>=4.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
 [project.urls]
 Homepage = "https://github.com/cortexos/cortex"
 Documentation = "https://docs.cortexos.org"

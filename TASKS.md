@@ -219,13 +219,23 @@
 
 ---
 
+# Phase 15 — HTTP API + Python SDK
+
+* [x] P15.1 `cortex-api` axum router (health, info, models, tools, sessions, runs)
+* [x] P15.2 Optional bearer token auth
+* [x] P15.3 CLI `cortex serve`
+* [x] P15.4 Integration tests (health, auth, mock run)
+* [x] P15.5 Python `CortexClient` / `AsyncCortexClient` against HTTP API
+* [x] P15.6 Python unit tests + `docs/api.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 15 | HTTP API + real Python SDK |
 | 16 | Hardening, sub-agents, evals |
 
 ---

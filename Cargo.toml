@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/cortex-api",
     "crates/cortex-cli",
     "crates/cortex-common",
     "crates/cortex-context",
@@ -38,6 +39,8 @@ chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 async-trait = "0.1"
 axum = { version = "0.7", features = ["json"] }
+tower = "0.5"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 toml = "0.8"
 thiserror = "1.0"

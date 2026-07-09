@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–14 complete (TUI MVP). Still missing: HTTP API, full Python SDK, dynamic plugins, full LSP, and OS-level sandboxing.
+**Early development (v0.1.0).** Phases 0–15 complete (HTTP API + Python SDK client). Still missing: hardening/sub-agents, dynamic plugins, full LSP, and OS-level sandboxing.
 
 | Area | Status |
 |------|--------|
@@ -32,9 +32,10 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Rolling summaries + local vector memory | Implemented |
 | Tree-sitter code outlines (Rust/Python) | Implemented |
 | Terminal UI (`cortex tui`) | Implemented |
+| HTTP API (`cortex serve`) | Implemented |
+| Python SDK (HTTP client) | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| Python SDK | Stub only |
-| HTTP API / dynamic plugins / full LSP | Planned (later) |
+| Hardening / sub-agents / dynamic plugins / full LSP | Planned (later) |
 
 ## Design principles
 
@@ -68,13 +69,14 @@ crates/
   cortex-plugins/   # In-process plugin host + builtins
   cortex-parse/     # Tree-sitter outlines (Rust/Python)
   cortex-tui/       # ratatui interactive UI
+  cortex-api/       # axum HTTP API
   cortex-cli/       # `cortex` binary
 config/             # Default TOML (models, security, mcp, browser, plugins)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
 scripts/            # smoke_agent.sh
-sdks/python/        # Python SDK stubs (not wired to runtime yet)
+sdks/python/        # Python SDK (HTTP client for cortex serve)
 docs/               # Architecture and design notes
 ```
 
@@ -127,13 +129,14 @@ cargo run -p cortex-cli -- memory index
 cargo run -p cortex-cli -- memory search "agent loop"
 cargo run -p cortex-cli -- parse outline crates/cortex-runtime/src/agent_loop.rs
 cargo run -p cortex-cli -- tui
+cargo run -p cortex-cli -- serve --bind 127.0.0.1:8080
 
 # Browser via CDP (Obscura default — start `obscura` or Chrome first)
 # cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), and [`docs/tui.md`](docs/tui.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), and [`docs/api.md`](docs/api.md).
 
 ### Configuration
 

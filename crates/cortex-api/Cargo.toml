@@ -1,46 +1,37 @@
 [package]
-name = "cortex-cli"
+name = "cortex-api"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
-description = "Cortex command-line interface"
-default-run = "cortex"
-
-[[bin]]
-name = "cortex"
-path = "src/main.rs"
+description = "HTTP API server for Cortex (axum)"
 
 [dependencies]
 anyhow = { workspace = true }
-async-trait = { workspace = true }
+axum = { workspace = true }
 chrono = { workspace = true }
-clap = { workspace = true }
-cortex-api = { path = "../cortex-api" }
 cortex-common = { path = "../cortex-common" }
-# SessionId used in app tool_context
-cortex-core = { path = "../cortex-core" }
 cortex-llm = { path = "../cortex-llm" }
-cortex-mcp = { path = "../cortex-mcp" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
-cortex-parse = { path = "../cortex-parse" }
-cortex-plugins = { path = "../cortex-plugins" }
 cortex-prompts = { path = "../cortex-prompts" }
 cortex-runtime = { path = "../cortex-runtime" }
-cortex-security = { path = "../cortex-security" }
 cortex-skills = { path = "../cortex-skills" }
 cortex-tools = { path = "../cortex-tools" }
-cortex-tui = { path = "../cortex-tui" }
 cortex-workspace = { path = "../cortex-workspace" }
-dotenvy = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
-assert_cmd = "2"
-predicates = "3"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client"] }
+tower = { workspace = true, features = ["util"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
