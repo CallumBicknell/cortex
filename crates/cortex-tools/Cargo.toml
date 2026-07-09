@@ -12,6 +12,7 @@ cortex-common = { path = "../cortex-common" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
 cortex-parse = { path = "../cortex-parse" }
+cortex-skills = { path = "../cortex-skills" }
 glob = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }

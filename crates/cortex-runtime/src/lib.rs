@@ -17,7 +17,7 @@ pub use agent_loop::{AgentLoop, AgentLoopConfig, RunInput, RunOutput};
 pub use context::{ContextBuilder, DEFAULT_SYSTEM_PROMPT};
 pub use error::{Result, RuntimeError};
 pub use runtime::Runtime;
-pub use subagent::{format_subagent_result, run_subagent, SubAgentOptions};
+pub use subagent::{format_subagent_result, run_subagent, SubAgentOptions, SubAgentParent};
 pub use subagent_tool::{SpawnSubagentTool, SubAgentHandle};
 
 use cortex_tools::{ToolExecutor, ToolRegistry};

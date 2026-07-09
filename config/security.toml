@@ -12,6 +12,10 @@ max_output_bytes = 262144
 # Shell timeout (seconds)
 shell_timeout_secs = 60
 
+# Prefer bubblewrap isolation for shell when `bwrap` is installed.
+# Override with CORTEX_SHELL_BWRAP=0
+shell_use_bubblewrap = true
+
 # Auto-approve all tools (equivalent to --yolo; prefer CLI flag)
 yolo = false
 
@@ -76,3 +80,8 @@ browser_evaluate = "allow"
 memory_search = "allow"
 code_outline = "allow"
 spawn_subagent = "ask"
+skill_list = "allow"
+skill_save = "ask"
+skill_promote = "ask"
+workspace_symbols = "allow"
+code_definition = "allow"

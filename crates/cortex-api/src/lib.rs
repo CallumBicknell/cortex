@@ -8,6 +8,7 @@ mod dto;
 mod error;
 mod routes;
 mod state;
+mod stream;
 
 pub use dto::{
     HealthResponse, InfoResponse, ModelInfo, RunRequest, RunResponse, SessionDetail, SessionInfo,
@@ -35,6 +36,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/sessions", get(routes::list_sessions))
         .route("/v1/sessions/:id", get(routes::get_session))
         .route("/v1/runs", post(routes::create_run))
+        .route("/v1/runs/stream", post(stream::create_run_stream))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

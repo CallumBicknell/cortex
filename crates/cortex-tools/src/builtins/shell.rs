@@ -1,4 +1,4 @@
-//! Shell command tool.
+//! Shell command tool (optional bubblewrap isolation).
 
 use crate::error::{Result, ToolError};
 use crate::tool::{Tool, ToolContext};
@@ -9,6 +9,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
+use tracing::debug;
 
 /// Run a shell command in the workspace.
 pub struct ShellTool;
@@ -29,7 +30,8 @@ impl Tool for ShellTool {
     }
 
     fn description(&self) -> &str {
-        "Run a shell command in the workspace. Prefer specialized tools when available."
+        "Run a shell command in the workspace. Prefer specialized tools when available. \
+         May run under bubblewrap (no network) when available and enabled."
     }
 
     fn parameters_schema(&self) -> Value {
@@ -70,12 +72,32 @@ impl Tool for ShellTool {
                 .max(1),
         );
 
-        // Scrub secrets from the child environment.
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c")
-            .arg(&args.command)
-            .current_dir(&cwd)
-            .stdout(Stdio::piped())
+        let want_bwrap = ctx.permissions.shell_use_bubblewrap
+            && std::env::var("CORTEX_SHELL_BWRAP")
+                .map(|v| v != "0" && v != "false" && v != "off")
+                .unwrap_or(true);
+
+        let mut cmd = if want_bwrap {
+            if let Some(prefix) = try_bwrap_prefix(&ctx.workspace_root, &cwd) {
+                debug!("shell using bubblewrap isolation");
+                let mut c = Command::new(&prefix[0]);
+                for a in &prefix[1..] {
+                    c.arg(a);
+                }
+                c.arg("sh").arg("-c").arg(&args.command);
+                c
+            } else {
+                let mut c = Command::new("sh");
+                c.arg("-c").arg(&args.command).current_dir(&cwd);
+                c
+            }
+        } else {
+            let mut c = Command::new("sh");
+            c.arg("-c").arg(&args.command).current_dir(&cwd);
+            c
+        };
+
+        cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
         for key in &ctx.permissions.scrub_env {
@@ -126,6 +148,55 @@ impl Tool for ShellTool {
         }
         Ok(ctx.truncate_output(text))
     }
+}
+
+/// Lightweight bwrap availability + argv (duplicated from cortex-security to avoid dep cycle).
+fn try_bwrap_prefix(workspace: &std::path::Path, chdir: &std::path::Path) -> Option<Vec<String>> {
+    let ok = std::process::Command::new("bwrap")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !ok {
+        return None;
+    }
+    let ws = workspace.to_string_lossy().to_string();
+    let cd = chdir.to_string_lossy().to_string();
+    Some(vec![
+        "bwrap".into(),
+        "--ro-bind".into(),
+        "/usr".into(),
+        "/usr".into(),
+        "--ro-bind".into(),
+        "/lib".into(),
+        "/lib".into(),
+        "--ro-bind-try".into(),
+        "/lib64".into(),
+        "/lib64".into(),
+        "--ro-bind-try".into(),
+        "/bin".into(),
+        "/bin".into(),
+        "--ro-bind-try".into(),
+        "/sbin".into(),
+        "/sbin".into(),
+        "--ro-bind-try".into(),
+        "/etc".into(),
+        "/etc".into(),
+        "--dev".into(),
+        "/dev".into(),
+        "--proc".into(),
+        "/proc".into(),
+        "--tmpfs".into(),
+        "/tmp".into(),
+        "--bind".into(),
+        ws.clone(),
+        ws,
+        "--chdir".into(),
+        cd,
+        "--unshare-net".into(),
+        "--die-with-parent".into(),
+        "--".into(),
+    ])
 }
 
 #[cfg(test)]

@@ -37,6 +37,7 @@ x-api-key: <token>
 | GET | `/v1/sessions?limit=20` | yes* | Recent sessions |
 | GET | `/v1/sessions/:id` | yes* | Session + messages |
 | POST | `/v1/runs` | yes* | Run an agent task |
+| POST | `/v1/runs/stream` | yes* | Same as runs, SSE progress events |
 
 \* “yes” only when a token is configured; otherwise open.
 
@@ -86,9 +87,22 @@ with CortexClient() as c:
 
 `cortex-api` builds the axum `Router` (`cortex_api::router` / `serve`).
 
+### POST /v1/runs/stream
+
+Same body as `/v1/runs`. Response is **SSE**; each event `data` is JSON:
+
+```json
+{"event":"started","data":{...}}
+{"event":"session","data":{"session_id":"…"}}
+{"event":"running","data":{"model":"…","max_turns":32}}
+{"event":"tool","data":{"name":"read_file","is_error":false,"output":"…"}}
+{"event":"done","data":{"status":"succeeded","final_message":"…",…}}
+{"event":"error","data":{"error":"…"}}
+```
+
 ## Not yet
 
-- Streaming SSE for token deltas
+- Token-level streaming from the LLM provider
 - WebSocket event stream
 - Multi-tenant auth / RBAC
 - OpenAPI document generation

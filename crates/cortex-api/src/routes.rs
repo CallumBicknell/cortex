@@ -299,7 +299,12 @@ pub async fn create_run(
     }))
 }
 
-fn build_context(workspace: &std::path::Path, prompt: &str, skills: &[String]) -> ContextBuilder {
+/// Build agent context (shared with streaming).
+pub fn build_context(
+    workspace: &std::path::Path,
+    prompt: &str,
+    skills: &[String],
+) -> ContextBuilder {
     let prompts = PromptCatalog::with_builtins();
     let system = prompts
         .render("system", &Default::default())
@@ -325,7 +330,8 @@ fn build_context(workspace: &std::path::Path, prompt: &str, skills: &[String]) -
     context
 }
 
-fn make_tool_context(
+/// Tool context for runs (shared with streaming).
+pub fn make_tool_context(
     workspace: &std::path::Path,
     cancel: CancellationToken,
     yolo: bool,

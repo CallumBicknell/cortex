@@ -3,8 +3,10 @@
 use crate::builtins::{builtin_ids, create_builtin};
 use crate::config::PluginsConfig;
 use crate::error::{PluginError, Result};
+use crate::external::{discover_plugin_dirs, ExternalPlugin};
 use crate::plugin::{Plugin, PluginContext, PluginMeta};
 use cortex_tools::ToolRegistry;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
@@ -70,14 +72,21 @@ impl PluginHost {
             return Ok(host);
         }
 
+        let mut loaded_ids: HashSet<String> = HashSet::new();
+
         for entry in config.enabled_entries() {
-            let mut plugin = create_builtin(&entry.id).ok_or_else(|| {
-                PluginError::Unknown(format!(
-                    "{} (known builtins: {})",
+            let mut plugin: Box<dyn Plugin> = if let Some(path) = &entry.path {
+                let p = resolve_plugin_path(&workspace, path);
+                Box::new(ExternalPlugin::from_dir(p)?)
+            } else if let Some(b) = create_builtin(&entry.id) {
+                b
+            } else {
+                return Err(PluginError::Unknown(format!(
+                    "{} (known builtins: {}; or set path= to an external plugin dir)",
                     entry.id,
                     builtin_ids().join(", ")
-                ))
-            })?;
+                )));
+            };
 
             let id = plugin.meta().id.clone();
             let mut ctx = PluginContext::new(workspace.clone(), tools, entry.settings.clone());
@@ -89,12 +98,48 @@ impl PluginHost {
                     message: e.to_string(),
                 })?;
 
+            loaded_ids.insert(id.clone());
             host.entries.push(HostEntry {
                 plugin,
                 state: PluginState::Initialized,
                 enabled: true,
             });
             info!(plugin = %id, "plugin initialized");
+        }
+
+        // Auto-discover external plugins under workspace dirs.
+        if config.auto_discover {
+            let mut roots: Vec<PathBuf> =
+                vec![workspace.join(".cortex/plugins"), workspace.join("plugins")];
+            for d in &config.plugin_dirs {
+                roots.push(resolve_plugin_path(&workspace, d));
+            }
+            for dir in discover_plugin_dirs(&roots) {
+                match ExternalPlugin::from_dir(&dir) {
+                    Ok(mut plugin) => {
+                        let id = plugin.meta().id.clone();
+                        if loaded_ids.contains(&id) {
+                            continue;
+                        }
+                        let mut ctx =
+                            PluginContext::new(workspace.clone(), tools, serde_json::Value::Null);
+                        if let Err(e) = plugin.init(&mut ctx).await {
+                            warn!(plugin = %id, error = %e, "external plugin init failed");
+                            continue;
+                        }
+                        loaded_ids.insert(id.clone());
+                        host.entries.push(HostEntry {
+                            plugin: Box::new(plugin),
+                            state: PluginState::Initialized,
+                            enabled: true,
+                        });
+                        info!(plugin = %id, path = %dir.display(), "external plugin discovered");
+                    }
+                    Err(e) => {
+                        warn!(path = %dir.display(), error = %e, "skip plugin dir");
+                    }
+                }
+            }
         }
 
         for entry in &mut host.entries {
@@ -155,6 +200,15 @@ impl PluginHost {
     /// Known builtin ids (not necessarily loaded).
     pub fn known_builtin_ids() -> &'static [&'static str] {
         builtin_ids()
+    }
+}
+
+fn resolve_plugin_path(workspace: &Path, path: &str) -> PathBuf {
+    let p = PathBuf::from(path);
+    if p.is_absolute() {
+        p
+    } else {
+        workspace.join(p)
     }
 }
 

@@ -4,9 +4,13 @@ Cortex plugins extend the runtime **in-process**: they run through a lifecycle
 (`init` → `start` → `stop`) and can register tools on the shared
 `ToolRegistry`.
 
-**v0.1 scope:** builtin plugins compiled into the binary, selected via
-`plugins.toml`. Dynamic loading (`cdylib`, external processes, marketplaces)
-is **not** implemented yet.
+**Current scope:**
+
+- **Builtin** plugins compiled into the binary (`echo`, …)
+- **External** directory plugins (`plugin.toml` + shell/command tools),
+  auto-discovered under `.cortex/plugins/` and `plugins/`
+
+True `cdylib` loading is still deferred (unsafe ABI).
 
 ## Concepts
 
@@ -92,10 +96,31 @@ If any `init` fails, bootstrap fails (fail closed).
 - Prefer MCP or the sandbox shell for untrusted third-party code.
 - Tool permission modes in `security.toml` still apply to plugin-contributed tools.
 
+## External plugin layout
+
+```text
+plugins/my_tool/
+  plugin.toml
+  # optional scripts next to the manifest
+```
+
+```toml
+id = "my_tool"
+description = "Does a thing"
+[[tools]]
+name = "my_tool_run"
+description = "Run the thing"
+command = ["python3", "{workspace}/plugins/my_tool/run.py", "{arg:path}"]
+[tools.parameters]
+path = { type = "string" }
+```
+
+Placeholders: `{workspace}`, `{args_json}`, `{arg:KEY}`.
+
 ## Not yet implemented
 
 - Dynamic `cdylib` loading
-- Process isolation / sandboxing for plugins
+- Process isolation for external plugin commands beyond env scrub
 - Plugin marketplace / install CLI
 - Event-bus hooks (`on_before_tool`, etc.)
 - Python plugin host

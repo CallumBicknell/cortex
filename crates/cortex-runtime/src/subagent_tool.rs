@@ -1,8 +1,9 @@
 //! `spawn_subagent` tool — nests an AgentLoop with depth limits.
 
 use crate::agent_loop::AgentLoopConfig;
-use crate::subagent::{format_subagent_result, run_subagent, SubAgentOptions};
+use crate::subagent::{format_subagent_result, run_subagent, SubAgentOptions, SubAgentParent};
 use async_trait::async_trait;
+use cortex_core::InMemoryEventBus;
 use cortex_llm::Provider;
 use cortex_tools::{Result as ToolResult, Tool, ToolContext, ToolError, ToolExecutor};
 use serde::Deserialize;
@@ -18,6 +19,8 @@ pub struct SubAgentHandle {
     tools: ToolExecutor,
     /// Parent loop config (depth, budgets). Updated carefully per parent run if needed.
     parent_config: Arc<Mutex<AgentLoopConfig>>,
+    /// Optional event bus for sub-agent lifecycle events.
+    bus: Option<Arc<InMemoryEventBus>>,
 }
 
 impl SubAgentHandle {
@@ -33,7 +36,14 @@ impl SubAgentHandle {
             model: model.into(),
             tools,
             parent_config: Arc::new(Mutex::new(parent_config)),
+            bus: None,
         }
+    }
+
+    /// Attach event bus for parent/child correlation events.
+    pub fn with_event_bus(mut self, bus: Arc<InMemoryEventBus>) -> Self {
+        self.bus = Some(bus);
+        self
     }
 
     /// Replace parent config (e.g. after CLI builds full context).
@@ -125,6 +135,11 @@ impl Tool for SpawnSubagentTool {
         let mut child_ctx = ctx.clone();
         child_ctx.cancel = child_cancel.clone();
 
+        let parent = SubAgentParent {
+            session_id: ctx.session_id,
+            run_id: None,
+            bus: self.handle.bus.clone(),
+        };
         let out = run_subagent(
             Arc::clone(&self.handle.provider),
             self.handle.model.clone(),
@@ -133,6 +148,7 @@ impl Tool for SpawnSubagentTool {
             child_ctx,
             child_cancel,
             opts,
+            parent,
         )
         .await
         .map_err(|e| ToolError::Execution(e.to_string()))?;

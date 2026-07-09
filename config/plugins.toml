@@ -1,13 +1,18 @@
-# In-process plugins (builtin factory — no dynamic loading yet).
+# Plugins: builtins + external directory plugins.
 # See docs/plugin-system.md
 
-# Master switch
 enabled = true
+# Auto-discover `.cortex/plugins/*` and `plugins/*` (each with plugin.toml)
+auto_discover = true
+# Extra roots:
+# plugin_dirs = ["vendor/plugins"]
 
 # Builtin demo plugin — contributes `plugin_echo`
 [[plugins]]
 id = "echo"
 enabled = true
-# Optional settings:
-# [plugins.settings]
-# prefix = ""
+
+# External example:
+# [[plugins]]
+# id = "my_ext"
+# path = "plugins/my_ext"

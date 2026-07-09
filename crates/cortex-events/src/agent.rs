@@ -450,6 +450,140 @@ impl Event for MessageAppended {
     }
 }
 
+/// A nested sub-agent run started.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubAgentStarted {
+    /// Parent session id.
+    pub parent_session_id: SessionId,
+    /// Parent run id if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_run_id: Option<RunId>,
+    /// Child session id.
+    pub child_session_id: SessionId,
+    /// Child run id.
+    pub child_run_id: RunId,
+    /// Nesting depth.
+    pub depth: u32,
+    /// Subtask prompt (truncated by publisher).
+    pub prompt: String,
+    /// Event time.
+    pub timestamp: DateTime<Utc>,
+}
+
+impl SubAgentStarted {
+    /// Create event.
+    pub fn new(
+        parent_session_id: SessionId,
+        child_session_id: SessionId,
+        child_run_id: RunId,
+        depth: u32,
+        prompt: impl Into<String>,
+    ) -> Self {
+        Self {
+            parent_session_id,
+            parent_run_id: None,
+            child_session_id,
+            child_run_id,
+            depth,
+            prompt: prompt.into(),
+            timestamp: Utc::now(),
+        }
+    }
+
+    /// Attach parent run id.
+    pub fn with_parent_run_id(mut self, run_id: RunId) -> Self {
+        self.parent_run_id = Some(run_id);
+        self
+    }
+}
+
+impl Event for SubAgentStarted {
+    fn kind(&self) -> &'static str {
+        "agent.subagent.started"
+    }
+}
+
+/// A nested sub-agent run finished.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubAgentFinished {
+    /// Parent session id.
+    pub parent_session_id: SessionId,
+    /// Parent run id if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_run_id: Option<RunId>,
+    /// Child session id.
+    pub child_session_id: SessionId,
+    /// Child run id.
+    pub child_run_id: RunId,
+    /// Nesting depth.
+    pub depth: u32,
+    /// Child status string.
+    pub status: String,
+    /// Turns consumed.
+    pub turns: u32,
+    /// Duration ms.
+    pub duration_ms: u64,
+    /// Final message preview.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_message: Option<String>,
+    /// Error if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Event time.
+    pub timestamp: DateTime<Utc>,
+}
+
+impl SubAgentFinished {
+    /// Create event from run output fields.
+    pub fn new(
+        parent_session_id: SessionId,
+        child_session_id: SessionId,
+        child_run_id: RunId,
+        depth: u32,
+        status: impl Into<String>,
+        turns: u32,
+        duration_ms: u64,
+    ) -> Self {
+        Self {
+            parent_session_id,
+            parent_run_id: None,
+            child_session_id,
+            child_run_id,
+            depth,
+            status: status.into(),
+            turns,
+            duration_ms,
+            final_message: None,
+            error: None,
+            timestamp: Utc::now(),
+        }
+    }
+
+    /// Attach parent run id.
+    pub fn with_parent_run_id(mut self, run_id: RunId) -> Self {
+        self.parent_run_id = Some(run_id);
+        self
+    }
+
+    /// Attach final message.
+    pub fn with_final_message(mut self, msg: impl Into<String>) -> Self {
+        self.final_message.replace(msg.into());
+        self
+    }
+
+    /// Attach error.
+    pub fn with_error(mut self, err: impl Into<String>) -> Self {
+        self.error.replace(err.into());
+        self
+    }
+}
+
+impl Event for SubAgentFinished {
+    fn kind(&self) -> &'static str {
+        "agent.subagent.finished"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

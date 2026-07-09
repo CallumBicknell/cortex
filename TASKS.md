@@ -241,17 +241,25 @@
 
 ---
 
-# Plan complete (M0–M16 MVP)
+# Plan complete (M0–M16 MVP) + follow-ups
 
-Follow-ups (not blocking):
+## Follow-ups
+
+* [x] F1 External directory plugins (`plugin.toml` + auto-discover)
+* [x] F2 Bubblewrap-wired shell (`shell_use_bubblewrap`)
+* [x] F3 Streaming API `POST /v1/runs/stream` (SSE)
+* [x] F4 Sub-agent lifecycle events on parent bus
+* [x] F5 Workspace symbols + code_definition (LSP-lite)
+* [x] F6 Self-evolving skills (skill_list/save/promote + disk store)
+
+Still open (later):
 
 | Theme | Notes |
 |-------|--------|
-| Full LSP | Beyond tree-sitter outlines |
-| Dynamic plugins | cdylib loading |
-| OS sandbox | Wire bubblewrap into shell by default |
-| Streaming API | SSE for runs |
-| Sub-agent events | Merge child events into parent bus |
+| Full LSP | Diagnostics, hover, true go-to via language servers |
+| Dynamic cdylib | Unsafe plugin ABI |
+| Firejail/seccomp | Stronger OS isolation |
+| Token streaming | Provider token deltas over SSE |
 
 ---
 

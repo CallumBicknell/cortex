@@ -39,6 +39,25 @@ pub fn builtin_skills() -> Vec<Skill> {
         .tools(["memory_search"])
         .tags(["memory", "search", "rag", "embeddings", "index", "retrieve"]),
         Skill::new(
+            "evolve",
+            "Self-evolving skills: list, save, and promote learned capability packs",
+        )
+        .tools(["skill_list", "skill_save", "skill_promote"])
+        .tags([
+            "skill",
+            "evolve",
+            "learn",
+            "promote",
+            "capability",
+            "workflow",
+        ]),
+        Skill::new(
+            "code_intel",
+            "Workspace symbols and definitions via tree-sitter index",
+        )
+        .tools(["code_outline", "workspace_symbols", "code_definition"])
+        .tags(["symbols", "definition", "lsp", "outline", "goto"]),
+        Skill::new(
             "browser",
             "Headless browser via CDP (Obscura, Chrome, Chromium, custom)",
         )

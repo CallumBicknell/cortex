@@ -10,10 +10,11 @@ pub mod http;
 pub mod memory;
 pub mod search;
 pub mod shell;
+pub mod skills;
 
 use crate::error::Result;
 use crate::registry::ToolRegistry;
-use code::CodeOutlineTool;
+use code::{CodeDefinitionTool, CodeOutlineTool, WorkspaceSymbolsTool};
 use diff::ApplyPatchTool;
 use docker::DockerRunTool;
 use filesystem::{EditFileTool, GlobFilesTool, ListDirTool, ReadFileTool, WriteFileTool};
@@ -25,6 +26,9 @@ use std::sync::Arc;
 
 pub use browser::{register_browser_tools, BrowserBackend, BrowserConfig, BrowserHandle};
 pub use memory::{MemoryHandle, MemorySearchTool};
+pub use skills::{
+    register_skill_tools, SkillListTool, SkillPromoteTool, SkillSaveTool, SkillStoreHandle,
+};
 
 /// Register the default builtin tool set (including browser tools with default Obscura config).
 pub fn register_default_tools(registry: &mut ToolRegistry) -> Result<()> {
@@ -43,6 +47,8 @@ pub fn register_default_tools_with_browser(
     registry.register(Arc::new(GlobFilesTool))?;
     registry.register(Arc::new(ApplyPatchTool))?;
     registry.register(Arc::new(CodeOutlineTool))?;
+    registry.register(Arc::new(WorkspaceSymbolsTool))?;
+    registry.register(Arc::new(CodeDefinitionTool))?;
     registry.register(Arc::new(ShellTool))?;
     registry.register(Arc::new(GitStatusTool))?;
     registry.register(Arc::new(GitDiffTool))?;
@@ -82,6 +88,11 @@ pub fn default_tool_names() -> Vec<&'static str> {
         "browser_click",
         "browser_close",
         "memory_search",
+        "skill_list",
+        "skill_save",
+        "skill_promote",
+        "workspace_symbols",
+        "code_definition",
     ]
 }
 

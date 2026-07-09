@@ -77,10 +77,22 @@ Exit code `1` if any case fails (CI-friendly).
 
 Crate: `cortex-eval` (`run_suite`, `run_fixture`, `load_fixture`).
 
+## Bubblewrap shell
+
+When `bwrap` is on PATH and `shell_use_bubblewrap = true` (default), the
+`shell` tool prefixes commands with a bubblewrap sandbox (workspace RW, no net).
+
+```bash
+CORTEX_SHELL_BWRAP=0 cortex run "…"   # disable for this process
+```
+
+## Sub-agent events
+
+`agent.subagent.started` / `agent.subagent.finished` are published on the parent
+bus when one is attached; the child loop also emits normal phase/tool events.
+
 ## Not yet
 
-- Automatic bubblewrap wrapping for every shell invocation
 - Firejail / seccomp profiles
 - Parallel multi-agent orchestration DAG
 - Live-provider eval cloud runner
-- Streaming sub-agent event merge into parent bus

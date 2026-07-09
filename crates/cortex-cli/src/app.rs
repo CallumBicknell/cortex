@@ -6,9 +6,11 @@ use cortex_mcp::{load_and_register_mcp, McpConfig};
 use cortex_memory::{open_sqlite, SessionStore, VectorStore};
 use cortex_plugins::{PluginHost, PluginsConfig};
 use cortex_security::{PolicyApprover, SecurityPolicy};
+use cortex_skills::SkillStore;
 use cortex_tools::{
-    register_default_tools_with_browser, register_memory_tools, BrowserConfig, BrowserHandle,
-    MemoryHandle, ToolContext, ToolExecutor, ToolRegistry,
+    register_default_tools_with_browser, register_memory_tools, register_skill_tools,
+    BrowserConfig, BrowserHandle, MemoryHandle, SkillStoreHandle, ToolContext, ToolExecutor,
+    ToolRegistry,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -136,6 +138,11 @@ impl AppContext {
             register_memory_tools(&mut tool_reg, handle);
             info!("memory_search tool registered");
         }
+
+        // Self-evolving skills under .cortex/skills/
+        let skill_store = SkillStore::for_workspace(&paths.workspace);
+        register_skill_tools(&mut tool_reg, SkillStoreHandle::new(skill_store));
+        info!("skill evolution tools registered");
 
         let tools = ToolExecutor::new(Arc::new(tool_reg));
 

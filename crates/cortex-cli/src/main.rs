@@ -16,7 +16,7 @@ use cortex_runtime::{
     RunOutput, SummarizeConfig,
 };
 use cortex_security::{redact_text, SecurityPolicy};
-use cortex_skills::{select_skills, SkillRegistry};
+use cortex_skills::{select_skills, SkillRegistry, SkillStore};
 use cortex_workspace::RepoMap;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
@@ -869,7 +869,8 @@ fn build_context_for_task(
     }
 
     let project = map.as_ref().map(|m| &m.project);
-    let reg = SkillRegistry::with_builtins();
+    let store = SkillStore::for_workspace(workspace);
+    let reg = SkillRegistry::with_builtins_and_store(&store);
     let selection = select_skills(&reg, prompt, project, explicit_skills);
     if !quiet {
         eprintln!("skills: {}", selection.skill_ids.join(", "));

@@ -9,8 +9,8 @@ mod agent;
 
 pub use agent::{
     AssistantMessageProduced, CheckpointSaved, ErrorRaised, LoopPhase, LoopPhaseChanged,
-    MessageAppended, PlanUpdated, ToolCallCompleted, ToolCallFailed, ToolCallRequested,
-    UserMessageReceived,
+    MessageAppended, PlanUpdated, SubAgentFinished, SubAgentStarted, ToolCallCompleted,
+    ToolCallFailed, ToolCallRequested, UserMessageReceived,
 };
 
 pub use cortex_core::{

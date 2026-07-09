@@ -39,6 +39,9 @@ pub struct SecurityPolicy {
     /// Env var names scrubbed from shell children.
     #[serde(default)]
     pub scrub_env: Vec<String>,
+    /// Prefer bubblewrap for shell when available.
+    #[serde(default = "default_true")]
+    pub shell_use_bubblewrap: bool,
 }
 
 fn default_ask() -> PermissionMode {
@@ -68,6 +71,7 @@ impl Default for SecurityPolicy {
             http_block_hosts: tools_policy.http_block_hosts,
             shell_deny_patterns: default_shell_deny_patterns(),
             scrub_env: default_scrub_env(),
+            shell_use_bubblewrap: true,
         }
     }
 }
@@ -116,6 +120,7 @@ impl SecurityPolicy {
             http_block_hosts: self.http_block_hosts.clone(),
             scrub_env: self.scrub_env.clone(),
             shell_deny_patterns: self.shell_deny_patterns.clone(),
+            shell_use_bubblewrap: self.shell_use_bubblewrap,
         }
     }
 

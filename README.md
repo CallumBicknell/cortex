@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–16 MVP complete (hardening, sub-agents, evals). Follow-ups: dynamic plugins, full LSP, OS sandbox wire-up, streaming API.
+**Early development (v0.1.0).** Phases 0–16 + follow-ups: external plugins, bubblewrap shell, SSE runs, sub-agent events, workspace symbols, self-evolving skills.
 
 | Area | Status |
 |------|--------|
@@ -35,8 +35,10 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | HTTP API (`cortex serve`) | Implemented |
 | Python SDK (HTTP client) | Implemented |
 | Run budgets + spawn_subagent + eval harness | Implemented |
+| External plugins + bubblewrap shell + SSE API | Implemented |
+| Workspace symbols + evolving skills | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| Dynamic plugins / full LSP / OS sandbox wire-up | Planned (later) |
+| Full LSP / cdylib plugins / token streaming | Planned (later) |
 
 ## Design principles
 
@@ -140,7 +142,7 @@ cargo run -p cortex-cli -- eval run
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), and [`docs/hardening.md`](docs/hardening.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), [`docs/hardening.md`](docs/hardening.md), [`docs/evolving-skills.md`](docs/evolving-skills.md), and [`docs/follow-ups.md`](docs/follow-ups.md).
 
 ### Configuration
 

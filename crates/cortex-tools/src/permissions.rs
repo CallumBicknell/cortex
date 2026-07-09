@@ -39,6 +39,8 @@ pub struct PermissionPolicy {
     pub scrub_env: Vec<String>,
     /// Shell command substrings that are hard-denied.
     pub shell_deny_patterns: Vec<String>,
+    /// Prefer bubblewrap isolation for shell when `bwrap` is on PATH.
+    pub shell_use_bubblewrap: bool,
 }
 
 impl Default for PermissionPolicy {
@@ -58,6 +60,9 @@ impl Default for PermissionPolicy {
             "browser_evaluate",
             "memory_search",
             "code_outline",
+            "workspace_symbols",
+            "code_definition",
+            "skill_list",
         ] {
             // note: spawn_subagent is ask by default (registered at runtime)
             tools.insert(name.to_string(), PermissionMode::Allow);
@@ -76,6 +81,8 @@ impl Default for PermissionPolicy {
             "browser_click",
             "browser_close",
             "spawn_subagent",
+            "skill_save",
+            "skill_promote",
         ] {
             tools.insert(name.to_string(), PermissionMode::Ask);
         }
@@ -110,6 +117,8 @@ impl Default for PermissionPolicy {
                 ":(){ :|:& };:".into(),
                 "dd if=/dev/zero".into(),
             ],
+            // Default on; shell tool falls back if bwrap is missing.
+            shell_use_bubblewrap: true,
         }
     }
 }

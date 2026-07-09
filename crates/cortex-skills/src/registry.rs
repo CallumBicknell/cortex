@@ -25,6 +25,17 @@ impl SkillRegistry {
         reg
     }
 
+    /// Builtins plus learned skills from a store (learned overrides same id).
+    pub fn with_builtins_and_store(store: &crate::store::SkillStore) -> Self {
+        let mut reg = Self::with_builtins();
+        if let Ok(docs) = store.load_all() {
+            for doc in docs {
+                reg.register(doc.skill);
+            }
+        }
+        reg
+    }
+
     /// Register a skill (replaces same id).
     pub fn register(&mut self, skill: Skill) {
         self.skills.insert(skill.id.clone(), skill);

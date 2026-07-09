@@ -31,13 +31,14 @@ pub fn bubblewrap_available() -> bool {
 
 /// Build a bubblewrap argv prefix that binds `workspace` read-write and drops net.
 ///
-/// Returns `None` if bubblewrap is not installed. Caller still runs the command
-/// without isolation in that case (document as soft hardening).
-pub fn bubblewrap_shell_prefix(workspace: &Path) -> Option<Vec<String>> {
+/// `chdir` should be an absolute path under `workspace` (or the workspace itself).
+/// Returns `None` if bubblewrap is not installed.
+pub fn bubblewrap_shell_prefix(workspace: &Path, chdir: &Path) -> Option<Vec<String>> {
     if !bubblewrap_available() {
         return None;
     }
     let ws = workspace.to_string_lossy().to_string();
+    let cd = chdir.to_string_lossy().to_string();
     Some(vec![
         "bwrap".into(),
         "--ro-bind".into(),
@@ -55,6 +56,9 @@ pub fn bubblewrap_shell_prefix(workspace: &Path) -> Option<Vec<String>> {
         "--ro-bind-try".into(),
         "/sbin".into(),
         "/sbin".into(),
+        "--ro-bind-try".into(),
+        "/etc".into(),
+        "/etc".into(),
         "--dev".into(),
         "/dev".into(),
         "--proc".into(),
@@ -63,9 +67,9 @@ pub fn bubblewrap_shell_prefix(workspace: &Path) -> Option<Vec<String>> {
         "/tmp".into(),
         "--bind".into(),
         ws.clone(),
-        ws.clone(),
-        "--chdir".into(),
         ws,
+        "--chdir".into(),
+        cd,
         "--unshare-net".into(),
         "--die-with-parent".into(),
         "--".into(),

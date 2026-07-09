@@ -14,6 +14,12 @@ pub struct PluginsConfig {
     /// Declared plugins (in load order).
     #[serde(default)]
     pub plugins: Vec<PluginEntry>,
+    /// Extra discovery roots for external plugins (relative or absolute).
+    #[serde(default)]
+    pub plugin_dirs: Vec<String>,
+    /// Auto-discover plugins under default dirs (`.cortex/plugins`, `plugins`).
+    #[serde(default = "default_true")]
+    pub auto_discover: bool,
 }
 
 fn default_true() -> bool {
@@ -23,11 +29,14 @@ fn default_true() -> bool {
 /// One plugin declaration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PluginEntry {
-    /// Builtin plugin id (e.g. `echo`).
+    /// Builtin plugin id (e.g. `echo`) or external id matching `plugin.toml`.
     pub id: String,
     /// Whether this entry is active.
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Optional path to an external plugin directory (contains `plugin.toml`).
+    #[serde(default)]
+    pub path: Option<String>,
     /// Free-form settings object (JSON-compatible via TOML).
     #[serde(default)]
     pub settings: Value,
@@ -40,8 +49,11 @@ impl Default for PluginsConfig {
             plugins: vec![PluginEntry {
                 id: "echo".into(),
                 enabled: true,
+                path: None,
                 settings: Value::Object(Default::default()),
             }],
+            plugin_dirs: Vec::new(),
+            auto_discover: true,
         }
     }
 }
