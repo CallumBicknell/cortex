@@ -1,4 +1,4 @@
-//! Cortex CLI — `cortex run`, `cortex chat`, and helpers.
+//! Cortex CLI — `cortex run`, `cortex chat`, sessions, and helpers.
 
 mod app;
 mod approver;
@@ -6,12 +6,15 @@ mod approver;
 use anyhow::{Context, Result};
 use app::{init_tracing, load_dotenv, write_default_models_toml, AppContext, Paths};
 use clap::{Parser, Subcommand};
-use cortex_models::{Session, TaskStatus};
-use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput};
+use cortex_common::SessionId;
+use cortex_memory::{open_sqlite, CheckpointState, SessionStore};
+use cortex_models::{Session, SessionStatus, TaskStatus};
+use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
 use cortex_tools::ToolRegistry;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -25,8 +28,8 @@ use tokio_util::sync::CancellationToken;
                   cortex init\n  \
                   cortex run \"Add a README section about config\"\n  \
                   cortex chat --model ollama\n  \
-                  cortex tools list\n  \
-                  cortex models list"
+                  cortex sessions list\n  \
+                  cortex sessions resume <id>"
 )]
 struct Cli {
     /// Workspace root (default: current directory).
@@ -69,6 +72,12 @@ enum Commands {
         /// Emit machine-readable JSON summary on stdout.
         #[arg(long)]
         json: bool,
+        /// Resume an existing session id instead of creating a new one.
+        #[arg(long)]
+        session: Option<String>,
+        /// Disable SQLite persistence for this run.
+        #[arg(long)]
+        no_save: bool,
     },
     /// Interactive multi-turn chat REPL.
     Chat {
@@ -81,6 +90,9 @@ enum Commands {
         /// Maximum LLM turns per user message.
         #[arg(long, default_value_t = 32)]
         max_turns: u32,
+        /// Resume session id.
+        #[arg(long)]
+        session: Option<String>,
     },
     /// Tool helpers.
     Tools {
@@ -91,6 +103,11 @@ enum Commands {
     Models {
         #[command(subcommand)]
         command: ModelsCmd,
+    },
+    /// Durable session store helpers.
+    Sessions {
+        #[command(subcommand)]
+        command: SessionsCmd,
     },
 }
 
@@ -104,6 +121,48 @@ enum ToolsCmd {
 enum ModelsCmd {
     /// List configured model aliases and providers.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+enum SessionsCmd {
+    /// List recent sessions.
+    List {
+        /// Max rows.
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    /// Show a session (messages).
+    Show {
+        /// Session id (UUID).
+        id: String,
+    },
+    /// Resume a session into interactive chat.
+    Resume {
+        /// Session id.
+        id: String,
+        /// Model alias override.
+        #[arg(long, short)]
+        model: Option<String>,
+        /// Auto-approve tools.
+        #[arg(long)]
+        yolo: bool,
+        /// Max turns per message.
+        #[arg(long, default_value_t = 32)]
+        max_turns: u32,
+    },
+    /// Export a session as JSON.
+    Export {
+        /// Session id.
+        id: String,
+        /// Output file (default: stdout).
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+    },
+    /// Archive a session.
+    Archive {
+        /// Session id.
+        id: String,
+    },
 }
 
 #[tokio::main]
@@ -123,13 +182,17 @@ async fn main() -> ExitCode {
 
 async fn run(cli: Cli) -> Result<ExitCode> {
     match cli.command {
-        Commands::Init { force } => cmd_init(cli.workspace, force)?,
+        Commands::Init { force } => {
+            cmd_init(cli.workspace, force).await?;
+        }
         Commands::Run {
             prompt,
             model,
             yolo,
             max_turns,
             json,
+            session,
+            no_save,
         } => {
             return cmd_run(
                 cli.workspace,
@@ -139,6 +202,8 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 yolo,
                 max_turns,
                 json,
+                session,
+                no_save,
             )
             .await;
         }
@@ -146,8 +211,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             model,
             yolo,
             max_turns,
+            session,
         } => {
-            return cmd_chat(cli.workspace, cli.config, model, yolo, max_turns).await;
+            return cmd_chat(cli.workspace, cli.config, model, yolo, max_turns, session).await;
         }
         Commands::Tools { command } => match command {
             ToolsCmd::List => cmd_tools_list()?,
@@ -155,11 +221,24 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Models { command } => match command {
             ModelsCmd::List => cmd_models_list(cli.workspace, cli.config)?,
         },
+        Commands::Sessions { command } => {
+            return cmd_sessions(cli.workspace, cli.config, command).await;
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
+async fn open_store(paths: &Paths) -> Result<SessionStore> {
+    if let Some(parent) = paths.database.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+    let pool = open_sqlite(&paths.database)
+        .await
+        .with_context(|| format!("open database {}", paths.database.display()))?;
+    Ok(SessionStore::new(pool))
+}
+
+async fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
     let workspace = workspace
         .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
         .canonicalize()
@@ -188,6 +267,11 @@ fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
         println!("✓ wrote {}", gitignore.display());
     }
 
+    // Initialize empty SQLite DB.
+    let db_path = cortex_dir.join("data").join("cortex.db");
+    let _ = open_sqlite(&db_path).await.context("init database")?;
+    println!("✓ database {}", db_path.display());
+
     println!("\nCortex initialized in {}", workspace.display());
     println!("Next:");
     println!("  export OPENAI_API_KEY=...   # or use ollama");
@@ -196,6 +280,7 @@ fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cmd_run(
     workspace: Option<PathBuf>,
     config: Option<PathBuf>,
@@ -204,16 +289,24 @@ async fn cmd_run(
     yolo: bool,
     max_turns: u32,
     json: bool,
+    session_id: Option<String>,
+    no_save: bool,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
-    let app = AppContext::bootstrap(paths, yolo)?;
+    let app = AppContext::bootstrap(paths.clone(), yolo)?;
     let resolved = app.resolve_model(model.as_deref())?;
+    let store = if no_save {
+        None
+    } else {
+        Some(open_store(&paths).await?)
+    };
 
     if !json {
         println!(
-            "workspace: {}\ncortex:    {}\nmodel:     {} ({}/{})\n",
+            "workspace: {}\ncortex:    {}\ndb:        {}\nmodel:     {} ({}/{})\n",
             app.paths.workspace.display(),
             app.paths.cortex_dir.display(),
+            app.paths.database.display(),
             resolved.alias,
             resolved.provider_id,
             resolved.model
@@ -221,7 +314,6 @@ async fn cmd_run(
     }
 
     let cancel = CancellationToken::new();
-    // Ctrl-C cancels the run.
     let cancel_ctrl = cancel.clone();
     tokio::spawn(async move {
         let _ = tokio::signal::ctrl_c().await;
@@ -242,10 +334,8 @@ async fn cmd_run(
         },
     );
 
-    let session = Session::new(
-        app.paths.workspace.to_string_lossy(),
-        format!("{}/{}", resolved.provider_id, resolved.model),
-    );
+    let session =
+        load_or_new_session(store.as_ref(), session_id.as_deref(), &app, &resolved).await?;
 
     let output = agent
         .run(RunInput {
@@ -257,10 +347,18 @@ async fn cmd_run(
         .await
         .context("agent run")?;
 
+    let checkpoint_id = if let Some(store) = &store {
+        Some(persist_output(store, &output).await?)
+    } else {
+        None
+    };
+
     if json {
         let summary = serde_json::json!({
             "status": format!("{:?}", output.status).to_ascii_lowercase(),
+            "session_id": output.session.id.to_string(),
             "run_id": output.run_id.to_string(),
+            "checkpoint_id": checkpoint_id.map(|c| c.to_string()),
             "turns": output.turns,
             "duration_ms": output.duration_ms,
             "final_message": output.final_message,
@@ -276,6 +374,9 @@ async fn cmd_run(
         println!("{}", serde_json::to_string_pretty(&summary)?);
     } else {
         print_run_human(&output);
+        if let Some(cid) = checkpoint_id {
+            println!("saved session={} checkpoint={}", output.session.id, cid);
+        }
     }
 
     Ok(exit_for_status(output.status))
@@ -287,22 +388,24 @@ async fn cmd_chat(
     model: Option<String>,
     yolo: bool,
     max_turns: u32,
+    session_id: Option<String>,
 ) -> Result<ExitCode> {
     let paths = Paths::resolve(workspace, config)?;
-    let app = AppContext::bootstrap(paths, yolo)?;
+    let app = AppContext::bootstrap(paths.clone(), yolo)?;
     let resolved = app.resolve_model(model.as_deref())?;
+    let store = open_store(&paths).await?;
+
+    let mut session =
+        load_or_new_session(Some(&store), session_id.as_deref(), &app, &resolved).await?;
 
     println!(
         "Cortex chat — model {} ({}/{})",
         resolved.alias, resolved.provider_id, resolved.model
     );
     println!("workspace: {}", app.paths.workspace.display());
+    println!("session:   {}", session.id);
+    println!("db:        {}", app.paths.database.display());
     println!("Type a message, or /quit to exit. Ctrl-C cancels the current turn.\n");
-
-    let mut session = Session::new(
-        app.paths.workspace.to_string_lossy(),
-        format!("{}/{}", resolved.provider_id, resolved.model),
-    );
 
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -353,13 +456,184 @@ async fn cmd_chat(
             .context("chat turn")?;
         ctrl.abort();
 
-        // Carry full history forward.
         session = output.session.clone();
+        let _ = persist_output(&store, &output).await?;
         print_run_human(&output);
         println!();
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_sessions(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    command: SessionsCmd,
+) -> Result<ExitCode> {
+    let paths = Paths::resolve(workspace, config)?;
+    let store = open_store(&paths).await?;
+
+    match command {
+        SessionsCmd::List { limit } => {
+            let rows = store.list_sessions(limit).await?;
+            if rows.is_empty() {
+                println!("(no sessions)");
+            } else {
+                println!(
+                    "{:<36}  {:<10}  {:>5}  {:<20}  MODEL",
+                    "ID", "STATUS", "MSGS", "UPDATED"
+                );
+                for s in rows {
+                    println!(
+                        "{:<36}  {:<10}  {:>5}  {:<20}  {}",
+                        s.id,
+                        format!("{:?}", s.status).to_ascii_lowercase(),
+                        s.message_count,
+                        s.updated_at.format("%Y-%m-%d %H:%M:%S"),
+                        s.model
+                    );
+                }
+            }
+        }
+        SessionsCmd::Show { id } => {
+            let sid = parse_session_id(&id)?;
+            let session = store.load_session(sid).await?;
+            println!("session {}", session.id);
+            println!("status  {:?}", session.status);
+            println!("model   {}", session.model);
+            println!("workspace {}", session.workspace);
+            println!("messages {}\n", session.message_count());
+            for (i, msg) in session.messages.iter().enumerate() {
+                println!("[{i}] {:?}: {}", msg.role, truncate(&msg.content, 200));
+                if !msg.tool_calls.is_empty() {
+                    for tc in &msg.tool_calls {
+                        println!("      tool_call {} {}", tc.name, tc.arguments);
+                    }
+                }
+            }
+            if let Some(cp) = store.latest_checkpoint(sid).await? {
+                println!(
+                    "\nlatest checkpoint {} phase={} turns={}",
+                    cp.id, cp.state.phase, cp.state.turns
+                );
+            }
+        }
+        SessionsCmd::Resume {
+            id,
+            model,
+            yolo,
+            max_turns,
+        } => {
+            return cmd_chat(
+                Some(paths.workspace.clone()),
+                Some(paths.models_config.clone()),
+                model,
+                yolo,
+                max_turns,
+                Some(id),
+            )
+            .await;
+        }
+        SessionsCmd::Export { id, output } => {
+            let sid = parse_session_id(&id)?;
+            let export = store.export_session(sid).await?;
+            let pretty = serde_json::to_string_pretty(&export)?;
+            if let Some(path) = output {
+                std::fs::write(&path, pretty)
+                    .with_context(|| format!("write {}", path.display()))?;
+                println!("wrote {}", path.display());
+            } else {
+                println!("{pretty}");
+            }
+        }
+        SessionsCmd::Archive { id } => {
+            let sid = parse_session_id(&id)?;
+            store.archive_session(sid).await?;
+            println!("archived {sid}");
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn load_or_new_session(
+    store: Option<&SessionStore>,
+    session_id: Option<&str>,
+    app: &AppContext,
+    resolved: &cortex_llm::ResolvedModel,
+) -> Result<Session> {
+    if let Some(id_str) = session_id {
+        let store = store.context("--session requires a database (omit --no-save)")?;
+        let sid = parse_session_id(id_str)?;
+        let mut session = store
+            .load_session(sid)
+            .await
+            .with_context(|| format!("load session {sid}"))?;
+        session.status = SessionStatus::Active;
+        session.model = format!("{}/{}", resolved.provider_id, resolved.model);
+        return Ok(session);
+    }
+    Ok(Session::new(
+        app.paths.workspace.to_string_lossy(),
+        format!("{}/{}", resolved.provider_id, resolved.model),
+    ))
+}
+
+async fn persist_output(
+    store: &SessionStore,
+    output: &RunOutput,
+) -> Result<cortex_common::CheckpointId> {
+    let mut session = output.session.clone();
+    session.status = match output.status {
+        TaskStatus::Succeeded => SessionStatus::Completed,
+        TaskStatus::Failed => SessionStatus::Failed,
+        TaskStatus::Cancelled => SessionStatus::Paused,
+        TaskStatus::Pending | TaskStatus::Running => SessionStatus::Active,
+    };
+    session.updated_at = chrono::Utc::now();
+
+    for tr in &output.tool_results {
+        // Best-effort tool audit trail.
+        let call = cortex_models::ToolCall {
+            id: tr.tool_call_id,
+            name: tr.name.clone(),
+            arguments: serde_json::json!({}),
+        };
+        let _ = store.save_tool_trace(session.id, &call, tr).await;
+    }
+
+    let phase = format!("{:?}", output.phase).to_ascii_lowercase();
+    let cp = store
+        .persist_run(
+            &session,
+            CheckpointState {
+                run_id: Some(output.run_id),
+                phase,
+                turns: output.turns,
+                note: output.error.clone(),
+            },
+            Some("after-run".into()),
+        )
+        .await
+        .context("persist session")?;
+
+    let _ = store
+        .append_event(
+            Some(session.id),
+            "cli.run.completed",
+            &serde_json::json!({
+                "run_id": output.run_id.to_string(),
+                "status": format!("{:?}", output.status),
+                "turns": output.turns,
+            }),
+            None,
+        )
+        .await;
+
+    Ok(cp.id)
+}
+
+fn parse_session_id(s: &str) -> Result<SessionId> {
+    SessionId::from_str(s).map_err(|e| anyhow::anyhow!("invalid session id: {e}"))
 }
 
 fn cmd_tools_list() -> Result<()> {
@@ -390,7 +664,7 @@ fn cmd_models_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Resul
     Ok(())
 }
 
-fn print_run_human(output: &cortex_runtime::RunOutput) {
+fn print_run_human(output: &RunOutput) {
     if !output.tool_results.is_empty() {
         println!("tools:");
         for r in &output.tool_results {
@@ -407,9 +681,17 @@ fn print_run_human(output: &cortex_runtime::RunOutput) {
         println!("error: {err}");
     }
     println!(
-        "status={:?} turns={} duration_ms={}",
-        output.status, output.turns, output.duration_ms
+        "status={:?} turns={} duration_ms={} session={}",
+        output.status, output.turns, output.duration_ms, output.session.id
     );
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    let mut t: String = s.chars().take(max).collect();
+    if s.chars().count() > max {
+        t.push('…');
+    }
+    t.replace('\n', " ")
 }
 
 fn exit_for_status(status: TaskStatus) -> ExitCode {

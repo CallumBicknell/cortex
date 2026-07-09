@@ -14,9 +14,12 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+chrono = { workspace = true }
 clap = { workspace = true }
+cortex-common = { path = "../cortex-common" }
 cortex-core = { path = "../cortex-core" }
 cortex-llm = { path = "../cortex-llm" }
+cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
 cortex-runtime = { path = "../cortex-runtime" }
 cortex-tools = { path = "../cortex-tools" }

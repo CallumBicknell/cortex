@@ -111,13 +111,25 @@
 
 ---
 
+# Phase 6 — Persistence (SQLite)
+
+* [x] P6.1 `cortex-memory` + SQLx SQLite
+* [x] P6.2 Migrations (`migrations/001_init.sql`)
+* [x] P6.3 Session store API (save/load/list/archive)
+* [x] P6.4 Event log + tool trace
+* [x] P6.5 Checkpoints + `persist_run`
+* [x] P6.6 CLI `sessions list|show|resume|export|archive`
+* [x] P6.7 Auto-save after `run` / `chat` (`.cortex/data/cortex.db`)
+* [x] P6.8 Summaries table (schema ready)
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 6 | SQLite sessions, checkpoints, migrations |
 | 7 | Workspace + context budgets |
 | 8 | Prompts + skills (coding/git/web/solidity/…) |
 | 9 | Security, approvals, sandbox |

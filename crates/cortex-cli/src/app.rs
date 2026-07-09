@@ -22,6 +22,8 @@ pub struct Paths {
     pub models_config: PathBuf,
     /// `.cortex` directory under workspace (may not exist until init).
     pub cortex_dir: PathBuf,
+    /// SQLite database path.
+    pub database: PathBuf,
 }
 
 impl Paths {
@@ -61,10 +63,17 @@ impl Paths {
                 })?
         };
 
+        let database = if let Ok(p) = std::env::var("CORTEX_DATABASE") {
+            PathBuf::from(p)
+        } else {
+            cortex_dir.join("data").join("cortex.db")
+        };
+
         Ok(Self {
             workspace,
             models_config,
             cortex_dir,
+            database,
         })
     }
 }

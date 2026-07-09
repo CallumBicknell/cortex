@@ -22,8 +22,8 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Tools (fs, shell, git, http) + permissions | Implemented |
 | Agent loop (LLM ↔ tools, events) | Implemented |
 | CLI (`cortex run` / `chat` / `init`) | Implemented |
+| SQLite sessions / checkpoints | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| SQLite sessions / checkpoints | Planned (Phase 6) |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
 | TUI / HTTP API | Planned (later) |
@@ -50,8 +50,10 @@ crates/
   cortex-core/      # Kernel, config, event bus, service registry, cancel
   cortex-events/    # Lifecycle re-exports + agent loop events
   cortex-runtime/   # Kernel facade + AgentLoop
+  cortex-memory/    # SQLite sessions, checkpoints, events
   cortex-cli/       # `cortex` binary
 config/             # Default TOML configuration
+migrations/         # SQL schema
 examples/           # Usage walkthroughs
 scripts/            # smoke_agent.sh
 sdks/python/        # Python SDK stubs (not wired to runtime yet)
@@ -86,6 +88,12 @@ cargo run -p cortex-cli -- run "What is Cortex?" --json
 cargo run -p cortex-cli -- init
 cargo run -p cortex-cli -- run "Summarize this repo" --model ollama --yolo
 cargo run -p cortex-cli -- chat --model openai
+
+# Sessions (persisted under .cortex/data/cortex.db)
+cargo run -p cortex-cli -- sessions list
+cargo run -p cortex-cli -- sessions show <session-id>
+cargo run -p cortex-cli -- sessions resume <session-id>
+cargo run -p cortex-cli -- sessions export <session-id> -o session.json
 ```
 
 See [`examples/hello_agent.md`](examples/hello_agent.md).
@@ -140,7 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M3 Tools | fs + shell + registry ✓ |
 | M4 Agent loop | Multi-step tool use ✓ |
 | M5 CLI | `cortex run` / `cortex chat` ✓ |
-| M6+ | Persistence, skills, security, MCP, plugins |
+| M6 Durable sessions | SQLite + checkpoints ✓ |
+| M7+ | Context, skills, security, MCP, TUI |
 
 Full task list: [`TASKS.md`](TASKS.md).
 

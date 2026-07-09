@@ -57,3 +57,5 @@ Thumbs.db
 *.log
 *.tmp
 *.temp
+# Local Cortex runtime data
+.cortex/
