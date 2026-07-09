@@ -98,16 +98,16 @@
 
 # Phase 5 — CLI product
 
-* [ ] P5.1 `cortex-cli` binary
-* [ ] P5.2 `cortex init`
-* [ ] P5.3 `cortex run`
-* [ ] P5.4 `cortex chat`
-* [ ] P5.5 `cortex tools list`
-* [ ] P5.6 `cortex models list`
-* [ ] P5.7 Flags (`--model`, `--workspace`, `--approve`, …)
-* [ ] P5.8 `.env` loading
-* [ ] P5.9 Examples
-* [ ] P5.10 Agent smoke script
+* [x] P5.1 `cortex-cli` binary (`cortex`)
+* [x] P5.2 `cortex init`
+* [x] P5.3 `cortex run`
+* [x] P5.4 `cortex chat`
+* [x] P5.5 `cortex tools list`
+* [x] P5.6 `cortex models list`
+* [x] P5.7 Flags (`--model`, `--workspace`, `--yolo`, `--max-turns`, `--json`)
+* [x] P5.8 `.env` loading
+* [x] P5.9 Examples (`examples/hello_agent.md`)
+* [x] P5.10 Agent smoke script (`scripts/smoke_agent.sh`)
 
 ---
 

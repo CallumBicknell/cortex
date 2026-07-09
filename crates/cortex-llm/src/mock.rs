@@ -49,6 +49,8 @@ impl MockResponse {
 pub struct MockProvider {
     id: String,
     scripts: Mutex<Vec<MockResponse>>,
+    /// Used when the script queue is empty (reusable; good for CLI demos).
+    fallback: Option<MockResponse>,
     call_count: AtomicUsize,
     /// If true, stream emits text deltas character-by-character for text responses.
     stream_deltas: bool,
@@ -60,14 +62,26 @@ impl MockProvider {
         Self {
             id: "mock".into(),
             scripts: Mutex::new(scripts),
+            fallback: None,
             call_count: AtomicUsize::new(0),
             stream_deltas: false,
         }
     }
 
-    /// Empty mock (always errors until scripts are pushed).
+    /// Empty mock (errors when scripts are exhausted, unless a fallback is set).
     pub fn empty() -> Self {
         Self::new(Vec::new())
+    }
+
+    /// Mock that always answers with the same text when scripts are empty.
+    pub fn with_fallback(mut self, response: MockResponse) -> Self {
+        self.fallback = Some(response);
+        self
+    }
+
+    /// Offline-friendly mock that always returns a short assistant message.
+    pub fn echo(message: impl Into<String>) -> Self {
+        Self::empty().with_fallback(MockResponse::text("mock-default", message))
     }
 
     /// Enable character-level stream deltas for text responses.
@@ -86,6 +100,21 @@ impl MockProvider {
         self.call_count.load(Ordering::SeqCst)
     }
 
+    fn materialize(resp: MockResponse, model: &str) -> Result<ChatResponse> {
+        match resp {
+            MockResponse::Chat(mut r) => {
+                if r.model.is_empty() {
+                    r.model = model.to_string();
+                }
+                Ok(r)
+            }
+            MockResponse::Error(msg) => Err(ProviderError::Api {
+                status: 500,
+                message: msg,
+            }),
+        }
+    }
+
     fn next_response(&self, req: &ChatRequest) -> Result<ChatResponse> {
         if let Some(c) = &req.cancel {
             if c.is_cancelled() {
@@ -94,23 +123,15 @@ impl MockProvider {
         }
         self.call_count.fetch_add(1, Ordering::SeqCst);
         let mut scripts = self.scripts.lock().expect("mock lock");
-        if scripts.is_empty() {
-            return Err(ProviderError::InvalidRequest(
-                "mock provider has no more scripted responses".into(),
-            ));
+        if !scripts.is_empty() {
+            return Self::materialize(scripts.remove(0), &req.model);
         }
-        match scripts.remove(0) {
-            MockResponse::Chat(mut resp) => {
-                if resp.model.is_empty() {
-                    resp.model = req.model.clone();
-                }
-                Ok(resp)
-            }
-            MockResponse::Error(msg) => Err(ProviderError::Api {
-                status: 500,
-                message: msg,
-            }),
+        if let Some(fallback) = &self.fallback {
+            return Self::materialize(fallback.clone(), &req.model);
         }
+        Err(ProviderError::InvalidRequest(
+            "mock provider has no more scripted responses".into(),
+        ))
     }
 }
 

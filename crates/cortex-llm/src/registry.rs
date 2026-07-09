@@ -94,8 +94,12 @@ impl ProviderRegistry {
                     Arc::new(AnthropicProvider::new(cfg)?)
                 }
                 ProviderKind::Mock => {
-                    // Empty mock; tests can replace via register.
-                    Arc::new(MockProvider::empty())
+                    // Offline default: always answers without tools so CLI works out of the box.
+                    Arc::new(MockProvider::echo(
+                        "Cortex mock provider is active (no live LLM).\n\
+                         Configure `config/models.toml` (or `.cortex/models.toml`), set API keys, \
+                         and run with `--model openai` / `--model ollama` / etc.",
+                    ))
                 }
             };
             reg.register_provider(id.clone(), provider);
