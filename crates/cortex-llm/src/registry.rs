@@ -76,11 +76,14 @@ impl ProviderRegistry {
                     Arc::new(OpenAiCompatibleProvider::new(cfg)?)
                 }
                 ProviderKind::Anthropic => {
-                    let api_key = ModelsConfig::resolve_api_key(entry).ok_or_else(|| {
-                        ProviderError::Config(format!(
-                            "provider `{id}` requires ANTHROPIC_API_KEY or api_key"
-                        ))
-                    })?;
+                    // Optional until a key is present — setup writes the block for convenience.
+                    let Some(api_key) = ModelsConfig::resolve_api_key(entry) else {
+                        tracing::warn!(
+                            provider = %id,
+                            "skipping anthropic provider (set ANTHROPIC_API_KEY or api_key to enable)"
+                        );
+                        continue;
+                    };
                     let mut cfg = AnthropicConfig::new(api_key);
                     cfg.id = id.clone();
                     if let Some(url) = &entry.base_url {
@@ -106,6 +109,14 @@ impl ProviderRegistry {
         }
 
         for (alias, model) in &config.models {
+            if !reg.providers.contains_key(&model.provider) {
+                tracing::warn!(
+                    alias = %alias,
+                    provider = %model.provider,
+                    "skipping model alias (provider not registered)"
+                );
+                continue;
+            }
             reg.register_alias(alias.clone(), model.provider.clone(), model.model.clone())?;
         }
         reg.default_alias = config.default_model.clone().or_else(|| {
@@ -205,6 +216,43 @@ impl Default for ProviderRegistry {
 mod tests {
     use super::*;
     use cortex_models::Message;
+
+    #[test]
+    fn from_config_skips_anthropic_without_key() {
+        // Ensure no ambient key for this test.
+        let had = std::env::var_os("ANTHROPIC_API_KEY");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        let toml = r#"
+default_model = "default"
+
+[providers.anthropic]
+kind = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[providers.mock]
+kind = "mock"
+
+[models.default]
+provider = "mock"
+model = "mock-default"
+
+[models.anthropic]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+"#;
+        let cfg = ModelsConfig::from_toml(toml).unwrap();
+        let reg =
+            ProviderRegistry::from_config(&cfg).expect("mock should load without anthropic key");
+        assert!(reg.provider_ids().contains(&"mock".to_string()));
+        assert!(!reg.provider_ids().contains(&"anthropic".to_string()));
+        assert!(reg.alias_names().contains(&"default".to_string()));
+        assert!(!reg.alias_names().contains(&"anthropic".to_string()));
+        let resolved = reg.resolve(None).unwrap();
+        assert_eq!(resolved.provider_id, "mock");
+        if let Some(v) = had {
+            std::env::set_var("ANTHROPIC_API_KEY", v);
+        }
+    }
 
     #[tokio::test]
     async fn resolve_and_chat() {
