@@ -99,7 +99,8 @@ Use tools; do not only “reason in the abstract”:
 1. Project map     → list_dir / glob / code_outline / workspace_symbols
 2. Build           → forge build  (or hardhat compile)
 3. Tests           → forge test (-vvv on failures); fuzz when present
-4. Static          → slither .  (if installed); note high-confidence hits
+4. Static          → `slither_scan` / `aderyn_scan` tools if registered, else `slither .`;
+                     note high-confidence hits (never invent tool output)
 5. Manual pass     → checklist above on every external entrypoint
 6. PoC (optional)  → forge test with exploit sketch under test/
 7. Report          → structured findings (below)

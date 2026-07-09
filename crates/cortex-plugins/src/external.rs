@@ -54,6 +54,10 @@ pub struct ExternalToolDef {
     /// Timeout seconds (default 60).
     #[serde(default = "default_tool_timeout")]
     pub timeout_secs: u64,
+    /// When true, non-zero process exit still returns stdout/stderr as success.
+    /// Needed for analyzers like Slither that exit non-zero when findings exist.
+    #[serde(default)]
+    pub allow_nonzero: bool,
     /// JSON schema fragment for parameters (object properties).
     #[serde(default)]
     pub parameters: Value,
@@ -263,16 +267,22 @@ impl Tool for ExternalCommandTool {
             text.push_str("--- stderr ---\n");
             text.push_str(&stderr);
         }
+        let code = output.status.code().unwrap_or(-1);
         if !output.status.success() {
-            return Err(ToolError::Execution(if text.is_empty() {
-                format!(
-                    "plugin tool `{}` failed (exit {})",
-                    self.def.name,
-                    output.status.code().unwrap_or(-1)
-                )
+            if self.def.allow_nonzero {
+                // Analyzers often exit non-zero when findings exist — keep output.
+                let header = format!(
+                    "[exit {code} — non-zero allowed for tool `{}`]\n",
+                    self.def.name
+                );
+                text = format!("{header}{text}");
             } else {
-                text
-            }));
+                return Err(ToolError::Execution(if text.is_empty() {
+                    format!("plugin tool `{}` failed (exit {code})", self.def.name)
+                } else {
+                    text
+                }));
+            }
         }
         if text.is_empty() {
             text = "(no output)".into();
@@ -303,6 +313,26 @@ mod tests {
     use super::*;
     use cortex_tools::ToolRegistry;
     use tempfile::tempdir;
+
+    #[test]
+    fn allow_nonzero_deserializes() {
+        let dir = tempdir().unwrap();
+        let plug = dir.path().join("nz");
+        std::fs::create_dir_all(&plug).unwrap();
+        std::fs::write(
+            plug.join("plugin.toml"),
+            r#"
+id = "nz"
+[[tools]]
+name = "t"
+command = ["false"]
+allow_nonzero = true
+"#,
+        )
+        .unwrap();
+        let m = load_manifest(&plug).unwrap();
+        assert!(m.tools[0].allow_nonzero);
+    }
 
     #[test]
     fn expand_workspace_placeholder() {

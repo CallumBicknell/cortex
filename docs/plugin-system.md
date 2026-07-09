@@ -102,8 +102,9 @@ If any `init` fails, bootstrap fails (fail closed).
 |------|-------|-------|
 | `plugins/example_echo/` | `ext_example_echo` | Demo |
 | `plugins/foundry_helpers/` | `forge_version`, `forge_build`, `forge_test`, `forge_test_verbose`, `forge_test_match`, `forge_test_fuzz`, `forge_fmt_check` | Fixed-arg Foundry; needs `forge` on PATH; `cwd = "{workspace}"` |
+| `plugins/sc_analyzers/` | `slither_version`, `slither_scan`, `slither_scan_path`, `slither_human_summary`, `aderyn_version`, `aderyn_scan` | Static analyzers; `allow_nonzero` so Slither findings still return output |
 
-`cortex init --web3` copies `foundry_helpers` into `.cortex/plugins/foundry_helpers/`.
+`cortex init --web3` copies both into `.cortex/plugins/`.
 
 ## External plugin layout
 

@@ -268,6 +268,15 @@ pub fn builtin_skills() -> Vec<Skill> {
             "http_request",
             "web_search",
             "memory_search",
+            // foundry_helpers / sc_analyzers plugins (when installed)
+            "forge_build",
+            "forge_test",
+            "forge_test_match",
+            "forge_test_fuzz",
+            "slither_scan",
+            "slither_scan_path",
+            "slither_human_summary",
+            "aderyn_scan",
         ])
         .prompts([
             "skills/sc_security",
@@ -336,6 +345,11 @@ pub fn builtin_skills() -> Vec<Skill> {
             "git_diff",
             "write_audit_report",
             "memory_search",
+            "forge_build",
+            "forge_test",
+            "slither_scan",
+            "slither_human_summary",
+            "aderyn_scan",
         ])
         .prompts([
             "skills/sc_xray",
