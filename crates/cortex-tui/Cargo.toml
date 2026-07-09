@@ -8,8 +8,11 @@ description = "Terminal UI for Cortex agents (ratatui)"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 chrono = { workspace = true }
 cortex-common = { path = "../cortex-common" }
+cortex-core = { path = "../cortex-core" }
+cortex-events = { path = "../cortex-events" }
 cortex-llm = { path = "../cortex-llm" }
 cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }

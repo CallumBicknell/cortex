@@ -2,6 +2,11 @@
 
 Cortex ships a **ratatui** terminal UI for interactive agent sessions.
 
+While a run is active the transcript shows a **live streaming draft** (token
+deltas when the provider supports streaming). The tools/log pane updates with
+tool and sub-agent activity; a one-line **run summary** (turns, tool ok/err,
+duration) is appended when the run finishes.
+
 ```bash
 cargo run -p cortex-cli -- tui
 cargo run -p cortex-cli -- tui --model ollama --max-turns 24
@@ -36,17 +41,20 @@ cargo run -p cortex-cli -- tui --no-yolo   # tools may block without approval UX
 ## Behaviour
 
 - Default **yolo=true** so tools work without a modal approver (TUI approval UI is not built yet). Use `--no-yolo` only if you accept denials for ask-mode tools.
-- Each Enter starts an `AgentLoop` turn in a background task; the transcript and tool log update when it finishes.
+- Each Enter starts an `AgentLoop` turn in a background task with **token streaming** when the provider supports it.
+- Tools/log pane updates live for tool requests/completions and sub-agent start/finish.
+- When the run ends, a summary line is logged (`turns · tools ok/err · ms`).
 - Sessions persist to the same SQLite DB as `cortex chat` / `cortex run`.
 - Rolling summaries from Phase 12 still apply for long sessions.
+- Project instructions (`AGENTS.md` / `.cortex/instructions.md`) are injected like the CLI.
 
 ## Not yet
 
-- Streaming token deltas into the transcript
 - Inline tool-approval modal
 - Mouse support
 - Split-pane file browser / diff viewer
 - Theme configuration
+- Token / cost accounting from provider usage fields
 
 ## Library
 

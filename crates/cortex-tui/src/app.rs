@@ -79,6 +79,27 @@ pub struct RunUpdate {
     pub status: String,
     /// Optional error.
     pub error: Option<String>,
+    /// LLM turns consumed.
+    pub turns: u32,
+    /// Wall duration ms.
+    pub duration_ms: u64,
+    /// Tool results that succeeded.
+    pub tools_ok: u32,
+    /// Tool results that failed.
+    pub tools_err: u32,
+}
+
+/// Live UI events from a background run (stream + completion).
+#[derive(Debug)]
+pub enum UiEvent {
+    /// Streaming assistant text delta.
+    StreamDelta(String),
+    /// Tool / sub-agent log line.
+    ToolLog(String),
+    /// Transient status (e.g. "planning…").
+    Status(String),
+    /// Run finished.
+    Done(Box<RunUpdate>),
 }
 
 /// Live TUI state.
@@ -115,6 +136,8 @@ pub struct App {
     pub skills: Vec<String>,
     /// Status bar text.
     pub status: String,
+    /// Live streaming assistant draft (while a run is in progress).
+    pub streaming: Option<String>,
 }
 
 impl App {
@@ -148,6 +171,7 @@ impl App {
             max_turns: host.max_turns,
             skills: host.skills.clone(),
             status: "ready".into(),
+            streaming: None,
         };
         // If sessions exist, load the first one into the transcript.
         if let Some(s) = app.sessions.first().cloned() {
@@ -239,6 +263,7 @@ impl App {
 
     /// Apply a finished run.
     pub fn apply_run_update(&mut self, update: RunUpdate) {
+        self.streaming = None;
         self.session = update.session;
         if !update.assistant.is_empty() {
             self.push_line(MessageLine::assistant(update.assistant));
@@ -248,6 +273,15 @@ impl App {
             let drain = self.logs.len() - 200;
             self.logs.drain(0..drain);
         }
+        // One-line run summary in the log pane.
+        self.logs.push(format!(
+            "── run · {} turns · tools ok={} err={} · {}ms · {}",
+            update.turns,
+            update.tools_ok,
+            update.tools_err,
+            update.duration_ms,
+            if update.ok { "ok" } else { "fail" }
+        ));
         if let Some(err) = update.error {
             self.push_line(MessageLine::system(format!("error: {err}")));
             self.status = format!("error · {}", update.status);
@@ -256,6 +290,35 @@ impl App {
         }
         if !update.ok {
             self.status = format!("! {}", self.status);
+        }
+    }
+
+    /// Apply a live UI event from a background run.
+    pub fn apply_ui_event(&mut self, event: UiEvent) {
+        match event {
+            UiEvent::StreamDelta(text) => {
+                let buf = self.streaming.get_or_insert_with(String::new);
+                buf.push_str(&text);
+                // Cap live buffer for UI snappiness.
+                if buf.len() > 12_000 {
+                    let keep = buf.len() - 8_000;
+                    *buf = format!("…{}", &buf[keep..]);
+                }
+                self.status = "streaming…".into();
+            }
+            UiEvent::ToolLog(line) => {
+                self.logs.push(line);
+                if self.logs.len() > 200 {
+                    let drain = self.logs.len() - 200;
+                    self.logs.drain(0..drain);
+                }
+            }
+            UiEvent::Status(s) => {
+                self.status = s;
+            }
+            UiEvent::Done(update) => {
+                self.apply_run_update(*update);
+            }
         }
     }
 }

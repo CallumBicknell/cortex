@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin
 - External plugin flag `allow_nonzero` for analyzer-style CLIs
+- **TUI**: live token streaming, tool/sub-agent log events, run summary
+  (turns · tools ok/err · duration)
 
 ## [0.2.1] — 2026-07-09
 

@@ -855,8 +855,11 @@ name = "cortex-tui"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "cortex-common",
+ "cortex-core",
+ "cortex-events",
  "cortex-llm",
  "cortex-memory",
  "cortex-models",

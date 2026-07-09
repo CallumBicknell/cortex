@@ -122,6 +122,23 @@ fn draw_transcript(f: &mut Frame, area: Rect, app: &App) {
             Span::raw(m.content.replace('\n', " ⏎ ")),
         ]));
     }
+    if let Some(draft) = &app.streaming {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "[cortex] ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                draft.replace('\n', " ⏎ "),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+            Span::styled(" ▌", Style::default().fg(Color::Cyan)),
+        ]));
+    }
     if lines.is_empty() {
         lines.push(Line::from("…"));
     }
