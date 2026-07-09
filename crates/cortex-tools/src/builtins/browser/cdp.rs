@@ -38,7 +38,7 @@ impl SharedCdp {
         self.pending.lock().await.insert(id, tx);
         let text = serde_json::to_string(&msg).map_err(|e| ToolError::Execution(e.to_string()))?;
         self.write_tx
-            .send(Message::Text(text))
+            .send(Message::Text(text.into()))
             .map_err(|e| ToolError::Execution(format!("CDP write failed: {e}")))?;
 
         let resp = timeout(Duration::from_secs(self.timeout_secs.max(1)), rx)
@@ -112,7 +112,7 @@ impl CdpSession {
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        if let Ok(val) = serde_json::from_str::<Value>(&text) {
+                        if let Ok(val) = serde_json::from_str::<Value>(text.as_ref()) {
                             if let Some(id) = val.get("id").and_then(|v| v.as_u64()) {
                                 let mut map = pending_r.lock().await;
                                 if let Some(tx) = map.remove(&id) {
