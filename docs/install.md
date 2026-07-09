@@ -2,6 +2,8 @@
 
 Cortex is a single `cortex` binary plus a user home directory (`~/.cortex`).
 
+**Supported install targets:** Linux and macOS (Unix). There is **no Windows installer** for now — build from source if you need a Windows binary later.
+
 ## Quick install (Linux / macOS)
 
 ```bash
