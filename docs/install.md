@@ -66,9 +66,11 @@ cargo build --release -p cortex-cli
 ```bash
 cortex setup          # create/update ~/.cortex
 cortex setup --force  # rewrite home models.toml
+cortex setup --wizard # interactive default model picker (TTY)
+cortex setup --default-model ollama --ollama-model llama3.2
 cortex doctor         # paths + env key presence (never prints secrets)
 cortex init           # create project .cortex/ (optional)
-cortex init --web3    # + Foundry MCP stub + Web3 instructions
+cortex init --web3    # + Foundry MCP + analyzer plugins
 cortex update         # print reinstall command (Unix)
 cortex update --dry-run
 ```

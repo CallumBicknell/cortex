@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - External plugin flag `allow_nonzero` for analyzer-style CLIs
 - **TUI**: live token streaming, tool/sub-agent log events, run summary
   (turns · tools ok/err · duration)
+- **`cortex setup --wizard`**: interactive default model picker; also
+  `--default-model` / `--ollama-model` for non-interactive setup
 
 ## [0.2.1] — 2026-07-09
 

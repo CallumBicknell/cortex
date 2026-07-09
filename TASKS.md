@@ -369,7 +369,7 @@ Post-MVP coding agent + smart-contract security wave is **done**.
 * [x] P26.7 GitHub Release tag `v0.2.1` (install.sh assets)
 * [x] P26.8 Slither/Aderyn analyzer plugin (`sc_analyzers` + `allow_nonzero`)
 * [x] P26.9 TUI stream + tool/sub-agent log + run summary
-* [ ] P26.10 Interactive setup wizard
+* [x] P26.10 Interactive setup wizard (`setup --wizard` / `--default-model`)
 
 Still open (later):
 
