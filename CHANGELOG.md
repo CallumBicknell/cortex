@@ -10,11 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Mock setup**: loading `models.toml` no longer fails when Anthropic is listed
   without `ANTHROPIC_API_KEY` (provider/alias skipped until a key is set)
-
-### Fixed
-
-- **Chat TUI**: silence INFO logs before tracing init so they no longer paint
-  over the alternate screen; start a fresh session (resume via Ctrl+B)
+- **Chat TUI**: never write tracing to stderr in chat/tui/setup (logs go to
+  `~/.cortex/logs/cortex.log`) so INFO lines cannot paint over the alternate
+  screen; start a fresh session (resume via Ctrl+B)
 
 ### Changed
 
