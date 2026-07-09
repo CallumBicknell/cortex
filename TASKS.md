@@ -124,13 +124,25 @@
 
 ---
 
+# Phase 7 — Workspace + context engineering
+
+* [x] P7.1 `cortex-workspace` (root detect, ignore, project, repo map)
+* [x] P7.2 Ignore engine (`.gitignore` + `.cortexignore`)
+* [x] P7.3 Project detect (languages, test/lint commands)
+* [x] P7.4 Repo map MVP
+* [x] P7.5 `cortex-context` budgeted builder
+* [x] P7.6 Token estimate (chars/4)
+* [x] P7.7 History compression
+* [x] P7.8 CLI `workspace info|map` + inject map into run/chat
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 7 | Workspace + context budgets |
 | 8 | Prompts + skills (coding/git/web/solidity/…) |
 | 9 | Security, approvals, sandbox |
 | 10 | MCP + advanced tools |

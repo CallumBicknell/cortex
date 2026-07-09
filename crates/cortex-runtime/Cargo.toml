@@ -10,11 +10,13 @@ description = "Cortex runtime: kernel facade and agent loop"
 async-trait = { workspace = true }
 chrono = { workspace = true }
 cortex-common = { path = "../cortex-common" }
+cortex-context = { path = "../cortex-context" }
 cortex-core = { path = "../cortex-core" }
 cortex-events = { path = "../cortex-events" }
 cortex-llm = { path = "../cortex-llm" }
 cortex-models = { path = "../cortex-models" }
 cortex-tools = { path = "../cortex-tools" }
+cortex-workspace = { path = "../cortex-workspace" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

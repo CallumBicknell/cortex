@@ -23,6 +23,7 @@ cortex-memory = { path = "../cortex-memory" }
 cortex-models = { path = "../cortex-models" }
 cortex-runtime = { path = "../cortex-runtime" }
 cortex-tools = { path = "../cortex-tools" }
+cortex-workspace = { path = "../cortex-workspace" }
 dotenvy = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

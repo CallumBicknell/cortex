@@ -15,5 +15,6 @@ pub use context::{ContextBuilder, DEFAULT_SYSTEM_PROMPT};
 pub use error::{Result, RuntimeError};
 pub use runtime::Runtime;
 
-// Re-export loop phase for callers.
+// Re-export loop phase and workspace helpers for callers.
 pub use cortex_events::LoopPhase;
+pub use cortex_workspace::{ProjectInfo, RepoMap};

@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–5 complete: kernel, models, providers, tools, agent loop, and a usable CLI. Still missing: durable sessions, TUI, skills/MCP, and richer security.
+**Early development (v0.1.0).** Phases 0–7 complete: kernel, models, providers, tools, agent loop, CLI, SQLite sessions, and workspace-aware context. Still missing: TUI, skills/MCP, and richer security.
 
 | Area | Status |
 |------|--------|
@@ -23,6 +23,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Agent loop (LLM ↔ tools, events) | Implemented |
 | CLI (`cortex run` / `chat` / `init`) | Implemented |
 | SQLite sessions / checkpoints | Implemented |
+| Workspace map + context budgets | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
@@ -51,6 +52,8 @@ crates/
   cortex-events/    # Lifecycle re-exports + agent loop events
   cortex-runtime/   # Kernel facade + AgentLoop
   cortex-memory/    # SQLite sessions, checkpoints, events
+  cortex-workspace/ # Root detect, ignore, project, repo map
+  cortex-context/   # Token budgets, history compression
   cortex-cli/       # `cortex` binary
 config/             # Default TOML configuration
 migrations/         # SQL schema
@@ -94,6 +97,10 @@ cargo run -p cortex-cli -- sessions list
 cargo run -p cortex-cli -- sessions show <session-id>
 cargo run -p cortex-cli -- sessions resume <session-id>
 cargo run -p cortex-cli -- sessions export <session-id> -o session.json
+
+# Workspace awareness
+cargo run -p cortex-cli -- workspace info
+cargo run -p cortex-cli -- workspace map
 ```
 
 See [`examples/hello_agent.md`](examples/hello_agent.md).
@@ -149,7 +156,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M4 Agent loop | Multi-step tool use ✓ |
 | M5 CLI | `cortex run` / `cortex chat` ✓ |
 | M6 Durable sessions | SQLite + checkpoints ✓ |
-| M7+ | Context, skills, security, MCP, TUI |
+| M7 Context-aware | Repo map + token budgets ✓ |
+| M8+ | Skills, security, MCP, TUI |
 
 Full task list: [`TASKS.md`](TASKS.md).
 

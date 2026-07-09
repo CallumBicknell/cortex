@@ -11,6 +11,7 @@ use cortex_memory::{open_sqlite, CheckpointState, SessionStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
 use cortex_tools::ToolRegistry;
+use cortex_workspace::RepoMap;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -109,6 +110,11 @@ enum Commands {
         #[command(subcommand)]
         command: SessionsCmd,
     },
+    /// Workspace inspection (repo map, project detect).
+    Workspace {
+        #[command(subcommand)]
+        command: WorkspaceCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -121,6 +127,18 @@ enum ToolsCmd {
 enum ModelsCmd {
     /// List configured model aliases and providers.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+enum WorkspaceCmd {
+    /// Print detected project info.
+    Info,
+    /// Print the repo map used in agent context.
+    Map {
+        /// Max files to index.
+        #[arg(long, default_value_t = 400)]
+        max_files: usize,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -224,8 +242,54 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Sessions { command } => {
             return cmd_sessions(cli.workspace, cli.config, command).await;
         }
+        Commands::Workspace { command } => {
+            cmd_workspace(cli.workspace, command)?;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn build_context(workspace: &std::path::Path, quiet: bool) -> ContextBuilder {
+    let mut context = ContextBuilder::default();
+    match RepoMap::build(workspace) {
+        Ok(map) => {
+            if !quiet {
+                eprintln!(
+                    "workspace map: {} files, {}",
+                    map.file_count,
+                    map.project.summary().replace('\n', "; ")
+                );
+            }
+            context = context.with_repo_map(&map);
+        }
+        Err(err) => {
+            if !quiet {
+                eprintln!("warning: repo map unavailable: {err}");
+            }
+        }
+    }
+    context
+}
+
+fn cmd_workspace(workspace: Option<PathBuf>, command: WorkspaceCmd) -> Result<()> {
+    let root = workspace
+        .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
+        .canonicalize()
+        .context("workspace")?;
+    match command {
+        WorkspaceCmd::Info => {
+            let map = RepoMap::build(&root).context("build repo map")?;
+            println!("root: {}", map.root.display());
+            println!("{}", map.project.summary());
+            println!("files_indexed: {}", map.file_count);
+        }
+        WorkspaceCmd::Map { max_files } => {
+            let map =
+                RepoMap::build_with_limits(&root, max_files, 120).context("build repo map")?;
+            print!("{}", map.to_prompt_section());
+        }
+    }
+    Ok(())
 }
 
 async fn open_store(paths: &Paths) -> Result<SessionStore> {
@@ -313,6 +377,8 @@ async fn cmd_run(
         );
     }
 
+    let context = build_context(&app.paths.workspace, json);
+
     let cancel = CancellationToken::new();
     let cancel_ctrl = cancel.clone();
     tokio::spawn(async move {
@@ -327,7 +393,7 @@ async fn cmd_run(
         app.tools.clone(),
         AgentLoopConfig {
             max_turns,
-            context: ContextBuilder::default(),
+            context,
             temperature: None,
             max_tokens: None,
             stop_on_max_turns: true,
@@ -407,6 +473,8 @@ async fn cmd_chat(
     println!("db:        {}", app.paths.database.display());
     println!("Type a message, or /quit to exit. Ctrl-C cancels the current turn.\n");
 
+    let context = build_context(&app.paths.workspace, false);
+
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     loop {
@@ -438,7 +506,7 @@ async fn cmd_chat(
             app.tools.clone(),
             AgentLoopConfig {
                 max_turns,
-                context: ContextBuilder::default(),
+                context: context.clone(),
                 temperature: None,
                 max_tokens: None,
                 stop_on_max_turns: true,

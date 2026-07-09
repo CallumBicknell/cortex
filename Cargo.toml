@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/cortex-cli",
     "crates/cortex-common",
+    "crates/cortex-context",
     "crates/cortex-core",
     "crates/cortex-events",
     "crates/cortex-llm",
@@ -10,6 +11,7 @@ members = [
     "crates/cortex-models",
     "crates/cortex-runtime",
     "crates/cortex-tools",
+    "crates/cortex-workspace",
 ]
 
 [workspace.package]
@@ -40,6 +42,8 @@ bytes = "1"
 glob = "0.3"
 clap = { version = "4", features = ["derive", "env"] }
 dotenvy = "0.15"
+ignore = "0.4"
+walkdir = "2"
 
 # Dev/test dependencies available to workspace members.
 # Member crates reference these under their own [dev-dependencies] section.
