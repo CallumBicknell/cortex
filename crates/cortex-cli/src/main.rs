@@ -5,7 +5,10 @@ mod approver;
 mod db_audit;
 
 use anyhow::{Context, Result};
-use app::{init_tracing, load_dotenv, write_default_models_toml, AppContext, Paths};
+use app::{
+    bootstrap_home, cortex_home, init_tracing, load_dotenv, write_default_models_toml, AppContext,
+    Paths,
+};
 use clap::{Parser, Subcommand};
 use cortex_common::SessionId;
 use cortex_memory::{open_sqlite, CheckpointState, SessionStore, VectorStore};
@@ -35,6 +38,8 @@ use tokio_util::sync::CancellationToken;
     about = "Cortex — an operating system for AI agents",
     long_about = "Run autonomous coding agents with pluggable providers and tools.\n\n\
                   Examples:\n  \
+                  cortex setup\n  \
+                  cortex doctor\n  \
                   cortex init\n  \
                   cortex run \"Add a README section about config\"\n  \
                   cortex chat --model ollama\n  \
@@ -61,7 +66,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Create `.cortex/` config in the workspace.
+    /// Create user-global `~/.cortex` (models, skills, data). Safe to re-run.
+    Setup {
+        /// Overwrite home models.toml if it exists.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Print install health: paths, config, env key presence (no secrets).
+    Doctor,
+    /// Create project `.cortex/` config in the workspace.
     Init {
         /// Overwrite models.toml if it exists.
         #[arg(long)]
@@ -406,6 +419,12 @@ async fn main() -> ExitCode {
 
 async fn run(cli: Cli) -> Result<ExitCode> {
     match cli.command {
+        Commands::Setup { force } => {
+            cmd_setup(force)?;
+        }
+        Commands::Doctor => {
+            cmd_doctor(cli.workspace, cli.config)?;
+        }
         Commands::Init { force } => {
             cmd_init(cli.workspace, force).await?;
         }
@@ -893,15 +912,17 @@ fn cmd_security(
 }
 
 fn build_context_for_task(
-    workspace: &std::path::Path,
+    paths: &Paths,
     prompt: &str,
     explicit_skills: &[String],
     quiet: bool,
 ) -> ContextBuilder {
+    let workspace = paths.workspace.as_path();
     let mut prompts = PromptCatalog::with_builtins();
-    // Workspace + learned prompts (imported skills land under .cortex/prompts/).
-    let _ = prompts.load_dir(workspace.join("prompts"));
-    let _ = prompts.load_dir(workspace.join(".cortex").join("prompts"));
+    // Home then monorepo/workspace then project (later overrides earlier).
+    for dir in paths.prompt_dirs() {
+        let _ = prompts.load_dir(&dir);
+    }
     // Prefer file-based system prompt when present.
     let system = prompts
         .render("system", &Default::default())
@@ -923,8 +944,9 @@ fn build_context_for_task(
     }
 
     let project = map.as_ref().map(|m| &m.project);
-    let store = SkillStore::for_workspace(workspace);
-    let reg = SkillRegistry::with_builtins_and_store(&store);
+    let home_store = SkillStore::new(paths.home.join("skills"));
+    let project_store = SkillStore::for_workspace(workspace);
+    let reg = SkillRegistry::with_builtins_and_stores(&[&home_store, &project_store]);
     let selection = select_skills(&reg, prompt, project, explicit_skills);
     if !quiet {
         eprintln!("skills: {}", selection.skill_ids.join(", "));
@@ -934,14 +956,16 @@ fn build_context_for_task(
     let mut skill_body = String::from("## Active skills\n");
     for id in &selection.skill_ids {
         skill_body.push_str(&format!("- {id}\n"));
-        // Attach learned skill notes when present.
-        if let Ok(docs) = store.load_all() {
-            if let Some(doc) = docs.iter().find(|d| d.skill.id == *id) {
-                if !doc.notes.trim().is_empty() {
-                    skill_body.push_str(&format!(
-                        "  notes: {}\n",
-                        doc.notes.lines().next().unwrap_or("")
-                    ));
+        // Attach learned skill notes when present (project overrides home).
+        for store in [&home_store, &project_store] {
+            if let Ok(docs) = store.load_all() {
+                if let Some(doc) = docs.iter().find(|d| d.skill.id == *id) {
+                    if !doc.notes.trim().is_empty() {
+                        skill_body.push_str(&format!(
+                            "  notes: {}\n",
+                            doc.notes.lines().next().unwrap_or("")
+                        ));
+                    }
                 }
             }
         }
@@ -959,12 +983,10 @@ fn build_context_for_task(
 }
 
 async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()> {
-    let root = workspace
-        .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
-        .canonicalize()
-        .context("workspace")?;
-    let store = SkillStore::for_workspace(&root);
-    let reg = SkillRegistry::with_builtins_and_store(&store);
+    let paths = Paths::resolve(workspace, None)?;
+    let home_store = SkillStore::new(paths.home.join("skills"));
+    let project_store = SkillStore::for_workspace(&paths.workspace);
+    let reg = SkillRegistry::with_builtins_and_stores(&[&home_store, &project_store]);
     match command {
         SkillsCmd::List => {
             println!(
@@ -972,13 +994,14 @@ async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()
                 "ID", "ALWAYS", "ORIGIN"
             );
             for s in reg.all() {
-                let origin = store
-                    .load_all()
-                    .ok()
-                    .and_then(|docs| {
-                        docs.into_iter()
-                            .find(|d| d.skill.id == s.id)
-                            .map(|d| format!("{:?}", d.origin).to_ascii_lowercase())
+                let origin = [&home_store, &project_store]
+                    .into_iter()
+                    .find_map(|store| {
+                        store.load_all().ok().and_then(|docs| {
+                            docs.into_iter()
+                                .find(|d| d.skill.id == s.id)
+                                .map(|d| format!("{:?}", d.origin).to_ascii_lowercase())
+                        })
                     })
                     .unwrap_or_else(|| "builtin".into());
                 println!(
@@ -991,7 +1014,7 @@ async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()
             }
         }
         SkillsCmd::Select { prompt, skills } => {
-            let project = RepoMap::build(&root).ok().map(|m| m.project);
+            let project = RepoMap::build(&paths.workspace).ok().map(|m| m.project);
             let sel = select_skills(&reg, &prompt, project.as_ref(), &skills);
             println!("skills: {}", sel.skill_ids.join(", "));
             println!("tools:  {}", sel.tools.join(", "));
@@ -1032,7 +1055,7 @@ async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()
                     let path = if path.is_absolute() {
                         path
                     } else {
-                        root.join(path)
+                        paths.workspace.join(path)
                     };
                     read_skill_source(&path).map_err(|e| anyhow::anyhow!("{e}"))?
                 };
@@ -1058,8 +1081,8 @@ async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()
                 println!("dry-run: not written");
                 return Ok(());
             }
-            let (skill_path, prompt_path) =
-                write_imported_skill(&root, &imported).map_err(|e| anyhow::anyhow!("{e}"))?;
+            let (skill_path, prompt_path) = write_imported_skill(&paths.workspace, &imported)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("wrote skill  {}", skill_path.display());
             println!("wrote prompt {}", prompt_path.display());
             println!(
@@ -1102,7 +1125,100 @@ async fn open_store(paths: &Paths) -> Result<SessionStore> {
     Ok(SessionStore::new(pool))
 }
 
+fn cmd_setup(force: bool) -> Result<()> {
+    let home = cortex_home();
+    let report = bootstrap_home(&home, force)?;
+    println!("Cortex home: {}", home.display());
+    if report.models_written {
+        println!("✓ wrote {}", report.models_path.display());
+    } else {
+        println!(
+            "✓ {} already present (use --force to overwrite)",
+            report.models_path.display()
+        );
+    }
+    for p in &report.created_dirs {
+        println!("✓ {}", p.display());
+    }
+    println!("\nNext:");
+    println!("  export OPENAI_API_KEY=…     # or edit models.toml for ollama");
+    println!(
+        "  # edit {}  # default_model / providers",
+        report.models_path.display()
+    );
+    println!("  cortex doctor");
+    println!("  cd my-project && cortex run \"hello\"");
+    println!("  # optional project overrides: cortex init");
+    Ok(())
+}
+
+fn cmd_doctor(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()> {
+    let paths = Paths::resolve(workspace, config)?;
+    let home_writable = std::fs::create_dir_all(&paths.home).is_ok()
+        && std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(paths.home.join(".doctor-write-test"))
+            .and_then(|f| {
+                drop(f);
+                std::fs::remove_file(paths.home.join(".doctor-write-test"))
+            })
+            .is_ok();
+
+    let on_path = std::env::var_os("PATH")
+        .map(|p| {
+            std::env::split_paths(&p).any(|dir| {
+                let cand = dir.join("cortex");
+                cand.is_file() || {
+                    let mut w = cand.clone();
+                    w.set_extension("exe");
+                    w.is_file()
+                }
+            })
+        })
+        .unwrap_or(false);
+
+    let key_envs = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"];
+
+    println!("cortex doctor");
+    println!("  version:     {}", env!("CARGO_PKG_VERSION"));
+    println!(
+        "  binary:      {}",
+        std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "?".into())
+    );
+    println!("  home:        {}", paths.home.display());
+    println!("  home_ok:     {home_writable}");
+    println!("  workspace:   {}", paths.workspace.display());
+    println!("  project_dir: {}", paths.cortex_dir.display());
+    println!("  project_ok:  {}", paths.cortex_dir.is_dir());
+    println!("  models:      {}", paths.models_config.display());
+    println!("  models_ok:   {}", paths.models_config.is_file());
+    println!("  database:    {}", paths.database.display());
+    println!("  on_path:     {on_path}");
+    println!("  env keys (set? never printed):");
+    for k in key_envs {
+        let set = std::env::var_os(k).is_some_and(|v| !v.is_empty());
+        println!("    {k}: {}", if set { "yes" } else { "no" });
+    }
+    if let Ok(models) = cortex_llm::ModelsConfig::from_file(&paths.models_config) {
+        println!(
+            "  default_model: {}",
+            models.default_model.as_deref().unwrap_or("(unset)")
+        );
+        let mut keys: Vec<_> = models.providers.keys().cloned().collect();
+        keys.sort();
+        println!("  providers:     {}", keys.join(", "));
+    }
+    Ok(())
+}
+
 async fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
+    // Ensure user home exists so global defaults are ready.
+    let home = cortex_home();
+    let _ = bootstrap_home(&home, false);
+
     let workspace = workspace
         .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
         .canonicalize()
@@ -1136,10 +1252,11 @@ async fn cmd_init(workspace: Option<PathBuf>, force: bool) -> Result<()> {
     let _ = open_sqlite(&db_path).await.context("init database")?;
     println!("✓ database {}", db_path.display());
 
-    println!("\nCortex initialized in {}", workspace.display());
+    println!("\nCortex project initialized in {}", workspace.display());
+    println!("User home (global): {}", home.display());
     println!("Next:");
     println!("  export OPENAI_API_KEY=...   # or use ollama");
-    println!("  # edit .cortex/models.toml  # set default_model");
+    println!("  # edit .cortex/models.toml  # project override of default_model");
     println!("  cortex run \"hello\"");
     Ok(())
 }
@@ -1181,7 +1298,7 @@ async fn cmd_run(
         );
     }
 
-    let context = build_context_for_task(&app.paths.workspace, &prompt, &skills, json);
+    let context = build_context_for_task(&app.paths, &prompt, &skills, json);
 
     let cancel = CancellationToken::new();
     let cancel_ctrl = cancel.clone();
@@ -1336,7 +1453,7 @@ async fn cmd_chat(
         }
 
         // Re-select skills per turn from the latest prompt (plus explicit flags).
-        let context = build_context_for_task(&app.paths.workspace, &prompt, &skills, false);
+        let context = build_context_for_task(&app.paths, &prompt, &skills, false);
 
         let cancel = CancellationToken::new();
         let cancel_ctrl = cancel.clone();

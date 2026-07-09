@@ -60,6 +60,12 @@ Install optional tools:
 cargo install cargo-deny --locked
 ```
 
+## Installer
+
+[`scripts/install.sh`](../scripts/install.sh) downloads release assets named
+`cortex-${TAG}-${target}.tar.gz` (same layout as the **Release** workflow) into
+`~/.local/bin` and runs `cortex setup`. See [`docs/install.md`](install.md).
+
 ## Releases
 
 1. Ensure CI is green on `main`.

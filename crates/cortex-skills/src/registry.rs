@@ -27,10 +27,19 @@ impl SkillRegistry {
 
     /// Builtins plus learned skills from a store (learned overrides same id).
     pub fn with_builtins_and_store(store: &crate::store::SkillStore) -> Self {
+        Self::with_builtins_and_stores(&[store])
+    }
+
+    /// Builtins plus learned skills from multiple stores.
+    ///
+    /// Later stores override earlier ones for the same skill id (call home then project).
+    pub fn with_builtins_and_stores(stores: &[&crate::store::SkillStore]) -> Self {
         let mut reg = Self::with_builtins();
-        if let Ok(docs) = store.load_all() {
-            for doc in docs {
-                reg.register(doc.skill);
+        for store in stores {
+            if let Ok(docs) = store.load_all() {
+                for doc in docs {
+                    reg.register(doc.skill);
+                }
             }
         }
         reg
