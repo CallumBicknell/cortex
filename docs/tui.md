@@ -1,65 +1,65 @@
-# Terminal UI
+# Chat TUI
 
-Cortex ships a **ratatui** terminal UI for interactive agent sessions.
-
-While a run is active the transcript shows a **live streaming draft** (token
-deltas when the provider supports streaming). The tools/log pane updates with
-tool and sub-agent activity; a one-line **run summary** (turns, tool ok/err,
-duration) is appended when the run finishes.
+`cortex chat` opens a **Claude Code–style** full-screen terminal UI (also available as `cortex tui`).
 
 ```bash
-cargo run -p cortex-cli -- tui
-cargo run -p cortex-cli -- tui --model ollama --max-turns 24
-cargo run -p cortex-cli -- tui --no-yolo   # tools may block without approval UX yet
+cortex chat
+cortex chat --model proxy
+cortex chat --no-yolo          # tools may block without approval UX
+cortex chat --plain            # old line-based REPL
 ```
 
 ## Layout
 
-| Pane | Content |
-|------|---------|
-| Header | Model, workspace, YOLO flag, run indicator |
-| Sessions | Recent sessions (↑/↓, Enter to open) |
-| Transcript | Conversation messages |
-| Tools / log | Recent tool results |
-| Input | Prompt editor |
-| Status | Run status + key help |
+```text
+ cortex  ·  proxy · auto  ·  ~/project  ·  yolo
+
+ You
+ hello
+
+ Cortex
+ streaming reply…
+
+   · read_file  ok
+
+ ┌ message ─────────────────────────────┐
+ │ ❯ your input ▌                       │
+ └──────────────────────────────────────┘
+ ready  ·  ↵ send  ^J newline  ^B sessions …
+```
+
+Conversation-first: single column, multi-line messages, live token stream, subtle tool chips. Sessions open as a modal (Ctrl+B), not a permanent sidebar.
 
 ## Keys
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Send message (input focused) or open session (list focused) |
-| `Tab` | Toggle focus: input ↔ session list |
-| `i` | Focus input |
-| `n` | New session |
-| `r` | Reload session list |
-| `y` | Toggle YOLO (auto-approve tools) |
-| `q` / `Esc` | Quit (or cancel if a run is active) |
-| `Ctrl-C` | Cancel current run (or quit if idle) |
-| Backspace | Edit input |
+| `Enter` | Send message |
+| `Ctrl+J` | Newline in composer |
+| `Ctrl+B` | Toggle sessions list |
+| `Ctrl+Y` | Toggle YOLO |
+| `Ctrl+C` | Cancel run / quit if idle |
+| `Ctrl+L` | Reset scroll to bottom |
+| `PgUp` / `PgDn` | Scroll transcript |
+| `Esc` | Cancel run or clear input |
+| `/help` | Command list |
+| `/new` | New session |
+| `/sessions` | Open sessions |
+| `/yolo` | Toggle auto-approve |
+| `/quit` | Exit |
 
 ## Behaviour
 
-- Default **yolo=true** so tools work without a modal approver (TUI approval UI is not built yet). Use `--no-yolo` only if you accept denials for ask-mode tools.
-- Each Enter starts an `AgentLoop` turn in a background task with **token streaming** when the provider supports it.
-- Tools/log pane updates live for tool requests/completions and sub-agent start/finish.
-- When the run ends, a summary line is logged (`turns · tools ok/err · ms`).
-- Sessions persist to the same SQLite DB as `cortex chat` / `cortex run`.
-- Rolling summaries from Phase 12 still apply for long sessions.
-- Project instructions (`AGENTS.md` / `.cortex/instructions.md`) are injected like the CLI.
+- Streams assistant tokens when the provider supports it
+- Live tool / sub-agent activity under the stream
+- Run summary in the status bar (`turns · tools · ms`)
+- Sessions persist to the same SQLite DB as `cortex run`
+- Project instructions (`AGENTS.md` / `.cortex/instructions.md`) injected automatically
+- Logs default to `error` inside the TUI so they don’t paint over the UI
 
 ## Not yet
 
 - Inline tool-approval modal
-- Mouse support
-- Split-pane file browser / diff viewer
-- Theme configuration
-- Token / cost accounting from provider usage fields
-
-## Library
-
-```rust
-// cortex-tui::run(TuiHost { ... })
-```
-
-Host is prepared by the CLI after `AppContext::bootstrap`.
+- Mouse selection / click-to-open paths
+- Diff viewer / file tree
+- Token cost from provider usage fields

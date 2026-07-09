@@ -145,32 +145,38 @@ enum Commands {
         #[arg(long)]
         verify_cmd: Option<String>,
     },
-    /// Interactive multi-turn chat REPL.
+    /// Interactive chat TUI (Claude Code–style). Use `--plain` for line REPL.
     Chat {
         /// Model alias.
         #[arg(long, short)]
         model: Option<String>,
-        /// Auto-approve tools.
-        #[arg(long)]
+        /// Auto-approve tools (default true in TUI).
+        #[arg(long, default_value_t = true)]
         yolo: bool,
+        /// Require tool approval (disables default yolo).
+        #[arg(long)]
+        no_yolo: bool,
         /// Maximum LLM turns per user message.
         #[arg(long, default_value_t = 32)]
         max_turns: u32,
-        /// Resume session id.
+        /// Resume session id (plain REPL only).
         #[arg(long)]
         session: Option<String>,
         /// Comma-separated skill ids (default: auto).
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
-        /// Plan mode for each turn.
+        /// Plan mode for each turn (plain REPL only).
         #[arg(long)]
         plan: bool,
-        /// After file edits, run project tests.
+        /// After file edits, run project tests (plain REPL only).
         #[arg(long)]
         verify: bool,
         /// Override verify shell command (implies --verify).
         #[arg(long)]
         verify_cmd: Option<String>,
+        /// Use the old line-based REPL instead of the TUI.
+        #[arg(long)]
+        plain: bool,
     },
     /// Tool helpers.
     Tools {
@@ -502,24 +508,38 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Chat {
             model,
             yolo,
+            no_yolo,
             max_turns,
             session,
             skills,
             plan,
             verify,
             verify_cmd,
+            plain,
         } => {
-            return cmd_chat(
+            if plain {
+                return cmd_chat_plain(
+                    cli.workspace,
+                    cli.config,
+                    model,
+                    yolo && !no_yolo,
+                    max_turns,
+                    session,
+                    skills,
+                    plan,
+                    verify,
+                    verify_cmd,
+                )
+                .await;
+            }
+            // Default: full-screen chat TUI (same engine as `cortex tui`).
+            return cmd_tui(
                 cli.workspace,
                 cli.config,
                 model,
-                yolo,
+                yolo && !no_yolo,
                 max_turns,
-                session,
                 skills,
-                plan,
-                verify,
-                verify_cmd,
             )
             .await;
         }
@@ -706,12 +726,16 @@ async fn cmd_tui(
     max_turns: u32,
     skills: Vec<String>,
 ) -> Result<ExitCode> {
+    // Quiet logs so they don't paint over the alternate screen.
+    if std::env::var_os("CORTEX_LOG_LEVEL").is_none() && std::env::var_os("RUST_LOG").is_none() {
+        std::env::set_var("CORTEX_LOG_LEVEL", "error");
+    }
+
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths, yolo).await?;
     let resolved = app.resolve_model(model.as_deref())?;
     let store = app.open_store().await?;
 
-    // Avoid tracing noise over the alternate screen.
     let host = cortex_tui::TuiHost {
         workspace: app.paths.workspace.clone(),
         database: app.paths.database.clone(),
@@ -1681,7 +1705,7 @@ async fn cmd_run(
     Ok(exit_for_status(output.status))
 }
 
-async fn cmd_chat(
+async fn cmd_chat_plain(
     workspace: Option<PathBuf>,
     config: Option<PathBuf>,
     model: Option<String>,
@@ -1859,7 +1883,7 @@ async fn cmd_sessions(
             yolo,
             max_turns,
         } => {
-            return cmd_chat(
+            return cmd_chat_plain(
                 Some(paths.workspace.clone()),
                 Some(paths.models_config.clone()),
                 model,

@@ -1,210 +1,292 @@
-//! Ratatui drawing.
+//! Claude Code–style chat drawing (minimal chrome, conversation-first).
 
 use crate::app::App;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Frame;
 
 fn short_path(p: &str) -> String {
-    if p.len() <= 36 {
+    if p.len() <= 48 {
         p.to_string()
     } else {
-        format!("…{}", &p[p.len() - 34..])
+        format!("…{}", &p[p.len() - 46..])
     }
 }
 
-/// Draw the full TUI frame.
+/// Draw the full chat UI.
 pub fn ui(f: &mut Frame, app: &App) {
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(5),
-            Constraint::Length(3),
-            Constraint::Length(1),
+            Constraint::Length(1), // header strip
+            Constraint::Min(6),    // conversation
+            Constraint::Length(composer_height(app)),
+            Constraint::Length(1), // footer
         ])
         .split(f.area());
 
     draw_header(f, root[0], app);
-    draw_body(f, root[1], app);
-    draw_input(f, root[2], app);
-    draw_status(f, root[3], app);
+    draw_conversation(f, root[1], app);
+    draw_composer(f, root[2], app);
+    draw_footer(f, root[3], app);
+
+    if app.show_sessions {
+        draw_sessions_overlay(f, f.area(), app);
+    }
+}
+
+fn composer_height(app: &App) -> u16 {
+    let lines = app.input.lines().count().max(1) as u16;
+    // borders + content, cap so chat stays usable
+    (lines + 2).clamp(3, 10)
 }
 
 fn draw_header(f: &mut Frame, area: Rect, app: &App) {
-    let yolo = if app.yolo { "YOLO" } else { "safe" };
-    let run = if app.running { " ● RUN" } else { "" };
-    let title = format!(
-        " Cortex  ·  {}  ·  {}  ·  {}  ·  db:{}{}",
+    let yolo = if app.yolo { "yolo" } else { "safe" };
+    let run = if app.running { "  ●" } else { "" };
+    let text = format!(
+        " cortex  ·  {}  ·  {}  ·  {}  ·  {}{}",
         app.model_label,
+        short_path(&app.workspace),
         yolo,
-        app.workspace,
         short_path(&app.database),
         run
     );
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" agent OS ")
-        .border_style(Style::default().fg(Color::Cyan));
-    let p = Paragraph::new(title)
-        .style(Style::default().fg(Color::White))
-        .block(block);
+    let p = Paragraph::new(text).style(
+        Style::default()
+            .fg(Color::Rgb(160, 170, 180))
+            .bg(Color::Rgb(18, 18, 22)),
+    );
     f.render_widget(p, area);
 }
 
-fn draw_body(f: &mut Frame, area: Rect, app: &App) {
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(22),
-            Constraint::Percentage(53),
-            Constraint::Percentage(25),
-        ])
-        .split(area);
+fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
+    let mut lines: Vec<Line> = Vec::new();
 
-    draw_sessions(f, cols[0], app);
-    draw_transcript(f, cols[1], app);
-    draw_logs(f, cols[2], app);
+    for m in &app.lines {
+        // blank gap between blocks
+        if !lines.is_empty() {
+            lines.push(Line::from(""));
+        }
+        match m.role.as_str() {
+            "you" => {
+                lines.push(Line::from(Span::styled(
+                    "You",
+                    Style::default()
+                        .fg(Color::Rgb(120, 200, 140))
+                        .add_modifier(Modifier::BOLD),
+                )));
+                push_body(&mut lines, &m.content, Color::Rgb(220, 220, 220));
+            }
+            "cortex" => {
+                lines.push(Line::from(Span::styled(
+                    "Cortex",
+                    Style::default()
+                        .fg(Color::Rgb(120, 180, 255))
+                        .add_modifier(Modifier::BOLD),
+                )));
+                push_body(&mut lines, &m.content, Color::Rgb(230, 230, 235));
+            }
+            "tool" => {
+                lines.push(Line::from(Span::styled(
+                    format!("  · {}", m.content),
+                    Style::default().fg(Color::Rgb(140, 140, 155)),
+                )));
+            }
+            _ => {
+                lines.push(Line::from(Span::styled(
+                    m.content.lines().next().unwrap_or(""),
+                    Style::default()
+                        .fg(Color::Rgb(110, 110, 120))
+                        .add_modifier(Modifier::ITALIC),
+                )));
+                for extra in m.content.lines().skip(1) {
+                    lines.push(Line::from(Span::styled(
+                        extra.to_string(),
+                        Style::default().fg(Color::Rgb(110, 110, 120)),
+                    )));
+                }
+            }
+        }
+    }
+
+    // Live stream
+    if let Some(draft) = &app.streaming {
+        if !lines.is_empty() {
+            lines.push(Line::from(""));
+        }
+        lines.push(Line::from(Span::styled(
+            "Cortex",
+            Style::default()
+                .fg(Color::Rgb(120, 180, 255))
+                .add_modifier(Modifier::BOLD),
+        )));
+        push_body(&mut lines, draft, Color::Rgb(230, 230, 235));
+        // caret on last line
+        if let Some(last) = lines.last_mut() {
+            last.spans.push(Span::styled(
+                " ▌",
+                Style::default().fg(Color::Rgb(120, 180, 255)),
+            ));
+        }
+    }
+
+    if let Some(act) = &app.activity {
+        if app.running {
+            lines.push(Line::from(Span::styled(
+                format!("  · {act}"),
+                Style::default()
+                    .fg(Color::Rgb(180, 140, 220))
+                    .add_modifier(Modifier::ITALIC),
+            )));
+        }
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "Start typing below…",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    let p = Paragraph::new(lines)
+        .wrap(Wrap { trim: false })
+        .scroll((app.scroll, 0))
+        .style(Style::default().bg(Color::Rgb(12, 12, 16)));
+    f.render_widget(p, area);
 }
 
-fn draw_sessions(f: &mut Frame, area: Rect, app: &App) {
-    let items: Vec<ListItem> = app
-        .sessions
-        .iter()
-        .map(|s| {
-            let id = s.id.to_string();
-            let short = if id.len() > 8 { &id[..8] } else { &id };
-            let line = format!("{} · {} msg · {:?}", short, s.message_count, s.status);
-            ListItem::new(line)
-        })
-        .collect();
+fn push_body(lines: &mut Vec<Line>, content: &str, color: Color) {
+    if content.is_empty() {
+        lines.push(Line::from(""));
+        return;
+    }
+    for line in content.lines() {
+        lines.push(Line::from(Span::styled(
+            line.to_string(),
+            Style::default().fg(color),
+        )));
+    }
+}
 
-    let border = if app.input_focused {
-        Style::default().fg(Color::DarkGray)
+fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
+    let border = if app.running {
+        Style::default().fg(Color::Rgb(180, 120, 60))
+    } else if app.input_focused {
+        Style::default().fg(Color::Rgb(100, 160, 120))
     } else {
-        Style::default().fg(Color::Yellow)
+        Style::default().fg(Color::Rgb(60, 60, 70))
     };
+
+    let title = if app.running {
+        " thinking… (Ctrl+C cancel) "
+    } else {
+        " message "
+    };
+
+    let mut display = app.input.clone();
+    if app.input_focused && !app.running {
+        display.push('▌');
+    }
+    if display.is_empty() {
+        display = if app.running {
+            String::new()
+        } else {
+            "▌".into()
+        };
+    }
+
+    // Prefix first line with ❯
+    let body = if app.input.is_empty() && app.input_focused && !app.running {
+        "❯ ▌".to_string()
+    } else {
+        let mut out = String::new();
+        for (i, line) in display.lines().enumerate() {
+            if i == 0 {
+                out.push_str("❯ ");
+            } else {
+                out.push_str("  ");
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        if out.ends_with('\n') {
+            out.pop();
+        }
+        out
+    };
+
+    let p = Paragraph::new(body)
+        .wrap(Wrap { trim: false })
+        .style(Style::default().fg(Color::White).bg(Color::Rgb(18, 18, 24)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(border)
+                .title(title)
+                .title_style(Style::default().fg(Color::Rgb(140, 140, 150))),
+        );
+    f.render_widget(p, area);
+}
+
+fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
+    let help = " ↵ send  ^J newline  ^B sessions  ^L clear scroll  ^C cancel  /quit ";
+    let line = format!(" {}  ·{} ", app.status, help);
+    let p = Paragraph::new(line).style(
+        Style::default()
+            .fg(Color::Rgb(100, 100, 110))
+            .bg(Color::Rgb(14, 14, 18)),
+    );
+    f.render_widget(p, area);
+}
+
+fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
+    // Centered modal list
+    let w = (area.width * 60 / 100)
+        .max(40)
+        .min(area.width.saturating_sub(4));
+    let h = (area.height * 50 / 100)
+        .max(10)
+        .min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+
+    f.render_widget(Clear, rect);
+
+    let items: Vec<ListItem> = if app.sessions.is_empty() {
+        vec![ListItem::new("(no sessions yet)")]
+    } else {
+        app.sessions
+            .iter()
+            .map(|s| {
+                let id = s.id.to_string();
+                let short = if id.len() > 8 { &id[..8] } else { &id };
+                ListItem::new(format!(
+                    "{}  ·  {} msgs  ·  {:?}",
+                    short, s.message_count, s.status
+                ))
+            })
+            .collect()
+    };
+
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" sessions (↑↓) ")
-                .border_style(border),
+                .title(" sessions · Enter open · Esc/Ctrl+B close ")
+                .border_style(Style::default().fg(Color::Cyan))
+                .style(Style::default().bg(Color::Rgb(20, 22, 28))),
         )
         .highlight_style(
             Style::default()
                 .fg(Color::Black)
-                .bg(Color::Cyan)
+                .bg(Color::Rgb(120, 180, 255))
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
-    // ListState is Copy; render mutates a local copy because we only have &App.
     let mut state = app.session_list;
-    f.render_stateful_widget(list, area, &mut state);
-}
-
-fn draw_transcript(f: &mut Frame, area: Rect, app: &App) {
-    let mut lines: Vec<Line> = Vec::new();
-    for m in &app.lines {
-        let color = match m.role.as_str() {
-            "you" => Color::Green,
-            "cortex" => Color::Cyan,
-            "tool" => Color::Magenta,
-            _ => Color::DarkGray,
-        };
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("[{}] ", m.role),
-                Style::default().fg(color).add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(m.content.replace('\n', " ⏎ ")),
-        ]));
-    }
-    if let Some(draft) = &app.streaming {
-        lines.push(Line::from(vec![
-            Span::styled(
-                "[cortex] ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                draft.replace('\n', " ⏎ "),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::ITALIC),
-            ),
-            Span::styled(" ▌", Style::default().fg(Color::Cyan)),
-        ]));
-    }
-    if lines.is_empty() {
-        lines.push(Line::from("…"));
-    }
-    let p = Paragraph::new(lines)
-        .wrap(Wrap { trim: false })
-        .scroll((app.scroll, 0))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" transcript ")
-                .border_style(Style::default().fg(Color::Cyan)),
-        );
-    f.render_widget(p, area);
-}
-
-fn draw_logs(f: &mut Frame, area: Rect, app: &App) {
-    let items: Vec<ListItem> = app
-        .logs
-        .iter()
-        .rev()
-        .take(40)
-        .map(|l| ListItem::new(l.as_str()))
-        .collect();
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" tools / log ")
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
-    f.render_widget(list, area);
-}
-
-fn draw_input(f: &mut Frame, area: Rect, app: &App) {
-    let border = if app.input_focused {
-        Style::default().fg(Color::Green)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-    let title = if app.running {
-        " input (running — Ctrl-C cancel) "
-    } else if app.input_focused {
-        " input (Enter send · Tab focus) "
-    } else {
-        " input (i / Enter to focus) "
-    };
-    let text = if app.input.is_empty() && app.input_focused {
-        "│".to_string()
-    } else if app.input_focused {
-        format!("{}│", app.input)
-    } else {
-        app.input.clone()
-    };
-    let p = Paragraph::new(text)
-        .style(Style::default().fg(Color::White))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(border),
-        );
-    f.render_widget(p, area);
-}
-
-fn draw_status(f: &mut Frame, area: Rect, app: &App) {
-    let help = " q quit · Tab focus · n new · r reload · y yolo · ↑↓ sessions · Enter open/send ";
-    let line = format!(" {}  ·  {} ", app.status, help);
-    let p = Paragraph::new(line).style(Style::default().fg(Color::DarkGray).bg(Color::Black));
-    f.render_widget(p, area);
+    f.render_stateful_widget(list, rect, &mut state);
 }
