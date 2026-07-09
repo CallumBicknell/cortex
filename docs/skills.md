@@ -15,16 +15,29 @@ A skill declares:
 
 | Skill | Always | Tools (summary) |
 |-------|--------|-----------------|
-| `coding` | yes | read/write/edit/list/glob |
+| `coding` | yes | read/write/edit/list/glob/outline |
 | `shell` | no | shell |
 | `git` | no | git_status/diff/log/add/commit |
-| `web` | no | http_request |
+| `web` | no | http_request, web_search |
+| `memory` | no | memory_search |
+| `evolve` | no | skill_list/save/promote |
+| `skill_creator` | no | skill tools + files + shell (create/eval skills) |
+| `frontend_design` | no | files, shell, browser, symbols (UI design) |
+| `code_intel` | no | outline / workspace_symbols / definition |
+| `browser` | no | CDP browser tools |
 | `testing` | no | shell + file tools |
 | `rust` | no | cargo-oriented file + shell |
 | `python` | no | pytest-oriented |
 | `javascript` | no | npm/pnpm/yarn-oriented |
 | `solidity` | no | forge-oriented guidance |
 | `review` | no | read-only review prompts |
+
+### High-value common packs
+
+- **`skill_creator`** — adapted from [Anthropic skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator): draft → test → iterate → `skill_save` / promote; optional `cortex eval` fixtures.
+- **`frontend_design`** — adapted from [Anthropic frontend-design](https://github.com/anthropics/skills/tree/main/skills/frontend-design): intentional visual design, anti-template defaults, plan-then-build.
+
+Prompts: `prompts/skills/skill_creator.md`, `prompts/skills/frontend_design.md`.
 
 Solidity is a **skill**, not “Solidity mode”. Activating it loads related prompts/tools; it does not switch the entire agent into a special global state.
 

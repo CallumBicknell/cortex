@@ -157,4 +157,31 @@ mod tests {
         assert!(sel.tools.contains(&"git_status".to_string()));
         assert!(sel.tools.contains(&"http_request".to_string()));
     }
+
+    #[test]
+    fn selects_frontend_design() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "make this landing page look distinctive and polish the UI",
+            None,
+            &[],
+        );
+        assert!(
+            sel.skill_ids.contains(&"frontend_design".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+    }
+
+    #[test]
+    fn selects_skill_creator() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(&reg, "create a skill for our release checklist", None, &[]);
+        assert!(
+            sel.skill_ids.contains(&"skill_creator".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+    }
 }

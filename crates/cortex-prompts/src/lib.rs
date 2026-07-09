@@ -170,6 +170,14 @@ const BUILTIN_PROMPTS: &[(&str, &str)] = &[
         "skills/solidity",
         include_str!("../../../prompts/skills/solidity.md"),
     ),
+    (
+        "skills/skill_creator",
+        include_str!("../../../prompts/skills/skill_creator.md"),
+    ),
+    (
+        "skills/frontend_design",
+        include_str!("../../../prompts/skills/frontend_design.md"),
+    ),
 ];
 
 /// Default prompts directory relative to a workspace root.

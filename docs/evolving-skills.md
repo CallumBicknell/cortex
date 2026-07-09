@@ -32,12 +32,22 @@ always_on = false
 
 ## Agent guidance
 
-Use the **`evolve`** skill (`--skills evolve` or tags: learn, promote) when you
-want the agent to codify a repeatable workflow after a successful multi-step task.
+| Skill | When |
+|-------|------|
+| **`evolve`** | Quick save/list/promote of a pack after a task |
+| **`skill_creator`** | Full create/improve/eval loop (Anthropic-style skill authoring) |
+
+```bash
+cortex run "Turn our API docs workflow into a skill" --skills skill_creator --yolo
+cortex run "Improve the api_docs skill description" --skills skill_creator,evolve --yolo
+```
 
 Example prompt:
 
 > After finishing, save a skill `api_docs` that captures the tools and tags you used.
+
+See also: [Anthropic skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator)
+(source of the process model; Cortex maps packaging to `skill_save` + optional evals).
 
 ## CLI
 

@@ -51,6 +51,90 @@ pub fn builtin_skills() -> Vec<Skill> {
             "capability",
             "workflow",
         ]),
+        // Adapted from Anthropic skills: skill-creator
+        // https://github.com/anthropics/skills/tree/main/skills/skill-creator
+        Skill::new(
+            "skill_creator",
+            "Create, improve, and evaluate Cortex skills (capability packs). \
+             Use whenever the user wants to invent a skill, turn a workflow into a skill, \
+             rewrite a skill description for better triggering, design skill evals, or \
+             iterate skill quality with feedback — even if they say 'make a pack', \
+             'capture this process', or 'optimize skill tags' without naming skill_creator.",
+        )
+        .tools([
+            "skill_list",
+            "skill_save",
+            "skill_promote",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_dir",
+            "glob_files",
+            "shell",
+        ])
+        .prompts(["skills/skill_creator"])
+        .tags([
+            "skill_creator",
+            "skill-creator",
+            "create a skill",
+            "create skill",
+            "write skill",
+            "improve skill",
+            "skill eval",
+            "skill description",
+            "capability pack",
+            "SKILL.md",
+            "workflow capture",
+            "turn this into a skill",
+            "new skill",
+            "skill pack",
+        ]),
+        // Adapted from Anthropic skills: frontend-design
+        // https://github.com/anthropics/skills/tree/main/skills/frontend-design
+        Skill::new(
+            "frontend_design",
+            "Distinctive frontend/UI design guidance (palette, type, layout, copy). \
+             Use for new UIs, redesigns, landing pages, dashboards, design systems, \
+             CSS/HTML/React/Vue components, or when the user wants the interface to \
+             avoid generic AI-looking templates — even if they only say 'make it look \
+             better', 'polish the UI', or 'design this page'.",
+        )
+        .tools([
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_dir",
+            "glob_files",
+            "apply_patch",
+            "shell",
+            "code_outline",
+            "workspace_symbols",
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_content",
+            "browser_click",
+            "browser_evaluate",
+        ])
+        .prompts(["skills/frontend_design"])
+        .tags([
+            "frontend",
+            "frontend-design",
+            "frontend_design",
+            "ui",
+            "ux",
+            "css",
+            "html",
+            "react",
+            "vue",
+            "svelte",
+            "tailwind",
+            "landing page",
+            "dashboard",
+            "design system",
+            "typography",
+            "visual design",
+            "web design",
+        ]),
         Skill::new(
             "code_intel",
             "Workspace symbols and definitions via tree-sitter index",
