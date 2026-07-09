@@ -70,4 +70,4 @@ crossterm = { version = "0.28", features = ["event-stream"] }
 # Member crates reference these under their own [dev-dependencies] section.
 tokio-test = { version = "0.4" }
 assert_matches = "1.5"
-criterion = { version = "0.5" }
+criterion = { version = "0.8" }
