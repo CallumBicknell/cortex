@@ -11,7 +11,8 @@ from the user message and project fingerprint (e.g. `foundry.toml`).
 | `system` prompt | Coding agent + SC security orientation |
 | `coding` skill | Always-on file/edit navigation |
 | `solidity` skill | Implement contracts, Foundry/Hardhat workflows |
-| `sc_security` skill | Audits, vuln finding, threat models, pre-deploy |
+| `sc_security` skill | Audits, vuln finding, analyzers + PoC guidance |
+| `sc_xray` skill | Pre-audit readiness / threat map report |
 | `audit_lenses` tool | Parallel specialty sub-agents (Cortex-native) |
 | Runtime `security` prompt | Agent OS constraints (secrets, sandbox) |
 
@@ -52,6 +53,17 @@ Typical flow (`prompts/skills/sc_security.md`):
 6. Structured final report with severity counts
 
 Specialty prompts live under `prompts/skills/audit_lenses/`.
+
+### Tooling depth (P21)
+
+| Pack | Role |
+|------|------|
+| `sc_xray` | Scope, entry points, trust model, test gaps, risk surfaces → `x-ray.md` |
+| `sc_analyzers` | Honest `forge` / Slither / Aderyn / fuzz conventions |
+| `sc_poc` | Foundry exploit tests under `test/exploit/` |
+| `findings_schema` | Shared FINDING/LEAD markdown + JSON shape |
+
+Demo PoC sketch: `examples/foundry-vault/test/exploit/ReentrancyPoC.t.sol`.
 
 This is **not** a vendored Pashov 12-agent tree; deeper external packs remain at
 [skills.eth.sh](https://skills.eth.sh/) (Pashov, QuillShield).

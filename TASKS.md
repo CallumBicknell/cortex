@@ -301,11 +301,22 @@ Optional later: `cortex init --web3`, CI foundry-smoke job.
 
 ---
 
+# Phase 21 — SC security tooling depth
+
+* [x] P21.1 Analyzer conventions prompt (`sc_analyzers`)
+* [x] P21.2 `sc_xray` skill + pre-audit report prompt
+* [x] P21.3 PoC scaffold prompt + demo exploit test sketch
+* [x] P21.4 Shared findings schema (markdown + JSON)
+* [x] P21.5 Wire into `sc_security` prompts; selection tests; docs
+
+Optional later: `plugins/foundry_helpers` fixed-arg forge wrappers.
+
+---
+
 # Upcoming (planned)
 
 | Phase | Theme |
 |-------|--------|
-| P21 | SC tooling depth (x-ray skill, PoC templates, analyzers) |
 | P22 | Audit artifacts + SC eval fixtures |
 | P23 | Web3 skill import / skills.eth.sh bridge |
 | P24 | Parallel read tools, plan/verify polish |

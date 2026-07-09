@@ -30,7 +30,8 @@ A skill declares:
 | `python` | no | pytest-oriented |
 | `javascript` | no | npm/pnpm/yarn-oriented |
 | `solidity` | no | Foundry/Hardhat implement + test |
-| `sc_security` | no | SC audits, vuln finding, `audit_lenses` multi-lens |
+| `sc_security` | no | SC audits, `audit_lenses`, analyzers, PoC guidance |
+| `sc_xray` | no | Pre-audit readiness / threat map |
 | `review` | no | general code review (non-SC) |
 
 ### High-value common packs

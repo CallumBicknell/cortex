@@ -267,7 +267,14 @@ pub fn builtin_skills() -> Vec<Skill> {
             "http_request",
             "web_search",
         ])
-        .prompts(["skills/sc_security", "skills/solidity", "security"])
+        .prompts([
+            "skills/sc_security",
+            "skills/sc_analyzers",
+            "skills/sc_poc",
+            "skills/findings_schema",
+            "skills/solidity",
+            "security",
+        ])
         .tags([
             "sc_security",
             "smart contract security",
@@ -284,9 +291,9 @@ pub fn builtin_skills() -> Vec<Skill> {
             "mythril",
             "echidna",
             "medusa",
+            "aderyn",
             "invariant",
             "threat model",
-            "x-ray",
             "pre-deploy",
             "pre audit",
             "pre-audit",
@@ -303,6 +310,48 @@ pub fn builtin_skills() -> Vec<Skill> {
             "quillshield",
             "pashov",
             "web3 security",
+        ]),
+        // Pre-audit readiness / threat map (Pashov x-ray–inspired, Cortex-sized)
+        Skill::new(
+            "sc_xray",
+            "Pre-audit x-ray / readiness report for Solidity protocols: scope, \
+             entry points, trust model, invariants, test gaps, risk surfaces. \
+             Use for 'x-ray', 'pre-audit report', 'readiness', 'protocol prep', \
+             or 'summarize this protocol before audit' — not a full vuln dump.",
+        )
+        .tools([
+            "shell",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "glob_files",
+            "list_dir",
+            "code_outline",
+            "workspace_symbols",
+            "code_definition",
+            "git_status",
+            "git_log",
+            "git_diff",
+        ])
+        .prompts([
+            "skills/sc_xray",
+            "skills/sc_analyzers",
+            "skills/findings_schema",
+            "skills/solidity",
+            "security",
+        ])
+        .tags([
+            "sc_xray",
+            "x-ray",
+            "xray",
+            "pre-audit report",
+            "readiness report",
+            "readiness",
+            "protocol prep",
+            "audit readiness",
+            "threat model overview",
+            "summarize this protocol",
+            "prep this protocol",
         ]),
         Skill::new("review", "Code review and quality focus (general software)")
             .tools(["read_file", "glob_files", "list_dir", "code_outline"])

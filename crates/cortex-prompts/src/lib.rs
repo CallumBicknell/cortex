@@ -175,6 +175,22 @@ const BUILTIN_PROMPTS: &[(&str, &str)] = &[
         include_str!("../../../prompts/skills/sc_security.md"),
     ),
     (
+        "skills/sc_xray",
+        include_str!("../../../prompts/skills/sc_xray.md"),
+    ),
+    (
+        "skills/sc_analyzers",
+        include_str!("../../../prompts/skills/sc_analyzers.md"),
+    ),
+    (
+        "skills/sc_poc",
+        include_str!("../../../prompts/skills/sc_poc.md"),
+    ),
+    (
+        "skills/findings_schema",
+        include_str!("../../../prompts/skills/findings_schema.md"),
+    ),
+    (
         "skills/skill_creator",
         include_str!("../../../prompts/skills/skill_creator.md"),
     ),
@@ -199,6 +215,10 @@ mod tests {
         assert!(cat.get("system").is_ok());
         assert!(cat.get("skills/rust").is_ok());
         assert!(cat.get("skills/sc_security").is_ok());
+        assert!(cat.get("skills/sc_xray").is_ok());
+        assert!(cat.get("skills/sc_analyzers").is_ok());
+        assert!(cat.get("skills/sc_poc").is_ok());
+        assert!(cat.get("skills/findings_schema").is_ok());
         assert!(cat.get("skills/solidity").is_ok());
         assert!(cat.ids().len() >= 10);
     }

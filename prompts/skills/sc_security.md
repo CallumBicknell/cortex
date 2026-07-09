@@ -112,6 +112,13 @@ findings by (contract, function, bug class) using the orchestrator section of
 the tool output. Use plain `spawn_subagent` only for one-off side tasks.
 Do not nest `audit_lenses` inside children.
 
+### Tooling depth (use when relevant)
+
+- **Pre-audit map:** follow `sc_xray` / readiness report before a huge audit.
+- **Static/fuzz tools:** `sc_analyzers` conventions (`slither`, `forge test --fuzz-runs`, aderyn).
+- **PoCs:** `sc_poc` + `test/exploit/*.t.sol` for Critical/High with clear root cause.
+- **Schema:** emit FINDING/LEAD in the shared `findings_schema` format.
+
 ## Report format
 
 For each FINDING or LEAD:

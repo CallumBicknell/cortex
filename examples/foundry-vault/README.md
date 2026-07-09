@@ -21,11 +21,19 @@ If `forge` is installed and `forge-std` is present under `lib/`:
 
 ```bash
 cd examples/foundry-vault
+forge install foundry-rs/forge-std   # once
 forge test
+forge test --match-contract ReentrancyPoC -vvv   # exploit sketch under test/exploit/
 ```
 
 This example ships **without** `lib/forge-std` to keep the monorepo light.
-Install Foundry std with `forge install foundry-rs/forge-std` if you want live tests.
+
+## Skills to try
+
+```bash
+cortex run "x-ray this vault" --skills sc_xray --yolo
+cortex run "Audit and write a reentrancy PoC" --skills sc_security,solidity --yolo
+```
 
 ## Foundry MCP
 

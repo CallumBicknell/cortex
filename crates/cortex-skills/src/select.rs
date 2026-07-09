@@ -219,4 +219,21 @@ mod tests {
             sel.skill_ids
         );
     }
+
+    #[test]
+    fn selects_sc_xray() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "produce an x-ray readiness report for this protocol",
+            None,
+            &[],
+        );
+        assert!(
+            sel.skill_ids.contains(&"sc_xray".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+        assert!(sel.prompts.iter().any(|p| p.contains("sc_xray")));
+    }
 }
