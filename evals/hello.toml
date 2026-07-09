@@ -1,0 +1,10 @@
+id = "hello"
+description = "Mock greets the user"
+prompt = "Say hello"
+max_turns = 2
+expect_contains = ["hello"]
+expect_status = "succeeded"
+
+[[mock]]
+type = "text"
+content = "hello from cortex eval"

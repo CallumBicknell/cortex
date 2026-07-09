@@ -32,6 +32,14 @@ pub struct AgentLoopConfig {
     pub stop_on_max_turns: bool,
     /// Rolling history summarization.
     pub summarize: SummarizeConfig,
+    /// Optional wall-clock budget for the entire run (seconds). `0` = unlimited.
+    pub max_run_secs: u64,
+    /// Cap tool calls executed from a single assistant message. `0` = unlimited.
+    pub max_tool_calls_per_turn: usize,
+    /// Current sub-agent nesting depth (0 = top-level run).
+    pub subagent_depth: u32,
+    /// Maximum allowed nesting depth for sub-agents (inclusive of this level).
+    pub max_subagent_depth: u32,
 }
 
 impl Default for AgentLoopConfig {
@@ -43,6 +51,10 @@ impl Default for AgentLoopConfig {
             max_tokens: None,
             stop_on_max_turns: true,
             summarize: SummarizeConfig::default(),
+            max_run_secs: 600,
+            max_tool_calls_per_turn: 16,
+            subagent_depth: 0,
+            max_subagent_depth: 2,
         }
     }
 }
@@ -240,9 +252,19 @@ impl AgentLoop {
         tool_results: &mut Vec<ToolResult>,
         final_message: &mut Option<String>,
     ) -> Result<TaskStatus> {
+        let run_started = Instant::now();
         loop {
             if cancel.is_cancelled() {
                 return Err(RuntimeError::Cancelled("run cancelled".into()));
+            }
+
+            if self.config.max_run_secs > 0
+                && run_started.elapsed().as_secs() >= self.config.max_run_secs
+            {
+                *phase = self
+                    .transition(session, Some(run_id), *phase, LoopPhase::Failed)
+                    .await;
+                return Err(RuntimeError::RunTimeout(self.config.max_run_secs));
             }
 
             if *turns >= self.config.max_turns && self.config.stop_on_max_turns {
@@ -331,11 +353,24 @@ impl AgentLoop {
                 .await;
 
             let calls = assistant.tool_calls.clone();
+            if self.config.max_tool_calls_per_turn > 0
+                && calls.len() > self.config.max_tool_calls_per_turn
+            {
+                return Err(RuntimeError::TooManyToolCalls {
+                    got: calls.len(),
+                    max: self.config.max_tool_calls_per_turn,
+                });
+            }
             for call in &calls {
                 if cancel.is_cancelled() {
                     return Err(RuntimeError::Cancelled(
                         "run cancelled during tool execution".into(),
                     ));
+                }
+                if self.config.max_run_secs > 0
+                    && run_started.elapsed().as_secs() >= self.config.max_run_secs
+                {
+                    return Err(RuntimeError::RunTimeout(self.config.max_run_secs));
                 }
                 self.publish(ToolCallRequested::from_call(session.id, call).with_run_id(run_id))
                     .await;

@@ -110,10 +110,8 @@ impl TuiHost {
             AgentLoopConfig {
                 max_turns,
                 context,
-                temperature: None,
-                max_tokens: None,
-                stop_on_max_turns: true,
                 summarize: SummarizeConfig::default(),
+                ..Default::default()
             },
         );
 

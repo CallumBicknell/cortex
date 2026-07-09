@@ -29,6 +29,23 @@ pub enum RuntimeError {
     #[error("max turns exceeded ({0})")]
     MaxTurns(u32),
 
+    /// Wall-clock run budget exceeded.
+    #[error("run timeout after {0}s")]
+    RunTimeout(u64),
+
+    /// Too many tool calls in a single model turn.
+    #[error("too many tool calls in one turn ({got} > {max})")]
+    TooManyToolCalls {
+        /// Observed count.
+        got: usize,
+        /// Configured maximum.
+        max: usize,
+    },
+
+    /// Sub-agent nesting depth exceeded.
+    #[error("sub-agent depth limit exceeded ({0})")]
+    SubAgentDepth(u32),
+
     /// Internal error.
     #[error("internal: {0}")]
     Internal(String),

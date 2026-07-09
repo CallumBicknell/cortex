@@ -59,6 +59,7 @@ impl Default for PermissionPolicy {
             "memory_search",
             "code_outline",
         ] {
+            // note: spawn_subagent is ask by default (registered at runtime)
             tools.insert(name.to_string(), PermissionMode::Allow);
         }
         // Mutating / risky tools ask by default.
@@ -74,6 +75,7 @@ impl Default for PermissionPolicy {
             "browser_navigate",
             "browser_click",
             "browser_close",
+            "spawn_subagent",
         ] {
             tools.insert(name.to_string(), PermissionMode::Ask);
         }

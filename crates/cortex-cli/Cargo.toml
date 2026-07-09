@@ -18,6 +18,7 @@ chrono = { workspace = true }
 clap = { workspace = true }
 cortex-api = { path = "../cortex-api" }
 cortex-common = { path = "../cortex-common" }
+cortex-eval = { path = "../cortex-eval" }
 # SessionId used in app tool_context
 cortex-core = { path = "../cortex-core" }
 cortex-llm = { path = "../cortex-llm" }

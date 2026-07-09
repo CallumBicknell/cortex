@@ -230,13 +230,28 @@
 
 ---
 
-# Later phases (summary)
+# Phase 16 — Hardening, sub-agents, evals
 
-See implementation plan for full task lists:
+* [x] P16.1 Run budgets (`max_run_secs`, `max_tool_calls_per_turn`)
+* [x] P16.2 Security harden helpers (path escape, bubblewrap detect)
+* [x] P16.3 Sub-agent runner + depth limits
+* [x] P16.4 `spawn_subagent` tool + `tools_with_subagent`
+* [x] P16.5 `cortex-eval` fixture harness + `evals/*.toml`
+* [x] P16.6 CLI `cortex eval list|run` + `docs/hardening.md`
 
-| Phase | Theme |
+---
+
+# Plan complete (M0–M16 MVP)
+
+Follow-ups (not blocking):
+
+| Theme | Notes |
 |-------|--------|
-| 16 | Hardening, sub-agents, evals |
+| Full LSP | Beyond tree-sitter outlines |
+| Dynamic plugins | cdylib loading |
+| OS sandbox | Wire bubblewrap into shell by default |
+| Streaming API | SSE for runs |
+| Sub-agent events | Merge child events into parent bus |
 
 ---
 

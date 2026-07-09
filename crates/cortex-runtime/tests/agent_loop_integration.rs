@@ -61,13 +61,11 @@ async fn multi_step_write_file_then_finish() {
         AgentLoopConfig {
             max_turns: 8,
             context: ContextBuilder::new("You are a test agent."),
-            temperature: None,
-            max_tokens: None,
-            stop_on_max_turns: true,
             summarize: cortex_runtime::SummarizeConfig {
                 enabled: false,
                 ..Default::default()
             },
+            ..Default::default()
         },
     )
     .with_event_bus(Arc::clone(&bus));

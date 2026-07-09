@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–15 complete (HTTP API + Python SDK client). Still missing: hardening/sub-agents, dynamic plugins, full LSP, and OS-level sandboxing.
+**Early development (v0.1.0).** Phases 0–16 MVP complete (hardening, sub-agents, evals). Follow-ups: dynamic plugins, full LSP, OS sandbox wire-up, streaming API.
 
 | Area | Status |
 |------|--------|
@@ -34,8 +34,9 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Terminal UI (`cortex tui`) | Implemented |
 | HTTP API (`cortex serve`) | Implemented |
 | Python SDK (HTTP client) | Implemented |
+| Run budgets + spawn_subagent + eval harness | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| Hardening / sub-agents / dynamic plugins / full LSP | Planned (later) |
+| Dynamic plugins / full LSP / OS sandbox wire-up | Planned (later) |
 
 ## Design principles
 
@@ -70,8 +71,10 @@ crates/
   cortex-parse/     # Tree-sitter outlines (Rust/Python)
   cortex-tui/       # ratatui interactive UI
   cortex-api/       # axum HTTP API
+  cortex-eval/      # Fixture-driven agent evals
   cortex-cli/       # `cortex` binary
 config/             # Default TOML (models, security, mcp, browser, plugins)
+evals/              # Eval fixtures (TOML)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
@@ -130,13 +133,14 @@ cargo run -p cortex-cli -- memory search "agent loop"
 cargo run -p cortex-cli -- parse outline crates/cortex-runtime/src/agent_loop.rs
 cargo run -p cortex-cli -- tui
 cargo run -p cortex-cli -- serve --bind 127.0.0.1:8080
+cargo run -p cortex-cli -- eval run
 
 # Browser via CDP (Obscura default — start `obscura` or Chrome first)
 # cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), and [`docs/api.md`](docs/api.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), and [`docs/hardening.md`](docs/hardening.md).
 
 ### Configuration
 

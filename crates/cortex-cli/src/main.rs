@@ -12,8 +12,8 @@ use cortex_memory::{open_sqlite, CheckpointState, SessionStore, VectorStore};
 use cortex_models::{Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{
-    maybe_summarize, AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput,
-    SummarizeConfig,
+    maybe_summarize, tools_with_subagent, AgentLoop, AgentLoopConfig, ContextBuilder, RunInput,
+    RunOutput, SummarizeConfig,
 };
 use cortex_security::{redact_text, SecurityPolicy};
 use cortex_skills::{select_skills, SkillRegistry};
@@ -153,6 +153,11 @@ enum Commands {
         #[command(subcommand)]
         command: ParseCmd,
     },
+    /// Run evaluation fixtures (mock agent scoring).
+    Eval {
+        #[command(subcommand)]
+        command: EvalCmd,
+    },
     /// Start the HTTP API server.
     Serve {
         /// Bind address (host:port).
@@ -188,6 +193,25 @@ enum Commands {
         /// Comma-separated skill ids (default: auto).
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum EvalCmd {
+    /// List fixtures in a directory.
+    List {
+        /// Directory of `*.toml` fixtures (default: `evals/`).
+        #[arg(long, default_value = "evals")]
+        dir: PathBuf,
+    },
+    /// Run all fixtures and print a report.
+    Run {
+        /// Directory of `*.toml` fixtures (default: `evals/`).
+        #[arg(long, default_value = "evals")]
+        dir: PathBuf,
+        /// Emit JSON report.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -451,8 +475,72 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             )
             .await;
         }
+        Commands::Eval { command } => {
+            return cmd_eval(cli.workspace, command).await;
+        }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_eval(workspace: Option<PathBuf>, command: EvalCmd) -> Result<ExitCode> {
+    let root = workspace.unwrap_or_else(|| std::env::current_dir().expect("cwd"));
+    match command {
+        EvalCmd::List { dir } => {
+            let dir = if dir.is_absolute() {
+                dir
+            } else {
+                root.join(dir)
+            };
+            let paths = cortex_eval::discover_fixtures(&dir)
+                .with_context(|| format!("discover {}", dir.display()))?;
+            if paths.is_empty() {
+                println!("no fixtures in {}", dir.display());
+            } else {
+                for p in paths {
+                    match cortex_eval::load_fixture(&p) {
+                        Ok(f) => println!("{:<16}  {}", f.id, f.description),
+                        Err(e) => println!("{}  (error: {e})", p.display()),
+                    }
+                }
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        EvalCmd::Run { dir, json } => {
+            let dir = if dir.is_absolute() {
+                dir
+            } else {
+                root.join(dir)
+            };
+            let report = cortex_eval::run_suite(&dir)
+                .await
+                .with_context(|| format!("run suite {}", dir.display()))?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                for c in &report.cases {
+                    let mark = if c.passed { "PASS" } else { "FAIL" };
+                    println!(
+                        "[{mark}] {:<16} turns={} {}ms",
+                        c.id, c.turns, c.duration_ms
+                    );
+                    for f in &c.failures {
+                        println!("       - {f}");
+                    }
+                }
+                println!(
+                    "\n{} passed, {} failed (of {})",
+                    report.passed,
+                    report.failed,
+                    report.cases.len()
+                );
+            }
+            if report.all_passed() {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(1))
+            }
+        }
+    }
 }
 
 async fn cmd_serve(
@@ -957,18 +1045,23 @@ async fn cmd_run(
     let session_id_for_ctx = session.id;
 
     let tool_ctx = app.tool_context(cancel.clone(), store.as_ref(), Some(session_id_for_ctx));
+    let loop_cfg = AgentLoopConfig {
+        max_turns,
+        context,
+        summarize: SummarizeConfig::default(),
+        ..Default::default()
+    };
+    let tools = tools_with_subagent(
+        &app.tools,
+        Arc::clone(&resolved.provider),
+        resolved.model.clone(),
+        loop_cfg.clone(),
+    );
     let agent = AgentLoop::new(
         Arc::clone(&resolved.provider),
         resolved.model.clone(),
-        app.tools.clone(),
-        AgentLoopConfig {
-            max_turns,
-            context,
-            temperature: None,
-            max_tokens: None,
-            stop_on_max_turns: true,
-            summarize: SummarizeConfig::default(),
-        },
+        tools,
+        loop_cfg,
     );
     if let Some(store) = &store {
         if let Ok(Some((_, s))) = store
@@ -1084,18 +1177,23 @@ async fn cmd_chat(
         });
 
         let tool_ctx = app.tool_context(cancel.clone(), Some(&store), Some(session.id));
+        let loop_cfg = AgentLoopConfig {
+            max_turns,
+            context,
+            summarize: SummarizeConfig::default(),
+            ..Default::default()
+        };
+        let tools = tools_with_subagent(
+            &app.tools,
+            Arc::clone(&resolved.provider),
+            resolved.model.clone(),
+            loop_cfg.clone(),
+        );
         let agent = AgentLoop::new(
             Arc::clone(&resolved.provider),
             resolved.model.clone(),
-            app.tools.clone(),
-            AgentLoopConfig {
-                max_turns,
-                context,
-                temperature: None,
-                max_tokens: None,
-                stop_on_max_turns: true,
-                summarize: SummarizeConfig::default(),
-            },
+            tools,
+            loop_cfg,
         );
         if let Ok(Some((_, s))) = store.latest_summary(session.id, Some("rolling")).await {
             agent.set_rolling_summary(Some(s));

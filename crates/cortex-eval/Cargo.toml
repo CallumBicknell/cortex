@@ -1,24 +1,25 @@
 [package]
-name = "cortex-security"
+name = "cortex-eval"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
-description = "Security policy, secrets redaction, and approval audit types for Cortex"
+description = "Evaluation harness for Cortex agent runs"
 
 [dependencies]
-async-trait = { workspace = true }
-chrono = { workspace = true }
-cortex-common = { path = "../cortex-common" }
+anyhow = { workspace = true }
+cortex-llm = { path = "../cortex-llm" }
+cortex-models = { path = "../cortex-models" }
+cortex-runtime = { path = "../cortex-runtime" }
 cortex-tools = { path = "../cortex-tools" }
 serde = { workspace = true }
-regex = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
-uuid = { workspace = true }
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
