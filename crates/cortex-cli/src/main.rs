@@ -153,6 +153,24 @@ enum Commands {
         #[command(subcommand)]
         command: ParseCmd,
     },
+    /// Interactive terminal UI (chat, sessions, tool log).
+    Tui {
+        /// Model alias.
+        #[arg(long, short)]
+        model: Option<String>,
+        /// Auto-approve tools (recommended for TUI).
+        #[arg(long, default_value_t = true)]
+        yolo: bool,
+        /// Require tool approval (disables default yolo).
+        #[arg(long)]
+        no_yolo: bool,
+        /// Maximum LLM turns per message.
+        #[arg(long, default_value_t = 32)]
+        max_turns: u32,
+        /// Comma-separated skill ids (default: auto).
+        #[arg(long, value_delimiter = ',')]
+        skills: Vec<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -381,6 +399,58 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Parse { command } => {
             cmd_parse(cli.workspace, command)?;
         }
+        Commands::Tui {
+            model,
+            yolo,
+            no_yolo,
+            max_turns,
+            skills,
+        } => {
+            return cmd_tui(
+                cli.workspace,
+                cli.config,
+                model,
+                yolo && !no_yolo,
+                max_turns,
+                skills,
+            )
+            .await;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_tui(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    model: Option<String>,
+    yolo: bool,
+    max_turns: u32,
+    skills: Vec<String>,
+) -> Result<ExitCode> {
+    let paths = Paths::resolve(workspace, config)?;
+    let app = AppContext::bootstrap(paths, yolo).await?;
+    let resolved = app.resolve_model(model.as_deref())?;
+    let store = app.open_store().await?;
+
+    // Avoid tracing noise over the alternate screen.
+    let host = cortex_tui::TuiHost {
+        workspace: app.paths.workspace.clone(),
+        database: app.paths.database.clone(),
+        model_alias: resolved.alias.clone(),
+        provider_id: resolved.provider_id.clone(),
+        model: resolved.model.clone(),
+        provider: Arc::clone(&resolved.provider),
+        tools: app.tools.clone(),
+        store,
+        max_turns,
+        yolo,
+        skills,
+    };
+
+    if let Err(e) = cortex_tui::run(host).await {
+        eprintln!("tui error: {e:#}");
+        return Ok(ExitCode::from(1));
     }
     Ok(ExitCode::SUCCESS)
 }

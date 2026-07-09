@@ -209,13 +209,22 @@
 
 ---
 
+# Phase 14 — TUI
+
+* [x] P14.1 `cortex-tui` crate (ratatui + crossterm)
+* [x] P14.2 Layout: sessions / transcript / tool log / input
+* [x] P14.3 Keyboard UX (send, cancel, yolo, reload, new session)
+* [x] P14.4 Wire agent turns via `TuiHost` + `AgentLoop`
+* [x] P14.5 CLI `cortex tui` + `docs/tui.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 14 | TUI |
 | 15 | HTTP API + real Python SDK |
 | 16 | Hardening, sub-agents, evals |
 
