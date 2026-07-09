@@ -442,7 +442,13 @@ enum SessionsCmd {
 async fn main() -> ExitCode {
     load_dotenv();
     let cli = Cli::parse();
-    init_tracing(cli.verbose);
+    // Chat/TUI use an alternate screen — silence INFO logs unless --verbose.
+    let quiet_ui = !cli.verbose
+        && matches!(
+            &cli.command,
+            Commands::Chat { plain: false, .. } | Commands::Tui { .. }
+        );
+    init_tracing(cli.verbose, quiet_ui);
 
     match run(cli).await {
         Ok(code) => code,
@@ -726,11 +732,6 @@ async fn cmd_tui(
     max_turns: u32,
     skills: Vec<String>,
 ) -> Result<ExitCode> {
-    // Quiet logs so they don't paint over the alternate screen.
-    if std::env::var_os("CORTEX_LOG_LEVEL").is_none() && std::env::var_os("RUST_LOG").is_none() {
-        std::env::set_var("CORTEX_LOG_LEVEL", "error");
-    }
-
     let paths = Paths::resolve(workspace, config)?;
     let app = AppContext::bootstrap(paths, yolo).await?;
     let resolved = app.resolve_model(model.as_deref())?;

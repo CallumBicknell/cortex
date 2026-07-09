@@ -434,15 +434,38 @@ pub fn load_dotenv() {
 }
 
 /// Init tracing from RUST_LOG / CORTEX_LOG_LEVEL.
-pub fn init_tracing(verbose: bool) {
-    let default = if verbose { "debug" } else { "info" };
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+///
+/// When `quiet` is true (chat/TUI alternate screen), default to almost-silent
+/// logging so INFO lines do not paint over the UI. Override with `RUST_LOG` or
+/// `--verbose`.
+pub fn init_tracing(verbose: bool, quiet: bool) {
+    let default = if verbose {
+        "debug"
+    } else if quiet {
+        "error"
+    } else {
+        "info"
+    };
+    let filter = if verbose {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("debug"))
+    } else if quiet && std::env::var_os("RUST_LOG").is_none() {
+        // Global error floor — covers cortex_runtime, cortex_tools, plugins, …
         let level = std::env::var("CORTEX_LOG_LEVEL").unwrap_or_else(|_| default.into());
-        tracing_subscriber::EnvFilter::new(format!("cortex={level},cortex_cli={level}"))
-    });
+        tracing_subscriber::EnvFilter::new(level)
+    } else {
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            let level = std::env::var("CORTEX_LOG_LEVEL").unwrap_or_else(|_| default.into());
+            // Match all cortex_* crates (underscore targets), not only `cortex::`.
+            tracing_subscriber::EnvFilter::new(format!(
+                "{level},cortex={level},cortex_cli={level},cortex_runtime={level},cortex_tools={level},cortex_llm={level},cortex_plugins={level},cortex_memory={level},cortex_tui={level}"
+            ))
+        })
+    };
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(false)
+        .with_writer(std::io::stderr)
         .try_init();
 }
 
