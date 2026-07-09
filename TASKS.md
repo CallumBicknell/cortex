@@ -344,13 +344,21 @@ Deferred: LLM skill-pick step; richer TUI sub-agent UX; full token streaming pol
 
 ---
 
-# Upcoming (planned)
+# Phase 25 — Docs / release productization
 
-| Phase | Theme |
-|-------|--------|
-| P25 | Docs/release productization |
+* [x] P25.1 Honest `docs/roadmap.md` (shipped vs deferred)
+* [x] P25.2 README status for coding + SC security (v0.2.0)
+* [x] P25.3 Workspace version **0.2.0** + CHANGELOG section
+* [x] P25.4 `DECISIONS.md` ADRs (multi-lens, Solidity parse, MCP HTTP, import, plan/verify)
+* [x] P25.5 TASKS checklist closed for Phases 17–25
 
-Still open (later):
+---
+
+# Arc complete (Phases 17–25)
+
+Post-MVP coding agent + smart-contract security wave is **done**.
+
+Still open (later, not blocking 0.2.0):
 
 | Theme | Notes |
 |-------|--------|
@@ -358,6 +366,10 @@ Still open (later):
 | Dynamic cdylib | Unsafe plugin ABI |
 | Firejail/seccomp | Stronger OS isolation |
 | Token streaming | Provider token deltas over SSE |
+| LLM skill-pick | When tag heuristics are ambiguous |
+| Foundry helper plugin | Fixed-arg forge wrappers |
+
+See [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 

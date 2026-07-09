@@ -469,7 +469,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cortex-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-context"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-models",
  "cortex-workspace",
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -576,7 +576,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-eval"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "cortex-llm",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "cortex-common",
@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-llm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -630,7 +630,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -649,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-memory"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "cortex-common",
@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-models"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "cortex-common",
@@ -677,7 +677,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-parse"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-plugins"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cortex-tools",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-prompts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "tempfile",
  "thiserror 1.0.69",
@@ -716,7 +716,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-runtime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-security"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-skills"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-prompts",
  "cortex-workspace",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-tools"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cortex-common",
@@ -800,7 +800,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-tui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "cortex-workspace"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ignore",
  "serde",

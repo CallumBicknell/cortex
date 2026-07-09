@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+(nothing yet)
+
+## [0.2.0] — 2026-07-09
+
+Coding agent OS + smart-contract security arc (Phases 17–25).
+
+### Added
+
 - Full agent OS MVP (phases 0–16) and post-MVP follow-ups
 - **CLI**: `run`, `chat`, `init`, `tools`, `models`, `sessions`, `workspace`,
   `skills`, `security`, `plugins`, `memory`, `parse`, `tui`, `serve`, `eval`
@@ -39,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   skill; recipes for skills.eth.sh MCP/packs; load `.cortex/prompts`
 - **Loop quality (P24)**: parallel read-only tool batches; `--plan` mode;
   `--verify` / `--verify-cmd` after file writes
+- **Productization (P25)**: honest roadmap, DECISIONS ADRs, README status for 0.2.0
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`
@@ -55,5 +64,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.1.0] — 2026-07-09
 
-Initial early development snapshot corresponding to the Unreleased feature set
-above (first public-shape MVP on the feature branch).
+Initial early development snapshot (agent OS MVP through Phase 16 + early follow-ups).

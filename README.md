@@ -7,39 +7,32 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0 MVP).** Phases 0–16 + follow-ups shipped on the feature branch: agent loop, tools, skills, memory, plugins, TUI, HTTP API, Python SDK, evals, and CI/CD. See [`CHANGELOG.md`](CHANGELOG.md).
+**v0.2.0** — agent OS MVP **plus** coding agent + smart-contract security arc
+(Phases 17–25). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/roadmap.md`](docs/roadmap.md).
 
 | Area | Status |
 |------|--------|
-| Kernel lifecycle | Implemented |
-| In-memory event bus + history | Implemented |
-| Cancellation tokens | Implemented |
-| Service registry | Implemented |
-| Config (TOML + env) | Implemented |
-| Domain models (messages, tools, sessions) | Implemented |
-| Agent event types | Implemented |
-| LLM providers (OpenAI-compat, Anthropic, mock) | Implemented |
-| Provider registry + `config/models.toml` | Implemented |
-| Tools (fs, shell, git, http, browser/CDP) + permissions | Implemented |
-| Agent loop (LLM ↔ tools, events) | Implemented |
-| CLI (`cortex run` / `chat` / `init`) | Implemented |
-| SQLite sessions / checkpoints | Implemented |
-| Workspace map + context budgets | Implemented |
-| Skills + prompts (coding, Solidity, SC security, …) | Implemented |
-| Security policy + audit + redaction | Implemented |
-| MCP client + docker/search/patch tools | Implemented |
-| Browser tools via CDP (Obscura/Chrome) | Implemented |
-| In-process plugins (`echo` demo) | Implemented |
-| Rolling summaries + local vector memory | Implemented |
-| Tree-sitter code outlines (Rust/Python) | Implemented |
-| Terminal UI (`cortex tui`) | Implemented |
-| HTTP API (`cortex serve`) | Implemented |
-| Python SDK (HTTP client) | Implemented |
-| Run budgets + spawn_subagent + eval harness | Implemented |
-| External plugins + bubblewrap shell + SSE API | Implemented |
-| Workspace symbols + evolving skills | Implemented |
-| Unit / golden serde / HTTP mock tests | Implemented |
-| Full LSP / cdylib plugins / token streaming | Planned (later) |
+| Kernel / event bus / models / providers | Implemented |
+| Agent loop (LLM ↔ tools, budgets, sub-agents) | Implemented |
+| CLI (`run` / `chat` / `init` / …) + TUI + HTTP API | Implemented |
+| Tools (fs, shell, git, http, browser CDP, patch, …) | Implemented |
+| Skills (coding, Solidity, sc_security, sc_xray, …) | Implemented |
+| Multi-lens audits (`audit_lenses`) + audit reports | Implemented |
+| Tree-sitter outlines (Rust, Python, **Solidity**) | Implemented |
+| MCP **stdio + Streamable HTTP** | Implemented |
+| `skills import` + skills.eth.sh recipes | Implemented |
+| Parallel read tools, `--plan`, `--verify` | Implemented |
+| SQLite memory / evals / CI/CD | Implemented |
+| Full LSP / cdylib plugins / multi-tenant Postgres | Planned (later) |
+
+### Quick SC security path
+
+```bash
+cortex skills select "audit this vault for reentrancy"
+cortex run "Audit examples/foundry-vault" --skills sc_security,solidity --yolo
+cortex parse outline examples/foundry-vault/src/VulnerableVault.sol
+# docs: docs/web3-security.md · docs/web3-recipes.md
+```
 
 ## Design principles
 
@@ -69,9 +62,9 @@ crates/
   cortex-prompts/   # Markdown prompts + templates
   cortex-skills/    # Skill packs (not hard-coded modes)
   cortex-security/  # Policy, redaction, approval audit
-  cortex-mcp/       # MCP stdio client → Tool adapters
+  cortex-mcp/       # MCP stdio + Streamable HTTP → Tool adapters
   cortex-plugins/   # In-process plugin host + builtins
-  cortex-parse/     # Tree-sitter outlines (Rust/Python)
+  cortex-parse/     # Tree-sitter outlines (Rust/Python/Solidity)
   cortex-tui/       # ratatui interactive UI
   cortex-api/       # axum HTTP API
   cortex-eval/      # Fixture-driven agent evals
@@ -118,7 +111,9 @@ cargo run -p cortex-cli -- run "What is Cortex?" --json
 # In any project:
 cargo run -p cortex-cli -- init
 cargo run -p cortex-cli -- run "Summarize this repo" --model ollama --yolo
-cargo run -p cortex-cli -- run "Audit this Foundry project for reentrancy" --skills sc_security,solidity
+cargo run -p cortex-cli -- run "Audit this Foundry project for reentrancy" --skills sc_security,solidity --yolo
+cargo run -p cortex-cli -- run "Refactor carefully" --plan --verify --yolo
+cargo run -p cortex-cli -- skills import ./path/to/SKILL.md --dry-run
 cargo run -p cortex-cli -- chat --model openai
 
 # Sessions (persisted under .cortex/data/cortex.db)
