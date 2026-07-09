@@ -365,9 +365,10 @@ Post-MVP coding agent + smart-contract security wave is **done**.
 * [x] P26.3 `cortex init --web3`
 * [x] P26.4 `cortex update`
 * [x] P26.5 CLI `--stream` (text deltas via event bus)
-* [ ] P26.6 GitHub Release tag so install.sh has assets
-* [ ] P26.7 TUI stream + sub-agent summary
-* [ ] P26.8 Interactive setup wizard
+* [x] P26.6 Foundry helpers plugin + `init --web3` copy
+* [ ] P26.7 GitHub Release tag `v0.2.1` so install.sh has assets
+* [ ] P26.8 TUI stream + sub-agent summary
+* [ ] P26.9 Interactive setup wizard
 
 Still open (later):
 
@@ -377,7 +378,7 @@ Still open (later):
 | Dynamic cdylib | Unsafe plugin ABI |
 | Firejail/seccomp | Stronger OS isolation |
 | LLM skill-pick | When tag heuristics are ambiguous |
-| Foundry helpers plugin | Fixed-arg forge tools |
+| Slither/Aderyn wrappers | Structured analyzer tools |
 | Foundry helper plugin | Fixed-arg forge wrappers |
 
 See [`docs/roadmap.md`](docs/roadmap.md).

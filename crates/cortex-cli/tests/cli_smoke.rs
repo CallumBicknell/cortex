@@ -126,6 +126,10 @@ fn init_web3_scaffolds_mcp_and_instructions() {
     assert!(ws.path().join(".cortex/mcp.toml").is_file());
     assert!(ws.path().join(".cortex/instructions.md").is_file());
     assert!(ws.path().join("AGENTS.md").is_file());
+    assert!(ws
+        .path()
+        .join(".cortex/plugins/foundry_helpers/plugin.toml")
+        .is_file());
 }
 
 #[test]

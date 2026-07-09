@@ -59,7 +59,7 @@ Primary docs: [`web3-security.md`](web3-security.md), [`web3-recipes.md`](web3-r
 |---------|---------|
 | 0.1.0 | Initial MVP snapshot |
 | **0.2.0** | SC security arc + loop quality |
-| **0.2.x** | Install/home + Wave A daily-driver polish |
+| **0.2.1** | Install/home + Wave A + foundry_helpers plugin |
 | 0.3.x | Loop intelligence / deeper SC tooling (TBD) |
 
 See [`CHANGELOG.md`](../CHANGELOG.md) and [`DECISIONS.md`](../DECISIONS.md).

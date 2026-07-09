@@ -6,15 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-07-09
+
+Daily-driver install path + Wave A polish + Foundry helpers.
+
 ### Added
 
 - **Install**: `scripts/install.sh` (curl → `~/.local/bin`), `cortex setup`,
   `cortex doctor`, user home `~/.cortex` (`CORTEX_HOME`), docs/install.md
 - **Project instructions**: auto-load `.cortex/instructions.md` / `AGENTS.md` /
   `CLAUDE.md` (etc.) into agent context
-- **`cortex init --web3`**: Foundry MCP sample + Web3 instruction scaffold
+- **`cortex init --web3`**: Foundry MCP sample + Web3 instructions +
+  `foundry_helpers` plugin (`forge_build` / `forge_test` / …)
 - **`cortex update`**: reinstall guidance (Unix; optional `CORTEX_UPDATE_EXEC=1`)
 - **`cortex run --stream`**: stream assistant text deltas to stderr
+- **`plugins/foundry_helpers`**: fixed-arg forge tools; plugin `cwd = "{workspace}"`
 
 ### Changed
 

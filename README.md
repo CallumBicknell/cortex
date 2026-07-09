@@ -7,8 +7,9 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**v0.2.0** — agent OS MVP **plus** coding agent + smart-contract security arc
-(Phases 17–25). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/roadmap.md`](docs/roadmap.md).
+**v0.2.1** — agent OS + SC security arc, Unix install/`~/.cortex`, Wave A
+daily-driver polish, Foundry helpers plugin. See [`CHANGELOG.md`](CHANGELOG.md)
+and [`docs/roadmap.md`](docs/roadmap.md).
 
 | Area | Status |
 |------|--------|
