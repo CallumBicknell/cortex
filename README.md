@@ -150,7 +150,9 @@ cortex run "Summarize this repo" --model ollama --yolo
 cortex run "Audit this Foundry project for reentrancy" --skills sc_security,solidity --yolo
 cortex run "Refactor carefully" --plan --verify --yolo
 cortex skills import ./path/to/SKILL.md --dry-run
-cortex chat --model openai
+cortex chat                 # full-screen TUI (Claude Code–style)
+cortex chat --model proxy
+cortex chat --plain         # line REPL
 
 # Sessions (project .cortex/data or ~/.cortex/data)
 cortex sessions list

@@ -37,9 +37,25 @@ fn tools_list_prints_read_file() {
 #[test]
 fn run_mock_json() {
     let root = repo_root();
+    let home = tempdir().expect("home");
     let (_tmp, db) = isolated_db();
+    // Isolate models so developer ~/.cortex (proxy/openai) does not hijack CI/local tests.
     cargo_bin_cmd!("cortex")
         .current_dir(&root)
+        .env("CORTEX_HOME", home.path())
+        .env("CORTEX_DATABASE", &db)
+        .args([
+            "setup",
+            "--force",
+            "--default-model",
+            "default",
+            "--no-wizard",
+        ])
+        .assert()
+        .success();
+    cargo_bin_cmd!("cortex")
+        .current_dir(&root)
+        .env("CORTEX_HOME", home.path())
         .env("CORTEX_DATABASE", &db)
         .args([
             "run",

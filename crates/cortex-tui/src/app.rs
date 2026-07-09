@@ -1,4 +1,4 @@
-//! TUI application state.
+//! TUI application state — Claude Code–style chat surface.
 
 use crate::host::TuiHost;
 use anyhow::Result;
@@ -6,12 +6,12 @@ use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
 use ratatui::widgets::ListState;
 
-/// A display line in the transcript.
+/// A display block in the conversation.
 #[derive(Debug, Clone)]
 pub struct MessageLine {
-    /// Role label.
+    /// Role label: you | cortex | tool | system.
     pub role: String,
-    /// Body text.
+    /// Body text (may contain newlines).
     pub content: String,
 }
 
@@ -40,6 +40,14 @@ impl MessageLine {
         }
     }
 
+    /// Tool activity line.
+    pub fn tool(content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".into(),
+            content: content.into(),
+        }
+    }
+
     /// From a session message.
     pub fn from_message(m: &Message) -> Self {
         let role = match m.role {
@@ -51,10 +59,13 @@ impl MessageLine {
         let mut content = m.content.clone();
         if !m.tool_calls.is_empty() {
             let names: Vec<_> = m.tool_calls.iter().map(|t| t.name.as_str()).collect();
-            content.push_str(&format!("\n[tools: {}]", names.join(", ")));
+            if !content.is_empty() {
+                content.push('\n');
+            }
+            content.push_str(&format!("→ {}", names.join(", ")));
         }
-        if content.len() > 4000 {
-            content.truncate(4000);
+        if content.len() > 12_000 {
+            content.truncate(12_000);
             content.push('…');
         }
         Self {
@@ -118,14 +129,18 @@ pub struct App {
     pub session: Session,
     /// Transcript lines.
     pub lines: Vec<MessageLine>,
-    /// Scroll offset from bottom (0 = bottom).
+    /// Scroll offset from bottom (0 = stick to bottom).
     pub scroll: u16,
-    /// Tool / event logs.
+    /// Recent tool activity (footer strip / optional).
     pub logs: Vec<String>,
-    /// Input buffer.
+    /// Input buffer (may contain newlines).
     pub input: String,
+    /// Cursor position in input (byte index, simplified: end of string for now).
+    pub input_cursor: usize,
     /// Whether the input box is focused.
     pub input_focused: bool,
+    /// Show sessions drawer.
+    pub show_sessions: bool,
     /// Agent currently running.
     pub running: bool,
     /// Auto-approve tools.
@@ -138,6 +153,8 @@ pub struct App {
     pub status: String,
     /// Live streaming assistant draft (while a run is in progress).
     pub streaming: Option<String>,
+    /// Last activity line (tool chip under stream).
+    pub activity: Option<String>,
 }
 
 impl App {
@@ -152,28 +169,33 @@ impl App {
         if !sessions.is_empty() {
             session_list.select(Some(0));
         }
+        let welcome = format!(
+            "Cortex · {} · {}\n\nType a message and press Enter to send.\nCtrl+J newline · Ctrl+B sessions · Ctrl+C cancel · /quit to exit",
+            host.model_alias,
+            host.workspace.display()
+        );
         let mut app = Self {
             workspace: host.workspace.display().to_string(),
-            model_label: format!("{} ({}/{})", host.model_alias, host.provider_id, host.model),
+            model_label: format!("{} · {}/{}", host.model_alias, host.provider_id, host.model),
             database: host.database.display().to_string(),
             sessions,
             session_list,
             session,
-            lines: vec![MessageLine::system(
-                "Cortex TUI — type a message and press Enter. Tab focus · n new · r reload · y yolo · q quit · Ctrl-C cancel run",
-            )],
+            lines: vec![MessageLine::system(welcome)],
             scroll: 0,
             logs: Vec::new(),
             input: String::new(),
+            input_cursor: 0,
             input_focused: true,
+            show_sessions: false,
             running: false,
             yolo: host.yolo,
             max_turns: host.max_turns,
             skills: host.skills.clone(),
             status: "ready".into(),
             streaming: None,
+            activity: None,
         };
-        // If sessions exist, load the first one into the transcript.
         if let Some(s) = app.sessions.first().cloned() {
             if let Ok(loaded) = host.load_session(s.id).await {
                 app.set_session(loaded);
@@ -187,10 +209,13 @@ impl App {
         let model = self.session.model.clone();
         let ws = self.session.workspace.clone();
         self.session = Session::new(ws, model);
-        self.lines = vec![MessageLine::system("New session started.")];
+        self.lines = vec![MessageLine::system("New session.")];
         self.logs.clear();
+        self.streaming = None;
+        self.activity = None;
         self.session_list.select(None);
         self.status = "new session".into();
+        self.scroll = 0;
     }
 
     /// Replace active session and rebuild transcript.
@@ -207,6 +232,8 @@ impl App {
         }
         self.session = session;
         self.scroll = 0;
+        self.streaming = None;
+        self.activity = None;
     }
 
     /// Reload session list from store.
@@ -215,9 +242,16 @@ impl App {
         Ok(())
     }
 
-    /// Cycle focus: input ↔ session list.
-    pub fn cycle_focus(&mut self) {
-        self.input_focused = !self.input_focused;
+    /// Toggle sessions drawer.
+    pub fn toggle_sessions(&mut self) {
+        self.show_sessions = !self.show_sessions;
+        if self.show_sessions {
+            self.input_focused = false;
+            self.status = "sessions · ↑/↓ · Enter open · Ctrl+B hide".into();
+        } else {
+            self.input_focused = true;
+            self.status = "ready".into();
+        }
     }
 
     /// Select previous session in list.
@@ -244,13 +278,18 @@ impl App {
         self.session_list.select(Some(next));
     }
 
-    /// Load currently selected session (call after Up/Down + Enter on list).
+    /// Load currently selected session.
     pub async fn load_selected(&mut self, host: &TuiHost) -> Result<()> {
         if let Some(i) = self.session_list.selected() {
             if let Some(s) = self.sessions.get(i).cloned() {
                 let loaded = host.load_session(s.id).await?;
                 self.set_session(loaded);
-                self.status = format!("loaded {}", s.id);
+                self.show_sessions = false;
+                self.input_focused = true;
+                self.status = format!(
+                    "loaded {}",
+                    &s.id.to_string()[..8.min(s.id.to_string().len())]
+                );
             }
         }
         Ok(())
@@ -261,36 +300,68 @@ impl App {
         self.lines.push(line);
     }
 
+    /// Insert newline into composer.
+    pub fn insert_newline(&mut self) {
+        self.input.push('\n');
+        self.input_cursor = self.input.len();
+    }
+
+    /// Insert a character at the end of input.
+    pub fn insert_char(&mut self, c: char) {
+        self.input.push(c);
+        self.input_cursor = self.input.len();
+    }
+
+    /// Backspace.
+    pub fn backspace(&mut self) {
+        self.input.pop();
+        self.input_cursor = self.input.len();
+    }
+
+    /// Take and clear the input buffer.
+    pub fn take_input(&mut self) -> String {
+        let s = std::mem::take(&mut self.input);
+        self.input_cursor = 0;
+        s
+    }
+
     /// Apply a finished run.
     pub fn apply_run_update(&mut self, update: RunUpdate) {
         self.streaming = None;
+        self.activity = None;
         self.session = update.session;
         if !update.assistant.is_empty() {
             self.push_line(MessageLine::assistant(update.assistant));
         }
+        for log in &update.logs {
+            // Keep a short activity trail as system chips, not walls of text.
+            if log.starts_with('[') || log.starts_with('→') || log.starts_with('─') {
+                self.push_line(MessageLine::tool(log.clone()));
+            }
+        }
         self.logs.extend(update.logs);
-        if self.logs.len() > 200 {
-            let drain = self.logs.len() - 200;
+        if self.logs.len() > 100 {
+            let drain = self.logs.len() - 100;
             self.logs.drain(0..drain);
         }
-        // One-line run summary in the log pane.
-        self.logs.push(format!(
-            "── run · {} turns · tools ok={} err={} · {}ms · {}",
+        let summary = format!(
+            "{} · {} turns · tools {}/{} · {}ms",
+            if update.ok { "done" } else { "failed" },
             update.turns,
             update.tools_ok,
-            update.tools_err,
-            update.duration_ms,
-            if update.ok { "ok" } else { "fail" }
-        ));
+            update.tools_ok + update.tools_err,
+            update.duration_ms
+        );
         if let Some(err) = update.error {
             self.push_line(MessageLine::system(format!("error: {err}")));
-            self.status = format!("error · {}", update.status);
+            self.status = format!("error · {summary}");
         } else {
-            self.status = update.status;
+            self.status = summary;
         }
         if !update.ok {
             self.status = format!("! {}", self.status);
         }
+        self.scroll = 0;
     }
 
     /// Apply a live UI event from a background run.
@@ -299,17 +370,17 @@ impl App {
             UiEvent::StreamDelta(text) => {
                 let buf = self.streaming.get_or_insert_with(String::new);
                 buf.push_str(&text);
-                // Cap live buffer for UI snappiness.
-                if buf.len() > 12_000 {
-                    let keep = buf.len() - 8_000;
+                if buf.len() > 24_000 {
+                    let keep = buf.len() - 16_000;
                     *buf = format!("…{}", &buf[keep..]);
                 }
                 self.status = "streaming…".into();
             }
             UiEvent::ToolLog(line) => {
+                self.activity = Some(line.clone());
                 self.logs.push(line);
-                if self.logs.len() > 200 {
-                    let drain = self.logs.len() - 200;
+                if self.logs.len() > 100 {
+                    let drain = self.logs.len() - 100;
                     self.logs.drain(0..drain);
                 }
             }
@@ -320,5 +391,15 @@ impl App {
                 self.apply_run_update(*update);
             }
         }
+    }
+
+    /// Scroll transcript up (older).
+    pub fn scroll_up(&mut self, n: u16) {
+        self.scroll = self.scroll.saturating_add(n);
+    }
+
+    /// Scroll transcript down (newer).
+    pub fn scroll_down(&mut self, n: u16) {
+        self.scroll = self.scroll.saturating_sub(n);
     }
 }

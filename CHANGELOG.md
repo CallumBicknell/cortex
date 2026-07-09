@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Mock setup**: loading `models.toml` no longer fails when Anthropic is listed
   without `ANTHROPIC_API_KEY` (provider/alias skipped until a key is set)
 
+### Changed
+
+- **`cortex chat`**: full-screen Claude Code–style TUI by default (use `--plain`
+  for the old line REPL); cleaner conversation layout, multi-line composer,
+  sessions modal, live stream + tool chips
+
 ### Added
 
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
