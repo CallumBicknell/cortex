@@ -174,13 +174,23 @@
 
 ---
 
+# Phase 11 — Plugin system (in-process MVP)
+
+* [x] P11.1 `cortex-plugins` crate: `Plugin` trait, `PluginMeta`, `PluginContext`
+* [x] P11.2 `PluginsConfig` + `config/plugins.toml`
+* [x] P11.3 `PluginHost` lifecycle (load/init/start/stop)
+* [x] P11.4 Builtin `echo` plugin → `plugin_echo` tool
+* [x] P11.5 CLI bootstrap load + `cortex plugins list`
+* [x] P11.6 Tests + honest `docs/plugin-system.md`
+
+---
+
 # Later phases (summary)
 
 See implementation plan for full task lists:
 
 | Phase | Theme |
 |-------|--------|
-| 11 | Plugin system |
 | 12 | Summaries + embeddings |
 | 13 | Parser / tree-sitter / LSP |
 | 14 | TUI |

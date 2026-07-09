@@ -14,7 +14,6 @@ use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, RunOutput};
 use cortex_security::{redact_text, SecurityPolicy};
 use cortex_skills::{select_skills, SkillRegistry};
-use cortex_tools::ToolRegistry;
 use cortex_workspace::RepoMap;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
@@ -136,6 +135,11 @@ enum Commands {
         #[command(subcommand)]
         command: SecurityCmd,
     },
+    /// In-process plugins (builtin factory).
+    Plugins {
+        #[command(subcommand)]
+        command: PluginsCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -180,6 +184,12 @@ enum SkillsCmd {
 enum SecurityCmd {
     /// Show the effective security policy.
     Show,
+}
+
+#[derive(Debug, Subcommand)]
+enum PluginsCmd {
+    /// List loaded plugins and known builtins.
+    List,
 }
 
 #[derive(Debug, Subcommand)]
@@ -287,7 +297,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             .await;
         }
         Commands::Tools { command } => match command {
-            ToolsCmd::List => cmd_tools_list()?,
+            ToolsCmd::List => {
+                return cmd_tools_list(cli.workspace, cli.config).await;
+            }
         },
         Commands::Models { command } => match command {
             ModelsCmd::List => cmd_models_list(cli.workspace, cli.config).await?,
@@ -303,6 +315,43 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         }
         Commands::Security { command } => {
             cmd_security(cli.workspace, cli.config, command)?;
+        }
+        Commands::Plugins { command } => {
+            return cmd_plugins(cli.workspace, cli.config, command).await;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_plugins(
+    workspace: Option<PathBuf>,
+    config: Option<PathBuf>,
+    command: PluginsCmd,
+) -> Result<ExitCode> {
+    match command {
+        PluginsCmd::List => {
+            let paths = Paths::resolve(workspace, config)?;
+            let app = AppContext::bootstrap(paths, false).await?;
+            println!(
+                "Known builtins: {}",
+                cortex_plugins::builtin_ids().join(", ")
+            );
+            println!();
+            if app.plugins.is_empty() {
+                println!("No plugins loaded (check config/plugins.toml).");
+            } else {
+                println!("Loaded plugins:");
+                for st in app.plugins.status() {
+                    println!(
+                        "  {:12} v{:<8} [{:?}]  {}",
+                        st.meta.id, st.meta.version, st.state, st.meta.description
+                    );
+                }
+            }
+            println!();
+            println!("Tools from plugins (and all tools):");
+            // Re-list is heavy; just point at tools list for full set.
+            println!("  (use `cortex tools list` — look for plugin_* names)");
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -861,14 +910,15 @@ fn parse_session_id(s: &str) -> Result<SessionId> {
     SessionId::from_str(s).map_err(|e| anyhow::anyhow!("invalid session id: {e}"))
 }
 
-fn cmd_tools_list() -> Result<()> {
-    let mut reg = ToolRegistry::new();
-    cortex_tools::register_default_tools(&mut reg)?;
+async fn cmd_tools_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<ExitCode> {
+    // Full bootstrap so MCP + plugins appear alongside builtins.
+    let paths = Paths::resolve(workspace, config)?;
+    let app = AppContext::bootstrap(paths, false).await?;
     println!("Registered tools:\n");
-    for spec in reg.specs() {
+    for spec in app.tools.registry().specs() {
         println!("  {:16}  {}", spec.name, spec.description);
     }
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 async fn cmd_models_list(workspace: Option<PathBuf>, config: Option<PathBuf>) -> Result<()> {

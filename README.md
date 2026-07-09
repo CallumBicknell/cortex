@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–10 complete: agent OS core through MCP and advanced tools. Still missing: plugin system, TUI, and OS-level sandboxing (bubblewrap/firejail).
+**Early development (v0.1.0).** Phases 0–11 complete: agent OS core through MCP, CDP browser tools, and in-process plugins. Still missing: TUI, dynamic plugin loading, and OS-level sandboxing (bubblewrap/firejail).
 
 | Area | Status |
 |------|--------|
@@ -27,10 +27,11 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Skills + prompts (capability packs) | Implemented |
 | Security policy + audit + redaction | Implemented |
 | MCP client + docker/search/patch tools | Implemented |
+| Browser tools via CDP (Obscura/Chrome) | Implemented |
+| In-process plugins (`echo` demo) | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| Skills / plugins / MCP | Planned (Phases 8–11) |
 | Python SDK | Stub only |
-| TUI / HTTP API | Planned (later) |
+| TUI / HTTP API / dynamic plugins | Planned (later) |
 
 ## Design principles
 
@@ -61,8 +62,9 @@ crates/
   cortex-skills/    # Skill packs (not hard-coded modes)
   cortex-security/  # Policy, redaction, approval audit
   cortex-mcp/       # MCP stdio client → Tool adapters
+  cortex-plugins/   # In-process plugin host + builtins
   cortex-cli/       # `cortex` binary
-config/             # Default TOML (models, security, mcp, browser)
+config/             # Default TOML (models, security, mcp, browser, plugins)
 prompts/            # System + skill markdown
 migrations/         # SQL schema
 examples/           # Usage walkthroughs
@@ -115,13 +117,14 @@ cargo run -p cortex-cli -- skills list
 cargo run -p cortex-cli -- skills select "audit solidity with forge"
 cargo run -p cortex-cli -- run "fix cargo test" --skills rust,testing
 cargo run -p cortex-cli -- security show
+cargo run -p cortex-cli -- plugins list
 
 # Browser via CDP (Obscura default — start `obscura` or Chrome first)
 # cargo run -p cortex-cli -- run "Open https://example.com and report the title" \
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), and [`docs/browser.md`](docs/browser.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), and [`docs/plugin-system.md`](docs/plugin-system.md).
 
 ### Configuration
 

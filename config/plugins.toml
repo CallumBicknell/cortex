@@ -1,0 +1,13 @@
+# In-process plugins (builtin factory — no dynamic loading yet).
+# See docs/plugin-system.md
+
+# Master switch
+enabled = true
+
+# Builtin demo plugin — contributes `plugin_echo`
+[[plugins]]
+id = "echo"
+enabled = true
+# Optional settings:
+# [plugins.settings]
+# prefix = ""

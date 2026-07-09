@@ -3,6 +3,7 @@
 use anyhow::{bail, Context, Result};
 use cortex_llm::{ModelsConfig, ProviderRegistry, ResolvedModel};
 use cortex_mcp::{load_and_register_mcp, McpConfig};
+use cortex_plugins::{PluginHost, PluginsConfig};
 use cortex_security::{PolicyApprover, SecurityPolicy};
 use cortex_tools::{
     register_default_tools_with_browser, BrowserConfig, BrowserHandle, ToolContext, ToolExecutor,
@@ -96,6 +97,8 @@ pub struct AppContext {
     pub yolo: bool,
     /// Loaded security policy.
     pub security: Arc<SecurityPolicy>,
+    /// In-process plugin host (keeps plugins alive for the process).
+    pub plugins: PluginHost,
 }
 
 impl AppContext {
@@ -118,6 +121,14 @@ impl AppContext {
             }
         }
 
+        let plugins_cfg = load_plugins_config(&paths)?;
+        let plugins = PluginHost::load(&paths.workspace, &plugins_cfg, &mut tool_reg)
+            .await
+            .context("load plugins")?;
+        if !plugins.is_empty() {
+            info!(count = plugins.len(), "plugins loaded");
+        }
+
         let tools = ToolExecutor::new(Arc::new(tool_reg));
 
         let security = load_security_policy(&paths, yolo)?;
@@ -128,6 +139,7 @@ impl AppContext {
             tools,
             yolo,
             security: Arc::new(security),
+            plugins,
         })
     }
 
@@ -209,6 +221,27 @@ pub fn load_browser_handle(paths: &Paths) -> BrowserHandle {
         }
     }
     BrowserHandle::from_env_or_default()
+}
+
+/// Load plugins.toml (defaults when missing).
+pub fn load_plugins_config(paths: &Paths) -> Result<PluginsConfig> {
+    let candidates = [
+        std::env::var("CORTEX_PLUGINS_CONFIG")
+            .ok()
+            .map(PathBuf::from),
+        Some(paths.cortex_dir.join("plugins.toml")),
+        Some(PathBuf::from("config/plugins.toml")),
+        Some(paths.workspace.join("config/plugins.toml")),
+    ];
+    for cand in candidates.into_iter().flatten() {
+        if cand.is_file() {
+            let cfg = PluginsConfig::from_file(&cand)
+                .map_err(|e| anyhow::anyhow!("load plugins config {}: {e}", cand.display()))?;
+            info!(path = %cand.display(), "loaded plugins config");
+            return Ok(cfg);
+        }
+    }
+    Ok(PluginsConfig::default())
 }
 
 /// Load MCP config if present (optional).
