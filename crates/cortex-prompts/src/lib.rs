@@ -191,6 +191,10 @@ const BUILTIN_PROMPTS: &[(&str, &str)] = &[
         include_str!("../../../prompts/skills/findings_schema.md"),
     ),
     (
+        "skills/web3_catalog",
+        include_str!("../../../prompts/skills/web3_catalog.md"),
+    ),
+    (
         "skills/skill_creator",
         include_str!("../../../prompts/skills/skill_creator.md"),
     ),

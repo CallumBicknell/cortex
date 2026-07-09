@@ -148,6 +148,11 @@ fn chrono_like_now() -> String {
 }
 
 fn validate_skill_id(id: &str) -> Result<()> {
+    validate_skill_id_pub(id)
+}
+
+/// Validate skill id (public for import helpers).
+pub fn validate_skill_id_pub(id: &str) -> Result<()> {
     if id.is_empty()
         || id.len() > 64
         || !id

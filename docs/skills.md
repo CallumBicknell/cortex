@@ -63,8 +63,19 @@ Top matches (capped) are activated. Tool schemas sent to the model are the **uni
 ```bash
 cortex skills list
 cortex skills select "audit this forge contract"
+cortex skills import ./path/to/SKILL.md --id my_pack
+cortex skills import https://example.com/SKILL.md --dry-run
 cortex run "fix rust compile error" --skills rust,testing
 ```
+
+### Importing external skills (skills.eth.sh)
+
+```bash
+cortex skills import https://ethskills.com/SKILL.md --id ethskills
+# writes .cortex/skills/ethskills.toml + .cortex/prompts/skills/ethskills.md
+```
+
+See [`web3-recipes.md`](web3-recipes.md) and the `web3_catalog` skill.
 
 ## Prompts
 

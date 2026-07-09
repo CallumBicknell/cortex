@@ -361,5 +361,34 @@ pub fn builtin_skills() -> Vec<Skill> {
             .tools(["read_file", "glob_files", "list_dir", "code_outline"])
             .prompts(["review"])
             .tags(["code review", "quality", "pr review", "review this pr"]),
+        // Web3 catalog pointer — skills.eth.sh discovery (no auto-download)
+        Skill::new(
+            "web3_catalog",
+            "Discover Web3 agent skills and MCP servers from skills.eth.sh. \
+             Use when the user asks what Web3 tools exist, how to install Pashov/QuillShield/ \
+             Foundry MCP/Blockscout, or which eth.sh pack to use for DeFi/security/onchain data.",
+        )
+        .tools([
+            "http_request",
+            "web_search",
+            "read_file",
+            "shell",
+            "skill_list",
+            "skill_save",
+        ])
+        .prompts(["skills/web3_catalog"])
+        .tags([
+            "web3_catalog",
+            "skills.eth.sh",
+            "eth.sh",
+            "web3 skills",
+            "onchain skills",
+            "defi skills",
+            "mcp catalog",
+            "pashov install",
+            "quillshield",
+            "foundry mcp",
+            "blockscout mcp",
+        ]),
     ]
 }

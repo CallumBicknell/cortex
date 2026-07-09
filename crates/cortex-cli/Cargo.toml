@@ -35,6 +35,7 @@ cortex-tools = { path = "../cortex-tools" }
 cortex-tui = { path = "../cortex-tui" }
 cortex-workspace = { path = "../cortex-workspace" }
 dotenvy = { workspace = true }
+reqwest = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

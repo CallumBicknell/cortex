@@ -526,6 +526,7 @@ dependencies = [
  "cortex-workspace",
  "dotenvy",
  "predicates",
+ "reqwest",
  "serde_json",
  "tempfile",
  "tokio",

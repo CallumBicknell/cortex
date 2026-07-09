@@ -323,11 +323,20 @@ Optional later: `plugins/foundry_helpers` fixed-arg forge wrappers.
 
 ---
 
+# Phase 23 — Web3 skill import / skills.eth.sh bridge
+
+* [x] P23.1 `web3_catalog` skill + prompt
+* [x] P23.2 `cortex skills import` (path/https SKILL.md → learned pack)
+* [x] P23.3 Load `.cortex/prompts` into agent context
+* [x] P23.4 Recipes doc (`docs/web3-recipes.md`)
+* [x] P23.5 Tests + list learned skills in CLI
+
+---
+
 # Upcoming (planned)
 
 | Phase | Theme |
 |-------|--------|
-| P23 | Web3 skill import / skills.eth.sh bridge |
 | P24 | Parallel read tools, plan/verify polish |
 | P25 | Docs/release productization |
 

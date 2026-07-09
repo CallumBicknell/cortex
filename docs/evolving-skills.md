@@ -53,10 +53,13 @@ See also: [Anthropic skill-creator](https://github.com/anthropics/skills/tree/ma
 
 ```bash
 ls .cortex/skills/
-cargo run -p cortex-cli -- skills list   # builtins; learned appear when selected via store
+cortex skills list                      # builtins + learned
+cortex skills import ./SKILL.md --id x  # external pack → learned skill
 ```
 
 Learned skills are selected when:
 
 - Explicit: `--skills my_workflow`
 - Heuristic tags match the prompt / project
+
+Imported prompt bodies load from `.cortex/prompts/` on each run.

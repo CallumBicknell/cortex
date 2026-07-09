@@ -80,6 +80,17 @@ cortex eval run   # includes sc_reentrancy_finding, sc_xray_shape, …
 This is **not** a vendored Pashov 12-agent tree; deeper external packs remain at
 [skills.eth.sh](https://skills.eth.sh/) (Pashov, QuillShield).
 
+### Skill import bridge (P23)
+
+```bash
+cortex skills import ./path/to/SKILL.md --id my_pack
+cortex skills import https://example.com/SKILL.md --dry-run   # preview only
+cortex run "…" --skills my_pack
+```
+
+- Catalog skill: `web3_catalog` (skills.eth.sh guidance; no silent downloads)
+- Recipes: [`docs/web3-recipes.md`](web3-recipes.md)
+
 ## Project fingerprint
 
 `ProjectInfo` treats as Solidity/EVM signals:

@@ -16,7 +16,10 @@ use cortex_runtime::{
     RunOutput, SummarizeConfig,
 };
 use cortex_security::{redact_text, SecurityPolicy};
-use cortex_skills::{select_skills, SkillRegistry, SkillStore};
+use cortex_skills::{
+    import_from_markdown, read_skill_source, select_skills, write_imported_skill, ImportOptions,
+    SkillRegistry, SkillStore,
+};
 use cortex_workspace::RepoMap;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
@@ -241,7 +244,7 @@ enum WorkspaceCmd {
 
 #[derive(Debug, Subcommand)]
 enum SkillsCmd {
-    /// List builtin skills.
+    /// List builtin and learned skills.
     List,
     /// Show which skills would activate for a prompt.
     Select {
@@ -250,6 +253,24 @@ enum SkillsCmd {
         /// Optional explicit skill ids.
         #[arg(long, value_delimiter = ',')]
         skills: Vec<String>,
+    },
+    /// Import a SKILL.md (or directory containing it) from a path or https URL.
+    /// Does not auto-run on startup — explicit only.
+    Import {
+        /// Local path or https:// URL to SKILL.md (or a directory with SKILL.md).
+        source: String,
+        /// Override skill id ([A-Za-z0-9_-]+).
+        #[arg(long)]
+        id: Option<String>,
+        /// Comma-separated tool allow-list (default: coding + shell + web tools).
+        #[arg(long, value_delimiter = ',')]
+        tools: Vec<String>,
+        /// Extra tags (comma-separated).
+        #[arg(long, value_delimiter = ',')]
+        tags: Vec<String>,
+        /// Parse and print without writing files.
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -427,7 +448,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             cmd_workspace(cli.workspace, command)?;
         }
         Commands::Skills { command } => {
-            cmd_skills(cli.workspace, command)?;
+            cmd_skills(cli.workspace, command).await?;
         }
         Commands::Security { command } => {
             cmd_security(cli.workspace, cli.config, command)?;
@@ -847,7 +868,10 @@ fn build_context_for_task(
     explicit_skills: &[String],
     quiet: bool,
 ) -> ContextBuilder {
-    let prompts = PromptCatalog::with_builtins();
+    let mut prompts = PromptCatalog::with_builtins();
+    // Workspace + learned prompts (imported skills land under .cortex/prompts/).
+    let _ = prompts.load_dir(workspace.join("prompts"));
+    let _ = prompts.load_dir(workspace.join(".cortex").join("prompts"));
     // Prefer file-based system prompt when present.
     let system = prompts
         .render("system", &Default::default())
@@ -880,6 +904,17 @@ fn build_context_for_task(
     let mut skill_body = String::from("## Active skills\n");
     for id in &selection.skill_ids {
         skill_body.push_str(&format!("- {id}\n"));
+        // Attach learned skill notes when present.
+        if let Ok(docs) = store.load_all() {
+            if let Some(doc) = docs.iter().find(|d| d.skill.id == *id) {
+                if !doc.notes.trim().is_empty() {
+                    skill_body.push_str(&format!(
+                        "  notes: {}\n",
+                        doc.notes.lines().next().unwrap_or("")
+                    ));
+                }
+            }
+        }
     }
     skill_body.push('\n');
     for pid in &selection.prompts {
@@ -893,33 +928,114 @@ fn build_context_for_task(
         .with_allowed_tools(selection.tools)
 }
 
-fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()> {
-    let reg = SkillRegistry::with_builtins();
+async fn cmd_skills(workspace: Option<PathBuf>, command: SkillsCmd) -> Result<()> {
+    let root = workspace
+        .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
+        .canonicalize()
+        .context("workspace")?;
+    let store = SkillStore::for_workspace(&root);
+    let reg = SkillRegistry::with_builtins_and_store(&store);
     match command {
         SkillsCmd::List => {
-            println!("{:<14}  {:<8}  DESCRIPTION", "ID", "ALWAYS");
+            println!(
+                "{:<18}  {:<8}  {:<10}  DESCRIPTION",
+                "ID", "ALWAYS", "ORIGIN"
+            );
             for s in reg.all() {
+                let origin = store
+                    .load_all()
+                    .ok()
+                    .and_then(|docs| {
+                        docs.into_iter()
+                            .find(|d| d.skill.id == s.id)
+                            .map(|d| format!("{:?}", d.origin).to_ascii_lowercase())
+                    })
+                    .unwrap_or_else(|| "builtin".into());
                 println!(
-                    "{:<14}  {:<8}  {}",
+                    "{:<18}  {:<8}  {:<10}  {}",
                     s.id,
                     if s.always_on { "yes" } else { "no" },
+                    origin,
                     s.description
                 );
             }
         }
         SkillsCmd::Select { prompt, skills } => {
-            let root = workspace
-                .unwrap_or_else(|| std::env::current_dir().expect("cwd"))
-                .canonicalize()
-                .ok();
-            let project = root
-                .as_ref()
-                .and_then(|r| RepoMap::build(r).ok())
-                .map(|m| m.project);
+            let project = RepoMap::build(&root).ok().map(|m| m.project);
             let sel = select_skills(&reg, &prompt, project.as_ref(), &skills);
             println!("skills: {}", sel.skill_ids.join(", "));
             println!("tools:  {}", sel.tools.join(", "));
             println!("prompts: {}", sel.prompts.join(", "));
+        }
+        SkillsCmd::Import {
+            source,
+            id,
+            tools,
+            tags,
+            dry_run,
+        } => {
+            let (source_label, content) =
+                if source.starts_with("https://") || source.starts_with("http://") {
+                    if source.starts_with("http://") {
+                        anyhow::bail!("refusing plain http:// skill import (use https://)");
+                    }
+                    eprintln!("fetching {source} …");
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(60))
+                        .user_agent(format!(
+                            "cortex-skills-import/{}",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                        .build()?;
+                    let resp = client
+                        .get(&source)
+                        .send()
+                        .await
+                        .with_context(|| format!("GET {source}"))?;
+                    if !resp.status().is_success() {
+                        anyhow::bail!("fetch failed: HTTP {}", resp.status());
+                    }
+                    let text = resp.text().await.context("read response body")?;
+                    (source.clone(), text)
+                } else {
+                    let path = PathBuf::from(&source);
+                    let path = if path.is_absolute() {
+                        path
+                    } else {
+                        root.join(path)
+                    };
+                    read_skill_source(&path).map_err(|e| anyhow::anyhow!("{e}"))?
+                };
+
+            let imported = import_from_markdown(
+                &content,
+                ImportOptions {
+                    id,
+                    tools,
+                    tags,
+                    source: source_label.clone(),
+                },
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            println!("id:          {}", imported.document.skill.id);
+            println!("description: {}", imported.document.skill.description);
+            println!("tools:       {}", imported.document.skill.tools.join(", "));
+            println!("tags:        {}", imported.document.skill.tags.join(", "));
+            println!("prompt_id:   {}", imported.prompt_id);
+            println!("source:      {source_label}");
+            if dry_run {
+                println!("dry-run: not written");
+                return Ok(());
+            }
+            let (skill_path, prompt_path) =
+                write_imported_skill(&root, &imported).map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("wrote skill  {}", skill_path.display());
+            println!("wrote prompt {}", prompt_path.display());
+            println!(
+                "activate with: cortex run \"…\" --skills {}",
+                imported.document.skill.id
+            );
         }
     }
     Ok(())

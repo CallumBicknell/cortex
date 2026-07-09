@@ -236,4 +236,20 @@ mod tests {
         );
         assert!(sel.prompts.iter().any(|p| p.contains("sc_xray")));
     }
+
+    #[test]
+    fn selects_web3_catalog() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "what web3 skills are on skills.eth.sh for security?",
+            None,
+            &[],
+        );
+        assert!(
+            sel.skill_ids.contains(&"web3_catalog".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+    }
 }
