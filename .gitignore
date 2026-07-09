@@ -72,3 +72,6 @@ Thumbs.db
 *.temp
 # Local Cortex runtime data
 .cortex/
+
+# Local agent / session tooling (not part of the product tree)
+.pi/
