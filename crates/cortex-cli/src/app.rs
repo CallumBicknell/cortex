@@ -132,11 +132,20 @@ impl AppContext {
         }
 
         // Memory tools when SQLite DB is available (created on first open).
-        if let Ok(pool) = open_sqlite(&paths.database).await {
-            let collection = paths.workspace.to_string_lossy().to_string();
-            let handle = MemoryHandle::new(VectorStore::new(pool), collection);
-            register_memory_tools(&mut tool_reg, handle);
-            info!("memory_search tool registered");
+        match open_sqlite(&paths.database).await {
+            Ok(pool) => {
+                let collection = paths.workspace.to_string_lossy().to_string();
+                let handle = MemoryHandle::new(VectorStore::new(pool), collection);
+                register_memory_tools(&mut tool_reg, handle);
+                info!("memory_search tool registered");
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %paths.database.display(),
+                    error = %e,
+                    "sqlite memory store unavailable; memory_search not registered"
+                );
+            }
         }
 
         // Self-evolving skills under .cortex/skills/
