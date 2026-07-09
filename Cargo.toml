@@ -41,7 +41,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["json"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower-http = { version = "0.7", features = ["cors", "trace"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 toml = "1.1"
 thiserror = "2.0"
@@ -56,7 +56,7 @@ dotenvy = "0.15"
 ignore = "0.4"
 walkdir = "2"
 regex = "1"
-tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
 url = "2"
 tree-sitter = "0.26"
 tree-sitter-rust = "0.24"
