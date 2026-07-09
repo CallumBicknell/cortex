@@ -111,6 +111,23 @@ fn setup_default_model_noninteractive() {
     let body = std::fs::read_to_string(home.path().join("models.toml")).unwrap();
     assert!(body.contains("default_model = \"ollama\""));
     assert!(body.contains("model = \"llama3.2\""));
+    assert!(body.contains("[providers.anthropic]"));
+}
+
+#[test]
+fn setup_anthropic_noninteractive() {
+    let home = tempdir().expect("home");
+    let ws = tempdir().expect("ws");
+    cargo_bin_cmd!("cortex")
+        .current_dir(ws.path())
+        .env("CORTEX_HOME", home.path())
+        .args(["setup", "--force", "--default-model", "anthropic"])
+        .assert()
+        .success();
+    let body = std::fs::read_to_string(home.path().join("models.toml")).unwrap();
+    assert!(body.contains("default_model = \"anthropic\""));
+    assert!(body.contains("[models.anthropic]"));
+    assert!(body.contains("kind = \"anthropic\""));
 }
 
 #[test]

@@ -14,8 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - External plugin flag `allow_nonzero` for analyzer-style CLIs
 - **TUI**: live token streaming, tool/sub-agent log events, run summary
   (turns · tools ok/err · duration)
-- **`cortex setup --wizard`**: interactive default model picker; also
-  `--default-model` / `--ollama-model` for non-interactive setup
+- **`cortex setup` TUI wizard**: full-screen provider picker with auto-detect
+  (OpenAI / Anthropic / OpenRouter keys, Ollama :11434), custom OpenAI-compatible
+  providers, Anthropic native; `--default-model` / `--no-wizard` for scripts
 - **Local install**: `make install` / `scripts/install-local.sh` → `~/.local/bin/cortex`
 
 ## [0.2.1] — 2026-07-09

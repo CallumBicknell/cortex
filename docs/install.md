@@ -85,16 +85,35 @@ cortex setup
 
 ```bash
 make install          # (from repo) rebuild + install to ~/.local/bin
-cortex setup          # create/update ~/.cortex
-cortex setup --force  # rewrite home models.toml
-cortex setup --wizard # interactive default model picker (TTY)
+cortex setup          # TUI wizard on TTY (auto-detect OpenAI/Anthropic/Ollama)
+cortex setup --wizard # force TUI wizard
+cortex setup --no-wizard
 cortex setup --default-model ollama --ollama-model llama3.2
-cortex doctor         # paths + env key presence (never prints secrets)
+cortex setup --default-model anthropic
+cortex doctor
 cortex init           # create project .cortex/ (optional)
 cortex init --web3    # + Foundry MCP + analyzer plugins
 cortex update         # print reinstall command (Unix)
 cortex update --dry-run
 ```
+
+### Setup wizard (TUI)
+
+On an interactive terminal, `cortex setup` opens a **ratatui** wizard:
+
+| Option | Notes |
+|--------|--------|
+| **Auto** | Picks OpenAI → Anthropic → OpenRouter → Ollama → Mock from env / probe |
+| Mock | Offline default |
+| Ollama | Local; probes `127.0.0.1:11434` |
+| OpenAI | Detects `OPENAI_API_KEY` |
+| Anthropic | Detects `ANTHROPIC_API_KEY`; enables native `anthropic` provider |
+| OpenRouter | Detects `OPENROUTER_API_KEY` |
+| **Custom** | Any OpenAI-compatible `base_url` + model + `api_key_env` (Groq, vLLM, …) |
+
+Keys: `↑/↓` select · `Enter` · `Tab` fields (custom) · `Esc` cancel · `s` skip to mock.
+
+Secrets are **never** written to disk — only env var **names**.
 
 ### Project instructions
 

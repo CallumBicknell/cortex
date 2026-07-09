@@ -3,11 +3,13 @@
 mod app;
 mod approver;
 mod db_audit;
+mod setup_config;
+mod setup_tui;
 
 use anyhow::{Context, Result};
 use app::{
-    bootstrap_home, cortex_home, init_tracing, load_dotenv, set_default_model, set_ollama_model_id,
-    write_default_models_toml, AppContext, Paths, SETUP_MODEL_CHOICES,
+    bootstrap_home, cortex_home, init_tracing, load_dotenv, write_default_models_toml, AppContext,
+    Paths,
 };
 use clap::{Parser, Subcommand};
 use cortex_common::SessionId;
@@ -68,14 +70,20 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Create user-global `~/.cortex` (models, skills, data). Safe to re-run.
+    ///
+    /// On a TTY, launches a full-screen setup wizard (unless `--no-wizard` or
+    /// non-interactive flags are set).
     Setup {
         /// Overwrite home models.toml if it exists.
         #[arg(long)]
         force: bool,
-        /// Interactive first-run wizard (pick default model). Requires a TTY.
+        /// Force the TUI setup wizard (requires a TTY).
         #[arg(long)]
         wizard: bool,
-        /// Set default model alias without prompts: default|ollama|openai|openrouter.
+        /// Skip the TUI wizard even on a TTY (bootstrap files only).
+        #[arg(long)]
+        no_wizard: bool,
+        /// Set default model without TUI: default|ollama|openai|anthropic|openrouter.
         #[arg(long, value_name = "ALIAS")]
         default_model: Option<String>,
         /// When default is ollama, set the Ollama model id (e.g. llama3.2).
@@ -444,10 +452,11 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Commands::Setup {
             force,
             wizard,
+            no_wizard,
             default_model,
             ollama_model,
         } => {
-            cmd_setup(force, wizard, default_model, ollama_model)?;
+            cmd_setup(force, wizard, no_wizard, default_model, ollama_model)?;
         }
         Commands::Doctor => {
             cmd_doctor(cli.workspace, cli.config)?;
@@ -1166,6 +1175,7 @@ async fn open_store(paths: &Paths) -> Result<SessionStore> {
 fn cmd_setup(
     force: bool,
     wizard: bool,
+    no_wizard: bool,
     default_model: Option<String>,
     ollama_model: Option<String>,
 ) -> Result<()> {
@@ -1185,31 +1195,33 @@ fn cmd_setup(
     }
 
     let models_path = report.models_path.clone();
-    let mut chosen = default_model;
+    let mut chosen: Option<String> = None;
 
-    if wizard {
-        if !stdin_is_tty() {
-            anyhow::bail!("--wizard requires an interactive terminal (TTY)");
-        }
-        chosen = Some(run_setup_wizard(&models_path)?);
-    } else if let Some(alias) = chosen.clone() {
-        set_default_model(&models_path, &alias)?;
-        println!("✓ default_model = \"{alias}\"");
-        if alias == "ollama" {
-            if let Some(mid) = ollama_model.as_deref() {
-                set_ollama_model_id(&models_path, mid)?;
-                println!("✓ models.ollama.model = \"{mid}\"");
+    // Non-interactive flags win.
+    if let Some(alias) = default_model {
+        let preset = setup_config::preset_from_flags(&alias, ollama_model.as_deref())?;
+        setup_config::write_setup_models_toml(&models_path, &preset)?;
+        println!(
+            "✓ wrote {} (default_model = \"{}\")",
+            models_path.display(),
+            preset.alias()
+        );
+        chosen = Some(preset.alias().to_string());
+    } else {
+        let want_tui = (wizard || stdin_is_tty()) && !no_wizard;
+        if want_tui {
+            if !stdin_is_tty() {
+                anyhow::bail!("setup wizard requires an interactive terminal (TTY); use --default-model or --no-wizard");
             }
-        }
-    } else if report.models_written && stdin_is_tty() {
-        // First-time interactive nudge (skip in CI / pipes).
-        eprint!("Run first-run wizard now? [y/N] ");
-        let _ = io::stderr().flush();
-        let mut line = String::new();
-        if io::stdin().read_line(&mut line).is_ok() {
-            let t = line.trim().to_ascii_lowercase();
-            if t == "y" || t == "yes" {
-                chosen = Some(run_setup_wizard(&models_path)?);
+            match setup_tui::run_setup_tui(&home, &models_path) {
+                Ok(alias) => {
+                    println!("✓ default_model = \"{alias}\"");
+                    chosen = Some(alias);
+                }
+                Err(e) if e.to_string().contains("cancelled") => {
+                    println!("setup wizard cancelled — home files kept");
+                }
+                Err(e) => return Err(e),
             }
         }
     }
@@ -1222,9 +1234,10 @@ fn cmd_setup(
     println!("  cortex doctor");
     println!("  cortex models list");
     println!("  cd my-project && cortex run \"hello\"");
-    println!("  # re-run wizard: cortex setup --wizard");
+    println!("  # TUI wizard:     cortex setup --wizard");
     println!("  # non-interactive: cortex setup --default-model ollama --ollama-model llama3.2");
-    println!("  # project overrides: cortex init  |  cortex init --web3");
+    println!("  # files only:     cortex setup --no-wizard");
+    println!("  # project:        cortex init  |  cortex init --web3");
     Ok(())
 }
 
@@ -1232,7 +1245,6 @@ fn stdin_is_tty() -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::FileTypeExt;
-        // Prefer /dev/tty openability + stdin char device.
         let tty_ok = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -1245,74 +1257,18 @@ fn stdin_is_tty() -> bool {
     }
     #[cfg(not(unix))]
     {
-        // Best-effort without extra deps.
         std::env::var_os("TERM").is_some()
     }
 }
 
-fn run_setup_wizard(models_path: &std::path::Path) -> Result<String> {
-    println!("\nFirst-run wizard — pick a default model alias:\n");
-    for (i, (alias, desc)) in SETUP_MODEL_CHOICES.iter().enumerate() {
-        println!("  {}) {alias:<12}  {desc}", i + 1);
-    }
-    print!(
-        "Choice [1-{}] (default 1 = mock): ",
-        SETUP_MODEL_CHOICES.len()
-    );
-    let _ = io::stdout().flush();
-    let mut line = String::new();
-    io::stdin()
-        .read_line(&mut line)
-        .context("read wizard choice")?;
-    let line = line.trim();
-    let idx = if line.is_empty() {
-        0
-    } else if let Ok(n) = line.parse::<usize>() {
-        n.saturating_sub(1)
-    } else {
-        // Allow typing alias directly.
-        SETUP_MODEL_CHOICES
-            .iter()
-            .position(|(a, _)| *a == line)
-            .ok_or_else(|| anyhow::anyhow!("invalid choice `{line}`"))?
-    };
-    let (alias, _) = SETUP_MODEL_CHOICES
-        .get(idx)
-        .ok_or_else(|| anyhow::anyhow!("choice out of range"))?;
-    set_default_model(models_path, alias)?;
-    println!("✓ default_model = \"{alias}\"");
-
-    if *alias == "ollama" {
-        print!("Ollama model id [qwen2.5-coder]: ");
-        let _ = io::stdout().flush();
-        let mut mid = String::new();
-        io::stdin()
-            .read_line(&mut mid)
-            .context("read ollama model")?;
-        let mid = mid.trim();
-        if !mid.is_empty() {
-            set_ollama_model_id(models_path, mid)?;
-            println!("✓ models.ollama.model = \"{mid}\"");
-        }
-    }
-    Ok((*alias).to_string())
-}
-
 fn print_setup_key_hints(alias: &str) {
     match alias {
-        "openai" => {
-            println!("\nSet:  export OPENAI_API_KEY=sk-…");
-        }
-        "openrouter" => {
-            println!("\nSet:  export OPENROUTER_API_KEY=…");
-        }
-        "ollama" => {
-            println!("\nEnsure Ollama is running:  ollama serve && ollama pull <model>");
-        }
-        "default" | "mock" => {
-            println!("\nOffline mock provider active — no API key needed.");
-        }
-        _ => {}
+        "openai" => println!("\nSet:  export OPENAI_API_KEY=sk-…"),
+        "anthropic" => println!("\nSet:  export ANTHROPIC_API_KEY=…"),
+        "openrouter" => println!("\nSet:  export OPENROUTER_API_KEY=…"),
+        "ollama" => println!("\nEnsure Ollama is running:  ollama serve && ollama pull <model>"),
+        "default" | "mock" => println!("\nOffline mock provider — no API key needed."),
+        other => println!("\nConfigured provider alias `{other}` — set any api_key_env if needed."),
     }
 }
 
