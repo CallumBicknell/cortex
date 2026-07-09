@@ -4,15 +4,25 @@ version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
+description = "Cortex runtime: kernel facade and agent loop"
 
 [dependencies]
+async-trait = { workspace = true }
+chrono = { workspace = true }
+cortex-common = { path = "../cortex-common" }
 cortex-core = { path = "../cortex-core" }
-tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+cortex-events = { path = "../cortex-events" }
+cortex-llm = { path = "../cortex-llm" }
+cortex-models = { path = "../cortex-models" }
+cortex-tools = { path = "../cortex-tools" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
-chrono = { workspace = true }
-anyhow = { workspace = true }
-async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

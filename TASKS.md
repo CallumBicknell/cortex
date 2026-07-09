@@ -83,16 +83,16 @@
 
 # Phase 4 — Agent loop
 
-* [ ] P4.1 Loop state machine
-* [ ] P4.2 `AgentLoop` in `cortex-runtime`
-* [ ] P4.3 Context builder MVP
-* [ ] P4.4 LLM → tool calls → observe → repeat
-* [ ] P4.5 Finish conditions
-* [ ] P4.6 In-memory session
-* [ ] P4.7 Tracing spans
-* [ ] P4.8 Integration test with mock provider
-* [ ] P4.9 Reflect stub
-* [ ] P4.10 Verify stub
+* [x] P4.1 Loop state machine (`LoopPhase` transitions)
+* [x] P4.2 `AgentLoop` in `cortex-runtime`
+* [x] P4.3 Context builder MVP
+* [x] P4.4 LLM → tool calls → observe → repeat
+* [x] P4.5 Finish conditions (final answer, max turns, cancel)
+* [x] P4.6 In-memory session (`Session` mutation)
+* [x] P4.7 Tracing + optional event bus publish
+* [x] P4.8 Integration test with mock provider
+* [x] P4.9 Reflect stub
+* [x] P4.10 Verify stub
 
 ---
 

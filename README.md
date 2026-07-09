@@ -20,8 +20,8 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | LLM providers (OpenAI-compat, Anthropic, mock) | Implemented |
 | Provider registry + `config/models.toml` | Implemented |
 | Tools (fs, shell, git, http) + permissions | Implemented |
+| Agent loop (LLM ↔ tools, events) | Implemented |
 | Unit / golden serde / HTTP mock tests | Implemented |
-| Agent loop (plan/tools/reflect) | Planned (Phase 4) |
 | CLI (`cortex run`) | Planned (Phase 5) |
 | SQLite sessions / checkpoints | Planned (Phase 6) |
 | Skills / plugins / MCP | Planned (Phases 8–11) |
@@ -49,7 +49,7 @@ crates/
   cortex-tools/     # Tool trait, registry, executor, fs/shell/git/http
   cortex-core/      # Kernel, config, event bus, service registry, cancel
   cortex-events/    # Lifecycle re-exports + agent loop events
-  cortex-runtime/   # Runtime facade (agent loop later)
+  cortex-runtime/   # Kernel facade + AgentLoop
 config/             # Default TOML configuration
 sdks/python/        # Python SDK stubs (not wired to runtime yet)
 docs/               # Architecture and design notes
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | M1 Models/events | Shared message/session types ✓ |
 | M2 Providers | Chat + mock + OpenAI-compatible ✓ |
 | M3 Tools | fs + shell + registry ✓ |
-| M4 Agent loop | Multi-step tool use |
+| M4 Agent loop | Multi-step tool use ✓ |
 | M5 CLI | `cortex run` / `cortex chat` |
 | M6+ | Persistence, skills, security, MCP, plugins |
 
