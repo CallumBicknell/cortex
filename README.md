@@ -6,7 +6,7 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 
 ## Status
 
-**Early development (v0.1.0).** Phases 0–16 + follow-ups: external plugins, bubblewrap shell, SSE runs, sub-agent events, workspace symbols, self-evolving skills.
+**Early development (v0.1.0 MVP).** Phases 0–16 + follow-ups shipped on the feature branch: agent loop, tools, skills, memory, plugins, TUI, HTTP API, Python SDK, evals, and CI/CD. See [`CHANGELOG.md`](CHANGELOG.md).
 
 | Area | Status |
 |------|--------|

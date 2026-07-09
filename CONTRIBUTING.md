@@ -38,18 +38,27 @@ cargo build --release
 
 ```bash
 # Run all tests
-cargo test
+cargo test --workspace
 
 # Run tests for a specific crate
 cargo test -p cortex-core
+
+# Offline agent eval fixtures
+cargo run -p cortex-cli -- eval run
+
+# Full local CI (fmt, clippy, tests, evals, smoke, Python SDK)
+./scripts/ci_local.sh
+# or: make ci
 ```
+
+See [`docs/ci.md`](docs/ci.md) for GitHub Actions, releases, and Docker.
 
 ### Code Formatting
 
 We use `rustfmt` for Rust code formatting. Ensure your code is formatted before submitting a pull request.
 
 ```bash
-cargo fmt
+cargo fmt --all
 ```
 
 ### Linting
@@ -57,7 +66,7 @@ cargo fmt
 We use `clippy` for linting. Run the linter to catch potential issues.
 
 ```bash
-cargo clippy --all -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 ### Documentation

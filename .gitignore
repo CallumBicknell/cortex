@@ -4,6 +4,18 @@
 
 # Keep root Cargo.lock for reproducible CI builds (binary workspace).
 
+# Local / editor noise
+*.bak
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Cortex runtime data (created by `cortex init` / runs)
+.cortex/data/
+**/.cortex/data/
+
 # Python
 __pycache__/
 *.py[cod]
