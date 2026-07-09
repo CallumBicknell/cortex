@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mock setup**: loading `models.toml` no longer fails when Anthropic is listed
+  without `ANTHROPIC_API_KEY` (provider/alias skipped until a key is set)
+
 ### Added
 
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
