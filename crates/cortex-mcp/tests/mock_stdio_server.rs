@@ -1,6 +1,7 @@
 //! Integration test: mock MCP stdio server + client tool call.
 
 use cortex_mcp::{register_mcp_server_tools, McpClient, StdioTransport};
+// Stdio path still uses Content-Length framing.
 use cortex_tools::{ToolContext, ToolRegistry};
 use serde_json::json;
 use std::sync::Arc;

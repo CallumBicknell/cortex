@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   workspace symbols (contracts, functions, modifiers, events, …)
 - **Foundry samples (P19)**: `examples/foundry-vault/`, `examples/mcp/foundry.mcp.toml`,
   `scripts/smoke_foundry.sh`
+- **MCP HTTP (P20)**: Streamable HTTP transport + legacy SSE fallback for remote
+  servers (Blockscout, Tenderly, CoinGecko, …); header env expansion; local-host guard
 - **Memory**: SQLite sessions/checkpoints, rolling summaries, local vector index
 - **Plugins**: builtins + external `plugin.toml` directory plugins
 - **HTTP API**: `/v1/*` including `POST /v1/runs` and SSE `/v1/runs/stream`

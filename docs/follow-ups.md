@@ -72,6 +72,22 @@ Rust, Python, and **Solidity** via tree-sitter. Not a full language server
 
 See [`web3-security.md`](web3-security.md).
 
+## MCP Streamable HTTP (P20)
+
+Remote MCP servers via `transport = "http"` (Streamable HTTP) or `sse` (with
+legacy endpoint discovery). Example:
+
+```toml
+[[servers]]
+name = "coingecko"
+enabled = true
+transport = "http"
+url = "https://mcp.api.coingecko.com/mcp"
+tool_prefix = "mcp_cg"
+```
+
+See [`mcp.md`](mcp.md).
+
 ## Self-evolving skills
 
 See [`evolving-skills.md`](evolving-skills.md).

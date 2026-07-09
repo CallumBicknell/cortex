@@ -1,7 +1,9 @@
 //! Stdio MCP transport with Content-Length framing (LSP-style).
 
+use super::McpTransport;
 use crate::error::{McpError, Result};
 use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
+use async_trait::async_trait;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -54,45 +56,8 @@ impl StdioTransport {
         })
     }
 
-    /// Allocate a request id.
-    pub fn next_id(&self) -> u64 {
+    fn next_id(&self) -> u64 {
         self.next_id.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Send a JSON-RPC request and wait for the matching response.
-    pub async fn request(
-        &self,
-        method: &str,
-        params: Option<serde_json::Value>,
-    ) -> Result<serde_json::Value> {
-        let id = self.next_id();
-        let req = JsonRpcRequest::new(id, method, params);
-        self.write_message(&req).await?;
-        loop {
-            let resp = self.read_message().await?;
-            // Skip notifications / unmatched (best-effort).
-            let resp_id = resp.id.as_ref().and_then(|v| v.as_u64());
-            if resp_id != Some(id) {
-                debug!(?resp_id, expected = id, "skipping non-matching MCP message");
-                continue;
-            }
-            if let Some(err) = resp.error {
-                return Err(McpError::Server(format!("{} ({})", err.message, err.code)));
-            }
-            return resp
-                .result
-                .ok_or_else(|| McpError::Protocol("response missing result".into()));
-        }
-    }
-
-    /// Fire-and-forget notification (no id).
-    pub async fn notify(&self, method: &str, params: Option<serde_json::Value>) -> Result<()> {
-        let body = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params.unwrap_or(serde_json::Value::Null),
-        });
-        self.write_raw(&body).await
     }
 
     async fn write_message(&self, req: &JsonRpcRequest) -> Result<()> {
@@ -140,6 +105,42 @@ impl StdioTransport {
         let mut buf = vec![0u8; len];
         stdout.read_exact(&mut buf).await?;
         serde_json::from_slice(&buf).map_err(|e| McpError::Protocol(format!("invalid JSON: {e}")))
+    }
+}
+
+#[async_trait]
+impl McpTransport for StdioTransport {
+    async fn request(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        let id = self.next_id();
+        let req = JsonRpcRequest::new(id, method, params);
+        self.write_message(&req).await?;
+        loop {
+            let resp = self.read_message().await?;
+            let resp_id = resp.id.as_ref().and_then(|v| v.as_u64());
+            if resp_id != Some(id) {
+                debug!(?resp_id, expected = id, "skipping non-matching MCP message");
+                continue;
+            }
+            if let Some(err) = resp.error {
+                return Err(McpError::Server(format!("{} ({})", err.message, err.code)));
+            }
+            return resp
+                .result
+                .ok_or_else(|| McpError::Protocol("response missing result".into()));
+        }
+    }
+
+    async fn notify(&self, method: &str, params: Option<serde_json::Value>) -> Result<()> {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params.unwrap_or(serde_json::Value::Null),
+        });
+        self.write_raw(&body).await
     }
 }
 

@@ -2,6 +2,7 @@
 
 use crate::error::{McpError, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Top-level MCP config file.
@@ -12,7 +13,7 @@ pub struct McpConfig {
     pub servers: Vec<McpServerConfig>,
 }
 
-/// One MCP server process (stdio by default).
+/// One MCP server (stdio process or remote HTTP/SSE endpoint).
 #[derive(Debug, Clone, Deserialize)]
 pub struct McpServerConfig {
     /// Logical name (used in tool prefixes / logs).
@@ -20,7 +21,7 @@ pub struct McpServerConfig {
     /// Whether to connect at startup.
     #[serde(default)]
     pub enabled: bool,
-    /// Transport: `stdio` (default) or `sse` (reserved).
+    /// Transport: `stdio` (default), `http` / `streamable_http`, or `sse`.
     #[serde(default = "default_transport")]
     pub transport: String,
     /// Command to spawn for stdio transport.
@@ -32,12 +33,18 @@ pub struct McpServerConfig {
     /// Working directory for the server process.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Extra environment variables.
+    /// Extra environment variables (stdio child, and `${ENV}` expansion in headers).
     #[serde(default)]
-    pub env: std::collections::HashMap<String, String>,
-    /// Optional URL for SSE transport.
+    pub env: HashMap<String, String>,
+    /// URL for HTTP / Streamable HTTP / SSE transports.
     #[serde(default)]
     pub url: Option<String>,
+    /// Extra HTTP headers (values may use `$ENV_VAR` for secret injection).
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    /// Optional HTTP timeout in seconds (default 60).
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
     /// Prefix for tool names in the Cortex registry (`mcp_<name>_` if empty uses name).
     #[serde(default)]
     pub tool_prefix: Option<String>,
@@ -80,6 +87,55 @@ impl McpServerConfig {
             format!("{raw}_")
         }
     }
+
+    /// HTTP headers with `$VAR` / `${VAR}` expanded from the process environment.
+    pub fn resolved_headers(&self) -> HashMap<String, String> {
+        self.headers
+            .iter()
+            .map(|(k, v)| (k.clone(), expand_env(v)))
+            .collect()
+    }
+}
+
+fn expand_env(value: &str) -> String {
+    // Support $VAR and ${VAR}.
+    let mut out = value.to_string();
+    // ${VAR}
+    while let Some(start) = out.find("${") {
+        let rest = &out[start + 2..];
+        if let Some(end) = rest.find('}') {
+            let key = &rest[..end];
+            let repl = std::env::var(key).unwrap_or_default();
+            out = format!("{}{}{}", &out[..start], repl, &rest[end + 1..]);
+        } else {
+            break;
+        }
+    }
+    // $VAR (simple identifier)
+    if out.contains('$') {
+        let mut result = String::new();
+        let chars: Vec<char> = out.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '$'
+                && i + 1 < chars.len()
+                && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
+            {
+                i += 1;
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+                    i += 1;
+                }
+                let key: String = chars[start..i].iter().collect();
+                result.push_str(&std::env::var(&key).unwrap_or_default());
+            } else {
+                result.push(chars[i]);
+                i += 1;
+            }
+        }
+        return result;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -101,5 +157,36 @@ mod tests {
         assert_eq!(cfg.servers.len(), 1);
         assert!(cfg.servers[0].enabled);
         assert_eq!(cfg.servers[0].resolved_prefix(), "mcp_fs_");
+    }
+
+    #[test]
+    fn parses_http_server() {
+        let cfg = McpConfig::from_toml(
+            r#"
+            [[servers]]
+            name = "blockscout"
+            enabled = true
+            transport = "http"
+            url = "https://mcp.blockscout.com/mcp"
+            tool_prefix = "mcp_blockscout"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.servers[0].transport, "http");
+        assert_eq!(
+            cfg.servers[0].url.as_deref(),
+            Some("https://mcp.blockscout.com/mcp")
+        );
+    }
+
+    #[test]
+    fn expand_env_var() {
+        std::env::set_var("CORTEX_TEST_TOKEN", "secret123");
+        assert_eq!(expand_env("Bearer $CORTEX_TEST_TOKEN"), "Bearer secret123");
+        assert_eq!(
+            expand_env("Bearer ${CORTEX_TEST_TOKEN}"),
+            "Bearer secret123"
+        );
+        std::env::remove_var("CORTEX_TEST_TOKEN");
     }
 }

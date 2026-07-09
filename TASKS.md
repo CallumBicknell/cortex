@@ -290,11 +290,21 @@ Optional later: `cortex init --web3`, CI foundry-smoke job.
 
 ---
 
+# Phase 20 — MCP HTTP / Streamable HTTP
+
+* [x] P20.1 Streamable HTTP transport (POST JSON / SSE response)
+* [x] P20.2 Legacy SSE endpoint discovery fallback
+* [x] P20.3 Config: `transport`, `url`, `headers`, `timeout_secs`, env expansion
+* [x] P20.4 Local-host SSRF guard (`CORTEX_MCP_ALLOW_LOCAL`)
+* [x] P20.5 Integration test (axum mock server)
+* [x] P20.6 Docs + `config/mcp.toml` remote examples
+
+---
+
 # Upcoming (planned)
 
 | Phase | Theme |
 |-------|--------|
-| P20 | MCP HTTP/SSE transport (Blockscout, Tenderly, …) |
 | P21 | SC tooling depth (x-ray skill, PoC templates, analyzers) |
 | P22 | Audit artifacts + SC eval fixtures |
 | P23 | Web3 skill import / skills.eth.sh bridge |

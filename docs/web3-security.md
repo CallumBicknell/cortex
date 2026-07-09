@@ -116,7 +116,9 @@ Cortex does **not** vendor third-party skill repos. Discover and wire them via:
 | CoinGecko | `https://mcp.api.coingecko.com/mcp` |
 | Cryo | `uvx cryo-mcp --rpc-url $ETH_RPC_URL` |
 
-stdio MCP is supported today; SSE/HTTP for remote eth.sh servers is planned (Phase 20).
+stdio **and** Streamable HTTP (`transport = "http"`) are supported. Legacy SSE
+endpoint discovery is used as a fallback when initialize fails. See
+[`docs/mcp.md`](mcp.md).
 
 ## Honest limits
 

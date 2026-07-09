@@ -1,7 +1,8 @@
 //! MCP (Model Context Protocol) client for Cortex.
 //!
-//! Connects to stdio MCP servers, lists tools, and exposes them as
-//! [`cortex_tools::Tool`] implementations.
+//! Connects to **stdio** or **HTTP/Streamable HTTP** (with legacy SSE fallback)
+//! MCP servers, lists tools, and exposes them as [`cortex_tools::Tool`]
+//! implementations.
 
 #![deny(missing_docs)]
 
@@ -17,7 +18,7 @@ pub use client::McpClient;
 pub use config::{McpConfig, McpServerConfig};
 pub use error::{McpError, Result};
 pub use protocol::{McpToolDescriptor, ToolsCallResult};
-pub use transport::StdioTransport;
+pub use transport::{HttpTransport, McpTransport, StdioTransport};
 
 use cortex_tools::ToolRegistry;
 use tracing::{info, warn};

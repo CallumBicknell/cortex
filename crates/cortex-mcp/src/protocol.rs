@@ -97,7 +97,7 @@ pub struct ToolsCallResult {
     #[serde(default)]
     pub content: Vec<McpContent>,
     /// Whether the tool reported an error.
-    #[serde(default)]
+    #[serde(default, rename = "isError", alias = "is_error")]
     pub is_error: Option<bool>,
 }
 
