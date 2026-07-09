@@ -1,0 +1,57 @@
+# Fixed-arg static analyzer tools for Solidity (Slither / Aderyn).
+# Prefer these over freeform shell. Missing binary → honest error.
+# Slither exits non-zero when findings exist — allow_nonzero keeps the report.
+
+id = "sc_analyzers"
+name = "SC Static Analyzers"
+version = "0.1.0"
+description = "slither / aderyn with fixed argv (workspace cwd)"
+
+[[tools]]
+name = "slither_version"
+description = "Print Slither version. Honest error if slither is not installed."
+command = ["slither", "--version"]
+cwd = "{workspace}"
+timeout_secs = 30
+
+[[tools]]
+name = "slither_scan"
+description = "Run Slither on the project root (slither .). Filters lib/test noise via --filter-paths when useful; triage detector hits into FINDING/LEAD."
+command = ["slither", ".", "--filter-paths", "lib|node_modules|test|tests|script|mocks"]
+cwd = "{workspace}"
+timeout_secs = 600
+allow_nonzero = true
+
+[[tools]]
+name = "slither_scan_path"
+description = "Run SLither on a specific path (contract dir or file)."
+command = ["slither", "{arg:path}", "--filter-paths", "lib|node_modules|test|tests|script|mocks"]
+cwd = "{workspace}"
+timeout_secs = 600
+allow_nonzero = true
+[tools.parameters]
+path = { type = "string", description = "Path relative to workspace e.g. src/ or contracts/Vault.sol" }
+
+[[tools]]
+name = "slither_human_summary"
+description = "Slither human-summary printer (slither . --print human-summary)."
+command = ["slither", ".", "--print", "human-summary", "--filter-paths", "lib|node_modules|test|tests"]
+cwd = "{workspace}"
+timeout_secs = 600
+allow_nonzero = true
+
+[[tools]]
+name = "aderyn_version"
+description = "Print Aderyn version. Honest error if aderyn is not installed."
+command = ["aderyn", "--version"]
+cwd = "{workspace}"
+timeout_secs = 30
+allow_nonzero = true
+
+[[tools]]
+name = "aderyn_scan"
+description = "Run Aderyn static analysis on the workspace (aderyn .). Second opinion after Slither; still require code-level proof."
+command = ["aderyn", "."]
+cwd = "{workspace}"
+timeout_secs = 600
+allow_nonzero = true

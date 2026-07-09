@@ -1264,8 +1264,9 @@ This project was initialized with `cortex init --web3`.
 ## Guidance for the agent
 
 - Prefer Foundry when `foundry.toml` is present.
-- Prefer fixed tools `forge_build` / `forge_test` / `forge_test_match` (foundry_helpers
-  plugin under `.cortex/plugins/`) over freeform shell when available.
+- Prefer fixed tools over freeform shell when available:
+  - Foundry: `forge_build` / `forge_test` / `forge_test_match` (foundry_helpers)
+  - Static: `slither_scan` / `slither_human_summary` / `aderyn_scan` (sc_analyzers)
 - For audits use skills `sc_security`, `solidity`, and optionally `sc_xray`.
 - Multi-lens: tool `audit_lenses` (parallel specialty reviewers).
 - Write durable reports with `write_audit_report` under `.cortex/audits/`.
@@ -1279,6 +1280,28 @@ This project was initialized with `cortex init --web3`.
 "#;
 
 const FOUNDRY_HELPERS_PLUGIN: &str = include_str!("../../../plugins/foundry_helpers/plugin.toml");
+const SC_ANALYZERS_PLUGIN: &str = include_str!("../../../plugins/sc_analyzers/plugin.toml");
+
+fn write_web3_plugin(
+    cortex_dir: &std::path::Path,
+    id: &str,
+    body: &str,
+    force: bool,
+) -> Result<()> {
+    let plug_dir = cortex_dir.join("plugins").join(id);
+    let plug_toml = plug_dir.join("plugin.toml");
+    if plug_toml.exists() && !force {
+        println!(
+            "✓ {} already exists (use --force to overwrite)",
+            plug_toml.display()
+        );
+        return Ok(());
+    }
+    std::fs::create_dir_all(&plug_dir).with_context(|| format!("create {}", plug_dir.display()))?;
+    std::fs::write(&plug_toml, body).with_context(|| format!("write {}", plug_toml.display()))?;
+    println!("✓ wrote {} ({id} tools)", plug_toml.display());
+    Ok(())
+}
 
 fn cmd_update(dry_run: bool) -> Result<()> {
     let install = "curl -fsSL https://raw.githubusercontent.com/CallumBicknell/cortex/main/scripts/install.sh | sh";
@@ -1384,26 +1407,19 @@ async fn cmd_init(workspace: Option<PathBuf>, force: bool, web3: bool) -> Result
             let stub = "# Project agent notes\n\n\
                         See `.cortex/instructions.md` for Web3/audit defaults.\n\
                         Prefer `cortex run \"…\" --skills sc_security,solidity`.\n\
-                        Prefer `forge_build` / `forge_test` tools when available.\n";
+                        Prefer `forge_build` / `forge_test` / `slither_scan` when available.\n";
             std::fs::write(&agents, stub).ok();
             println!("✓ wrote {}", agents.display());
         }
 
-        // Fixed-arg forge tools (auto-discovered under .cortex/plugins/).
-        let plug_dir = cortex_dir.join("plugins").join("foundry_helpers");
-        let plug_toml = plug_dir.join("plugin.toml");
-        if plug_toml.exists() && !force {
-            println!(
-                "✓ {} already exists (use --force to overwrite)",
-                plug_toml.display()
-            );
-        } else {
-            std::fs::create_dir_all(&plug_dir)
-                .with_context(|| format!("create {}", plug_dir.display()))?;
-            std::fs::write(&plug_toml, FOUNDRY_HELPERS_PLUGIN)
-                .with_context(|| format!("write {}", plug_toml.display()))?;
-            println!("✓ wrote {} (forge_* tools)", plug_toml.display());
-        }
+        // Fixed-arg forge + analyzer tools (auto-discovered under .cortex/plugins/).
+        write_web3_plugin(
+            &cortex_dir,
+            "foundry_helpers",
+            FOUNDRY_HELPERS_PLUGIN,
+            force,
+        )?;
+        write_web3_plugin(&cortex_dir, "sc_analyzers", SC_ANALYZERS_PLUGIN, force)?;
     }
 
     println!("\nCortex project initialized in {}", workspace.display());

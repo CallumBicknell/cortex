@@ -130,6 +130,10 @@ fn init_web3_scaffolds_mcp_and_instructions() {
         .path()
         .join(".cortex/plugins/foundry_helpers/plugin.toml")
         .is_file());
+    assert!(ws
+        .path()
+        .join(".cortex/plugins/sc_analyzers/plugin.toml")
+        .is_file());
 }
 
 #[test]

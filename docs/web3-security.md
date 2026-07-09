@@ -42,7 +42,15 @@ cortex parse outline examples/foundry-vault/src/VulnerableVault.sol
 
 ### Foundry helpers plugin
 
-`plugins/foundry_helpers` (also copied by `init --web3` into `.cortex/plugins/`) registers fixed-arg tools: `forge_version`, `forge_build`, `forge_test`, `forge_test_verbose`, `forge_test_match`, `forge_test_fuzz`, `forge_fmt_check`. Prefer these over freeform `shell` when auditing. Missing `forge` fails honestly.
+`init --web3` copies plugins into `.cortex/plugins/`:
+
+| Plugin | Tools |
+|--------|-------|
+| `foundry_helpers` | `forge_version`, `forge_build`, `forge_test`, `forge_test_verbose`, `forge_test_match`, `forge_test_fuzz`, `forge_fmt_check` |
+| `sc_analyzers` | `slither_version`, `slither_scan`, `slither_scan_path`, `slither_human_summary`, `aderyn_version`, `aderyn_scan` |
+
+Prefer these over freeform `shell` when auditing. Missing binaries fail honestly.
+Slither may exit non-zero when findings exist — output is still returned.
 
 ## Audit loop
 
