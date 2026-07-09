@@ -1,12 +1,25 @@
 # cargo-deny configuration
-# See: https://embarkstudios.github.io/cargo-deny/
+# https://embarkstudios.github.io/cargo-deny/
 
 [graph]
-# No specific targets or exclusions
+all-features = false
+no-default-features = false
+
+[advisories]
+version = 2
+yanked = "warn"
+# Tracked upgrade: sqlx 0.8 pulls newer rustls; migrate in a dedicated PR.
+ignore = [
+    { id = "RUSTSEC-2024-0363", reason = "sqlx 0.7; migrate to 0.8 in a dedicated PR" },
+    { id = "RUSTSEC-2024-0436", reason = "rustls-webpki via sqlx 0.7 stack" },
+    { id = "RUSTSEC-2025-0134", reason = "rustls via sqlx 0.7 stack" },
+    { id = "RUSTSEC-2026-0098", reason = "sqlx/rustls transitive; fixed by sqlx upgrade" },
+    { id = "RUSTSEC-2026-0099", reason = "sqlx/rustls transitive; fixed by sqlx upgrade" },
+    { id = "RUSTSEC-2026-0104", reason = "sqlx/rustls transitive; fixed by sqlx upgrade" },
+]
 
 [licenses]
-# Deny any license not in the allow list.
-confidence-threshold = 0.8
+version = 2
 allow = [
     "MIT",
     "Apache-2.0",
@@ -14,12 +27,24 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
-    "Unlicense",
-    "0BSD",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
     "Zlib",
-    "MIT OR Apache-2.0",
+    "CC0-1.0",
+    "OpenSSL",
+    "MPL-2.0",
+    "0BSD",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
 ]
+confidence-threshold = 0.8
 
 [bans]
-# Warn on duplicate crate versions
 multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

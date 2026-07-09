@@ -1,7 +1,8 @@
 # Ignore build artifacts
 /target/
 **/target/
-**/Cargo.lock
+
+# Keep root Cargo.lock for reproducible CI builds (binary workspace).
 
 # Python
 __pycache__/

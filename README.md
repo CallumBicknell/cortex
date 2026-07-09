@@ -96,10 +96,15 @@ docs/               # Architecture and design notes
 
 ```bash
 cargo build
-cargo test
-cargo clippy --workspace
-./scripts/smoke_agent.sh
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+
+# Full local CI (fmt, clippy, tests, evals, smoke, Python SDK)
+./scripts/ci_local.sh
+# or: make ci
 ```
+
+See [`docs/ci.md`](docs/ci.md) for GitHub Actions, releases, Docker, and Dependabot.
 
 ### CLI (usable now)
 
@@ -142,7 +147,7 @@ cargo run -p cortex-cli -- eval run
 #   --skills browser --yolo
 ```
 
-See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), [`docs/hardening.md`](docs/hardening.md), [`docs/evolving-skills.md`](docs/evolving-skills.md), and [`docs/follow-ups.md`](docs/follow-ups.md).
+See [`examples/hello_agent.md`](examples/hello_agent.md), [`docs/skills.md`](docs/skills.md), [`docs/security.md`](docs/security.md), [`docs/browser.md`](docs/browser.md), [`docs/plugin-system.md`](docs/plugin-system.md), [`docs/memory.md`](docs/memory.md), [`docs/parse.md`](docs/parse.md), [`docs/tui.md`](docs/tui.md), [`docs/api.md`](docs/api.md), [`docs/hardening.md`](docs/hardening.md), [`docs/evolving-skills.md`](docs/evolving-skills.md), [`docs/follow-ups.md`](docs/follow-ups.md), and [`docs/ci.md`](docs/ci.md).
 
 ### Configuration
 

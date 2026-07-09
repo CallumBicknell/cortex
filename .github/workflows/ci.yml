@@ -2,60 +2,188 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, master, "feat/**", "fix/**", "docs/**", "chore/**"]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: "1"
 
 jobs:
-  build:
+  # --------------------------------------------------------------------------
+  # Fast feedback: formatting + lint
+  # --------------------------------------------------------------------------
+  lint:
+    name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-    - name: Cache Cargo registry
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
-    - name: Install cargo deny
-      run: cargo install cargo-deny --locked
-    - name: Run cargo deny
-      run: cargo deny check
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "lint"
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
 
-    - name: Run clippy
-      run: cargo clippy --all -- -D warnings
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
-    - name: Run tests
-      run: cargo test --All
+  # --------------------------------------------------------------------------
+  # Unit + integration tests
+  # --------------------------------------------------------------------------
+  test:
+    name: Test (Rust)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test"
 
-    - name: Test Python SDK
-      run: |
-          cd sdks/python
-          python -c "import cortex; print('Cortex Python SDK imported successfully')"
-          # Run any tests if they exist
-          if [ -d "tests" ]; then
-              pytest
-          fi
+      - name: cargo test
+        run: cargo test --workspace --all-targets
+
+  # --------------------------------------------------------------------------
+  # Agent eval fixtures (offline mock)
+  # --------------------------------------------------------------------------
+  eval:
+    name: Eval suite
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test"
+
+      - name: Build CLI
+        run: cargo build -p cortex-cli --quiet
+
+      - name: Run evals
+        run: cargo run -q -p cortex-cli -- eval run --dir evals
+
+  # --------------------------------------------------------------------------
+  # Smoke: mock agent one-shot
+  # --------------------------------------------------------------------------
+  smoke:
+    name: Smoke agent
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test"
+
+      - name: Smoke
+        run: ./scripts/smoke_agent.sh
+
+  # --------------------------------------------------------------------------
+  # Supply chain / licenses
+  # --------------------------------------------------------------------------
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "deny"
+
+      - name: Install cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+
+  # --------------------------------------------------------------------------
+  # Python SDK
+  # --------------------------------------------------------------------------
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: sdks/python/pyproject.toml
+
+      - name: Install SDK + test deps
+        working-directory: sdks/python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: pytest
+        working-directory: sdks/python
+        run: pytest -q
+
+  # --------------------------------------------------------------------------
+  # Release-mode build (catch optim-only issues)
+  # --------------------------------------------------------------------------
+  build-release:
+    name: Release build
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release"
+
+      - name: cargo build --release
+        run: cargo build --release -p cortex-cli
+
+      - name: Upload cortex binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-linux-x86_64
+          path: target/release/cortex
+          if-no-files-found: error
