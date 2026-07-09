@@ -4,6 +4,7 @@ members = [
     "crates/cortex-common",
     "crates/cortex-core",
     "crates/cortex-events",
+    "crates/cortex-llm",
     "crates/cortex-models",
     "crates/cortex-runtime",
 ]
@@ -30,6 +31,9 @@ toml = "0.8"
 thiserror = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
 futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+async-stream = "0.3"
+bytes = "1"
 
 # Dev/test dependencies available to workspace members.
 # Member crates reference these under their own [dev-dependencies] section.

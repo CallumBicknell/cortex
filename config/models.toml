@@ -1,0 +1,57 @@
+# Cortex model / provider configuration
+# API keys should come from environment variables (never commit secrets).
+
+default_model = "default"
+
+[providers.openai]
+kind = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_secs = 120
+max_retries = 3
+
+[providers.openrouter]
+kind = "openai_compatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+timeout_secs = 120
+max_retries = 3
+
+[providers.ollama]
+kind = "openai_compatible"
+base_url = "http://127.0.0.1:11434/v1"
+timeout_secs = 300
+max_retries = 1
+
+[providers.lmstudio]
+kind = "openai_compatible"
+base_url = "http://127.0.0.1:1234/v1"
+timeout_secs = 300
+max_retries = 1
+
+# Anthropic requires an API key in the environment to construct the client.
+# Uncomment when ANTHROPIC_API_KEY is set, or register via code.
+# [providers.anthropic]
+# kind = "anthropic"
+# api_key_env = "ANTHROPIC_API_KEY"
+# timeout_secs = 120
+# max_retries = 3
+
+[providers.mock]
+kind = "mock"
+
+[models.default]
+provider = "mock"
+model = "mock-default"
+
+[models.openai]
+provider = "openai"
+model = "gpt-4.1"
+
+[models.ollama]
+provider = "ollama"
+model = "qwen2.5-coder"
+
+[models.openrouter]
+provider = "openrouter"
+model = "anthropic/claude-sonnet-4"

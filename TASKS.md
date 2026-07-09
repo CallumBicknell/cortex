@@ -53,15 +53,15 @@
 
 # Phase 2 — Provider abstraction
 
-* [ ] P2.1 `cortex-llm` + `Provider` trait
-* [ ] P2.2 Chat request/response types
-* [ ] P2.3 OpenAI-compatible HTTP client
-* [ ] P2.4 Anthropic adapter
-* [ ] P2.5 Ollama via openai-compatible
-* [ ] P2.6 Provider registry + `config/models.toml`
-* [ ] P2.7 Mock provider for tests
-* [ ] P2.8 Retries & timeouts
-* [ ] P2.9 Streaming MVP
+* [x] P2.1 `cortex-llm` + `Provider` trait
+* [x] P2.2 Chat request/response types
+* [x] P2.3 OpenAI-compatible HTTP client
+* [x] P2.4 Anthropic adapter
+* [x] P2.5 Ollama / OpenRouter / LM Studio via openai-compatible
+* [x] P2.6 Provider registry + `config/models.toml`
+* [x] P2.7 Mock provider for tests
+* [x] P2.8 Retries & timeouts
+* [x] P2.9 Streaming MVP (OpenAI SSE + mock deltas)
 
 ---
 

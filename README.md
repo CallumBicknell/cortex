@@ -17,9 +17,10 @@ Cortex is an open-source **agent runtime**: durable, observable, provider-agnost
 | Config (TOML + env) | Implemented |
 | Domain models (messages, tools, sessions) | Implemented |
 | Agent event types | Implemented |
-| Unit / golden serde tests | Implemented |
+| LLM providers (OpenAI-compat, Anthropic, mock) | Implemented |
+| Provider registry + `config/models.toml` | Implemented |
+| Unit / golden serde / HTTP mock tests | Implemented |
 | Agent loop (plan/tools/reflect) | Planned (Phase 4) |
-| LLM providers | Planned (Phase 2) |
 | Tools (fs, shell, git, …) | Planned (Phase 3) |
 | CLI (`cortex run`) | Planned (Phase 5) |
 | SQLite sessions / checkpoints | Planned (Phase 6) |
@@ -44,6 +45,7 @@ See [`CONSTRAINTS.md`](CONSTRAINTS.md), [`SPEC.md`](SPEC.md), [`VISION.md`](VISI
 crates/
   cortex-common/    # Errors, typed IDs
   cortex-models/    # Message, ToolCall, Session, Plan, Task, Artifact
+  cortex-llm/       # Provider trait, OpenAI-compat, Anthropic, mock, registry
   cortex-core/      # Kernel, config, event bus, service registry, cancel
   cortex-events/    # Lifecycle re-exports + agent loop events
   cortex-runtime/   # Runtime facade (agent loop later)
@@ -113,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 |-----------|---------|
 | M0 Stabilize | Compiling kernel + real bus ✓ |
 | M1 Models/events | Shared message/session types ✓ |
-| M2 Providers | Chat + mock + OpenAI-compatible |
+| M2 Providers | Chat + mock + OpenAI-compatible ✓ |
 | M3 Tools | fs + shell + registry |
 | M4 Agent loop | Multi-step tool use |
 | M5 CLI | `cortex run` / `cortex chat` |
