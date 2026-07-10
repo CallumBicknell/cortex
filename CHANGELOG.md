@@ -74,6 +74,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI Ctrl+Up/Down**: scrolls conversation history (3 lines)
 - **TUI Ctrl+O**: copies last assistant reply to OS clipboard
   (pbcopy/xclip/xsel/wl-copy)
+- **TUI `/stats`**: shows session id, message counts, content chars,
+  estimated tokens, and token usage for the session
+- **TUI `/rename <name>`**: renames session display label (shown in
+  header instead of database path)
+- **TUI Ctrl+Home/End**: jump to top/bottom of conversation
+- **TUI soft-wrap composer**: long lines grow the composer box instead
+  of clipping; caret scrolls into view when content exceeds box height
+- **TUI composer char count**: title bar shows live chars/lines count
 
 ## [0.2.1] — 2026-07-09
 

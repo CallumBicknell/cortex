@@ -47,10 +47,13 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
 | `Ctrl+↑` / `Ctrl+↓` | Scroll conversation up/down |
+| `Ctrl+Home` / `Ctrl+End` | Jump to top/bottom of conversation |
 | `PgUp` / `PgDn` | Scroll transcript |
 | `Esc` | Dismiss completion, cancel run, or clear input |
-| `/help` | Command list |
+| `/help` | Comprehensive command and key reference |
 | `/skills` | List skill packs |
+| `/stats` | Show conversation stats (messages, tokens, session id) |
+| `/rename <name>` | Rename current session display label |
 | `/new` | New session |
 | `/sessions` | Open sessions |
 | `/compact` | Toggle compact mode (hide header) |
