@@ -177,6 +177,8 @@ pub struct App {
     pub last_prompt_tokens: u32,
     /// Last run completion tokens.
     pub last_completion_tokens: u32,
+    /// Undo stack for composer (input, cursor) pairs.
+    pub input_undo: Vec<(String, usize)>,
 }
 
 impl App {
@@ -222,6 +224,7 @@ impl App {
             approval: None,
             last_prompt_tokens: 0,
             last_completion_tokens: 0,
+            input_undo: Vec::new(),
         })
     }
 
@@ -377,20 +380,41 @@ impl App {
 
     /// Insert newline into composer.
     pub fn insert_newline(&mut self) {
+        self.save_undo();
         self.input.push('\n');
         self.input_cursor = self.input.len();
     }
 
     /// Insert a character at the end of input.
     pub fn insert_char(&mut self, c: char) {
+        self.save_undo();
         self.input.push(c);
         self.input_cursor = self.input.len();
     }
 
     /// Backspace.
     pub fn backspace(&mut self) {
+        self.save_undo();
         self.input.pop();
         self.input_cursor = self.input.len();
+    }
+
+    /// Undo the last composer edit (Ctrl+Z).
+    pub fn undo(&mut self) {
+        if let Some((prev_input, prev_cursor)) = self.input_undo.pop() {
+            self.input = prev_input;
+            self.input_cursor = prev_cursor;
+        }
+    }
+
+    /// Save current composer state to the undo stack (before a mutation).
+    fn save_undo(&mut self) {
+        self.input_undo
+            .push((self.input.clone(), self.input_cursor));
+        // Cap at 100 entries to bound memory.
+        if self.input_undo.len() > 100 {
+            self.input_undo.drain(0..self.input_undo.len() - 100);
+        }
     }
 
     /// Take and clear the input buffer.

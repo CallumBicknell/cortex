@@ -265,6 +265,11 @@ async fn handle_key(
                 app.input_cursor = 0;
             }
         }
+        // Undo composer edit (Ctrl+Z).
+        KeyCode::Char('z') if app.input_focused && mods.contains(KeyModifiers::CONTROL) => {
+            app.undo();
+            return Ok(false);
+        }
         KeyCode::Enter if app.input_focused && !app.running => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
