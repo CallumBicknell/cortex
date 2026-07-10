@@ -209,6 +209,8 @@ pub struct App {
     pub last_blink: Instant,
     /// Tool start time for elapsed display (tool_name -> start time).
     pub tool_start: Option<Instant>,
+    /// When the current agent turn started (for elapsed timer in footer).
+    pub turn_start: Option<Instant>,
 }
 
 impl App {
@@ -272,6 +274,7 @@ impl App {
             cursor_visible: true,
             last_blink: Instant::now(),
             tool_start: None,
+            turn_start: None,
         })
     }
 

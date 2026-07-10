@@ -362,6 +362,22 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         String::new()
     };
+    let elapsed = if let Some(start) = app.turn_start {
+        let secs = start.elapsed().as_secs();
+        if secs >= 60 {
+            format!("  {:02}:{:02}", secs / 60, secs % 60)
+        } else {
+            format!("  {secs}s")
+        }
+    } else {
+        String::new()
+    };
+    let streaming_chars = if let Some(draft) = &app.streaming {
+        let chars = draft.chars().count();
+        format!("  {chars} chars")
+    } else {
+        String::new()
+    };
     let help = if area.width < 60 {
         " ↵ send  ↑↓ history  ^J nl  ^B sessions "
     } else if area.width < 80 {
@@ -369,7 +385,10 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         " ↵ send  ↑↓ history  Tab complete  /skill  @path  ^J nl  ^B sessions  ^C cancel  /quit "
     };
-    let line = format!(" {}{tokens}  ·{} ", app.status, help);
+    let line = format!(
+        " {}{tokens}{elapsed}{streaming_chars}  ·{} ",
+        app.status, help
+    );
     let p = Paragraph::new(line).style(
         Style::default()
             .fg(Color::Rgb(100, 100, 110))

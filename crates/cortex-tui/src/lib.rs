@@ -138,6 +138,7 @@ async fn run_loop(
                 if is_done {
                     run_cancel = None;
                     app.running = false;
+                    app.turn_start = None;
                     if let Err(e) = app.reload_sessions(&host).await {
                         app.status = format!("{}, reload warn: {e}", app.status);
                     }
@@ -177,6 +178,7 @@ async fn handle_key(
             }
             app.status = "cancelled".into();
             app.running = false;
+            app.turn_start = None;
             app.activity = None;
             return Ok(false);
         }
@@ -405,6 +407,7 @@ async fn handle_key(
                     }
                 }
                 app.running = false;
+                app.turn_start = None;
                 app.status = "cancelled".into();
                 app.activity = None;
             } else if app.completion.is_some() {
@@ -488,6 +491,7 @@ async fn handle_key(
             let cancel = CancellationToken::new();
             *run_cancel = Some(cancel.clone());
             app.running = true;
+            app.turn_start = Some(Instant::now());
             if app.status == "ready" || app.status.is_empty() {
                 app.status = "running…".into();
             } else {
