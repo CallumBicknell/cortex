@@ -369,7 +369,7 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
                 let id = s.id.to_string();
                 let short = if id.len() > 8 { &id[..8] } else { &id };
                 ListItem::new(format!(
-                    "{}  ·  {} msgs  ·  {:?}",
+                    "{}  ·  {} msgs  ·  {}",
                     short, s.message_count, s.status
                 ))
             })

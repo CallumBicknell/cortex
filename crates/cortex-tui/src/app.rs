@@ -267,7 +267,7 @@ impl App {
             .map(|i| i.insert.ends_with('/'))
             .unwrap_or(false);
         self.input = complete::apply_completion(&self.input, &state);
-        self.input_cursor = self.input.len();
+        self.input_cursor = self.input.chars().count();
         if keep_open {
             self.refresh_completion();
         } else {

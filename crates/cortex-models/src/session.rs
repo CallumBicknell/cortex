@@ -4,6 +4,7 @@ use crate::message::Message;
 use chrono::{DateTime, Utc};
 use cortex_common::SessionId;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Lifecycle status of a session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,6 +20,19 @@ pub enum SessionStatus {
     Failed,
     /// Archived / soft-deleted.
     Archived,
+}
+
+impl fmt::Display for SessionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Archived => "archived",
+        };
+        f.write_str(s)
+    }
 }
 
 /// An agent session (conversation + metadata).

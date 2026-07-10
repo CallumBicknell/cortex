@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use cortex_common::{RunId, SessionId};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Status of a task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,6 +19,19 @@ pub enum TaskStatus {
     Failed,
     /// Cancelled by user or system.
     Cancelled,
+}
+
+impl fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        };
+        f.write_str(s)
+    }
 }
 
 /// A unit of work submitted to the agent.

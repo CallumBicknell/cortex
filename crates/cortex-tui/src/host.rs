@@ -216,7 +216,7 @@ impl TuiHost {
                     assistant,
                     logs,
                     status: format!(
-                        "{:?} · {} turns · tools {}/{} · {}ms",
+                        "{} · {} turns · tools {}/{} · {}ms",
                         output.status,
                         output.turns,
                         tools_ok,
