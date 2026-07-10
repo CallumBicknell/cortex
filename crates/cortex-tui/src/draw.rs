@@ -35,6 +35,10 @@ pub fn ui(f: &mut Frame, app: &App) {
     if app.show_sessions {
         draw_sessions_overlay(f, f.area(), app);
     }
+
+    if app.approval.is_some() {
+        draw_approval_modal(f, f.area(), app);
+    }
 }
 
 fn composer_height(app: &App) -> u16 {
@@ -289,4 +293,79 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
         .highlight_symbol("▸ ");
     let mut state = app.session_list;
     f.render_stateful_widget(list, rect, &mut state);
+}
+
+/// Centered modal for tool-approval requests.
+fn draw_approval_modal(f: &mut Frame, area: Rect, app: &App) {
+    let Some(modal) = &app.approval else {
+        return;
+    };
+
+    let req = &modal.request;
+    let tool = &req.tool_name;
+    let summary = &req.summary;
+
+    // Format arguments: show as compact JSON, truncated.
+    let args_raw = req.arguments.to_string();
+    let args_display = if args_raw.len() > 80 {
+        format!("{}…", &args_raw[..79])
+    } else {
+        args_raw
+    };
+
+    // Build lines for the modal body.
+    let mut body_lines: Vec<Line> = Vec::new();
+    body_lines.push(Line::from(Span::styled(
+        format!("Tool: {tool}"),
+        Style::default()
+            .fg(Color::Rgb(255, 200, 80))
+            .add_modifier(Modifier::BOLD),
+    )));
+    body_lines.push(Line::from(""));
+    body_lines.push(Line::from(Span::styled(
+        summary.clone(),
+        Style::default().fg(Color::Rgb(200, 200, 210)),
+    )));
+    body_lines.push(Line::from(""));
+    body_lines.push(Line::from(Span::styled(
+        format!("args: {args_display}"),
+        Style::default().fg(Color::Rgb(140, 140, 160)),
+    )));
+    body_lines.push(Line::from(""));
+    body_lines.push(Line::from(Span::styled(
+        "  y = Allow     n / Esc = Deny",
+        Style::default()
+            .fg(Color::Rgb(160, 170, 180))
+            .add_modifier(Modifier::BOLD),
+    )));
+
+    // Size the modal to content.
+    let line_count = body_lines.len() as u16;
+    let content_width = body_lines
+        .iter()
+        .map(|l| l.width() as u16)
+        .max()
+        .unwrap_or(20);
+    let w = (content_width + 6)
+        .min(area.width.saturating_sub(4))
+        .max(36);
+    let h = (line_count + 4).min(area.height.saturating_sub(4)).max(10);
+
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+
+    f.render_widget(Clear, rect);
+
+    let p = Paragraph::new(body_lines)
+        .wrap(Wrap { trim: false })
+        .style(Style::default().bg(Color::Rgb(24, 24, 32)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" ⚠  Approve tool call ")
+                .border_style(Style::default().fg(Color::Rgb(220, 180, 60)))
+                .style(Style::default().bg(Color::Rgb(24, 24, 32))),
+        );
+    f.render_widget(p, rect);
 }

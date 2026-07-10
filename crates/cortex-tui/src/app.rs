@@ -4,7 +4,9 @@ use crate::host::TuiHost;
 use anyhow::Result;
 use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
+use cortex_tools::{ApprovalDecision, ApprovalRequest};
 use ratatui::widgets::ListState;
+use tokio::sync::oneshot;
 
 /// A display block in the conversation.
 #[derive(Debug, Clone)]
@@ -73,6 +75,14 @@ impl MessageLine {
             content,
         }
     }
+}
+
+/// Pending tool-approval modal state.
+pub struct ApprovalModal {
+    /// The original approval request.
+    pub request: ApprovalRequest,
+    /// Channel to send the user's decision back to the [`TuiApprover`].
+    pub respond: oneshot::Sender<ApprovalDecision>,
 }
 
 /// Result of a background agent turn.
@@ -155,6 +165,8 @@ pub struct App {
     pub streaming: Option<String>,
     /// Last activity line (tool chip under stream).
     pub activity: Option<String>,
+    /// Pending tool-approval modal (blocks input when `Some`).
+    pub approval: Option<ApprovalModal>,
 }
 
 impl App {
@@ -196,6 +208,7 @@ impl App {
             status: "ready".into(),
             streaming: None,
             activity: None,
+            approval: None,
         })
     }
 

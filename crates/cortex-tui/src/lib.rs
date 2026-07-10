@@ -5,6 +5,7 @@
 #![deny(missing_docs)]
 
 mod app;
+mod approver;
 mod draw;
 mod host;
 
@@ -12,6 +13,7 @@ pub use host::TuiHost;
 
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
+use approver::TuiApprovalRequest;
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -50,6 +52,7 @@ async fn run_loop(
     let mut app = App::new(&host).await?;
     let mut events = EventStream::new();
     let (tx, mut rx) = mpsc::unbounded_channel::<UiEvent>();
+    let (approval_tx, mut approval_rx) = mpsc::unbounded_channel::<TuiApprovalRequest>();
     let mut run_cancel: Option<CancellationToken> = None;
 
     loop {
@@ -66,6 +69,7 @@ async fn run_loop(
                             key.modifiers,
                             &mut run_cancel,
                             &tx,
+                            &approval_tx,
                         )
                         .await?
                         {
@@ -92,6 +96,12 @@ async fn run_loop(
                     }
                 }
             }
+            Some(req) = approval_rx.recv() => {
+                app.approval = Some(app::ApprovalModal {
+                    request: req.request,
+                    respond: req.respond,
+                });
+            }
         }
     }
 
@@ -106,6 +116,7 @@ async fn handle_key(
     mods: KeyModifiers,
     run_cancel: &mut Option<CancellationToken>,
     tx: &mpsc::UnboundedSender<UiEvent>,
+    approval_tx: &mpsc::UnboundedSender<TuiApprovalRequest>,
 ) -> Result<bool> {
     // Global cancel / quit
     if code == KeyCode::Char('c') && mods.contains(KeyModifiers::CONTROL) {
@@ -118,6 +129,26 @@ async fn handle_key(
             return Ok(false);
         }
         return Ok(true);
+    }
+
+    // Tool-approval modal: intercept all keys when open.
+    if app.approval.is_some() {
+        match code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if let Some(modal) = app.approval.take() {
+                    let _ = modal.respond.send(cortex_tools::ApprovalDecision::Allow);
+                    app.status = "approved".into();
+                }
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                if let Some(modal) = app.approval.take() {
+                    let _ = modal.respond.send(cortex_tools::ApprovalDecision::Deny);
+                    app.status = "denied".into();
+                }
+            }
+            _ => {}
+        }
+        return Ok(false);
     }
 
     // Sessions drawer
@@ -249,9 +280,19 @@ async fn handle_key(
             let max_turns = app.max_turns;
             let skills = app.skills.clone();
             let tx = tx.clone();
+            let approval_tx = approval_tx.clone();
             tokio::spawn(async move {
-                host.run_turn(session, prompt, yolo, max_turns, skills, cancel, tx)
-                    .await;
+                host.run_turn(
+                    session,
+                    prompt,
+                    yolo,
+                    max_turns,
+                    skills,
+                    cancel,
+                    tx,
+                    approval_tx,
+                )
+                .await;
             });
         }
         KeyCode::Char(c)
