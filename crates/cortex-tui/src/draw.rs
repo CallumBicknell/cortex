@@ -555,7 +555,8 @@ fn draw_approval_modal(f: &mut Frame, area: Rect, app: &App) {
     // Format arguments: show as compact JSON, truncated.
     let args_raw = req.arguments.to_string();
     let args_display = if args_raw.len() > 80 {
-        format!("{}…", &args_raw[..79])
+        let boundary = args_raw.floor_char_boundary(79);
+        format!("{}…", &args_raw[..boundary])
     } else {
         args_raw
     };
