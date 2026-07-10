@@ -5,9 +5,11 @@ use crate::host::TuiHost;
 use anyhow::Result;
 use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
+use cortex_tools::{ApprovalDecision, ApprovalRequest};
 use ratatui::widgets::ListState;
 use std::path::PathBuf;
 use std::time::Instant;
+use tokio::sync::oneshot;
 
 /// A display block in the conversation.
 #[derive(Debug, Clone)]
@@ -79,6 +81,14 @@ impl MessageLine {
     }
 }
 
+/// Pending tool-approval modal state.
+pub struct ApprovalModal {
+    /// The original approval request.
+    pub request: ApprovalRequest,
+    /// Channel to send the user's decision back to the [`TuiApprover`].
+    pub respond: oneshot::Sender<ApprovalDecision>,
+}
+
 /// Result of a background agent turn.
 #[derive(Debug)]
 pub struct RunUpdate {
@@ -102,6 +112,10 @@ pub struct RunUpdate {
     pub tools_ok: u32,
     /// Tool results that failed.
     pub tools_err: u32,
+    /// Prompt/input tokens.
+    pub prompt_tokens: u32,
+    /// Completion/output tokens.
+    pub completion_tokens: u32,
 }
 
 /// Live UI events from a background run (stream + completion).
@@ -145,6 +159,8 @@ pub struct App {
     pub input_focused: bool,
     /// Show sessions drawer.
     pub show_sessions: bool,
+    /// Session search filter (applied in drawer).
+    pub session_search: String,
     /// Agent currently running.
     pub running: bool,
     /// Auto-approve tools.
@@ -159,6 +175,16 @@ pub struct App {
     pub streaming: Option<String>,
     /// Last activity line (tool chip under stream).
     pub activity: Option<String>,
+    /// Pending tool-approval modal (blocks input when `Some`).
+    pub approval: Option<ApprovalModal>,
+    /// Last run prompt tokens.
+    pub last_prompt_tokens: u32,
+    /// Last run completion tokens.
+    pub last_completion_tokens: u32,
+    /// Undo stack for composer (input, cursor) pairs.
+    pub input_undo: Vec<(String, usize)>,
+    /// Compact mode (less spacing, smaller header).
+    pub compact: bool,
     /// Workspace root (for `@path` completion / attachment expansion).
     pub workspace_path: PathBuf,
     /// Known skill ids for `/skill` autocomplete.
@@ -219,6 +245,7 @@ impl App {
             input_cursor: 0,
             input_focused: true,
             show_sessions: false,
+            session_search: String::new(),
             running: false,
             yolo: host.yolo,
             max_turns: host.max_turns,
@@ -226,6 +253,11 @@ impl App {
             status: "ready".into(),
             streaming: None,
             activity: None,
+            approval: None,
+            last_prompt_tokens: 0,
+            last_completion_tokens: 0,
+            input_undo: Vec::new(),
+            compact: false,
             workspace_path: host.workspace.clone(),
             skill_ids,
             skill_details,
@@ -324,49 +356,103 @@ impl App {
         self.show_sessions = !self.show_sessions;
         if self.show_sessions {
             self.input_focused = false;
-            self.status = "sessions · ↑/↓ · Enter open · Ctrl+B hide".into();
+            self.session_search.clear();
+            self.status = "sessions · ↑/↓ · Enter open · / search · d delete · Ctrl+B hide".into();
         } else {
             self.input_focused = true;
+            self.session_search.clear();
             self.status = "ready".into();
         }
     }
 
+    /// Filtered sessions based on search text.
+    pub fn filtered_sessions(&self) -> Vec<(usize, &SessionSummary)> {
+        if self.session_search.is_empty() {
+            self.sessions.iter().enumerate().collect()
+        } else {
+            let q = self.session_search.to_ascii_lowercase();
+            self.sessions
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| {
+                    let id = s.id.to_string().to_ascii_lowercase();
+                    let model = s.model.to_ascii_lowercase();
+                    let status = format!("{}", s.status).to_ascii_lowercase();
+                    id.contains(&q) || model.contains(&q) || status.contains(&q)
+                })
+                .collect()
+        }
+    }
+
+    /// Insert a character into the session search filter.
+    pub fn session_search_insert(&mut self, c: char) {
+        self.session_search.push(c);
+        self.session_list.select(Some(0));
+    }
+
+    /// Delete last character from session search filter.
+    pub fn session_search_backspace(&mut self) {
+        self.session_search.pop();
+        self.session_list.select(Some(0));
+    }
+
+    /// Archive (soft-delete) the currently selected session.
+    pub async fn archive_selected(&mut self, host: &TuiHost) -> Result<()> {
+        let filtered = self.filtered_sessions();
+        if let Some(i) = self.session_list.selected() {
+            if let Some((_, s)) = filtered.get(i) {
+                let id = s.id;
+                host.archive_session(id).await?;
+                self.reload_sessions(host).await?;
+                self.session_search.clear();
+                self.session_list.select(Some(0));
+                self.status = "session archived".into();
+            }
+        }
+        Ok(())
+    }
+
     /// Select previous session in list.
     pub fn select_prev(&mut self) {
-        if self.sessions.is_empty() {
+        let count = self.filtered_sessions().len();
+        if count == 0 {
             return;
         }
         let i = self.session_list.selected().unwrap_or(0);
-        let next = if i == 0 {
-            self.sessions.len() - 1
-        } else {
-            i - 1
-        };
+        let next = if i == 0 { count - 1 } else { i - 1 };
         self.session_list.select(Some(next));
     }
 
     /// Select next session in list.
     pub fn select_next(&mut self) {
-        if self.sessions.is_empty() {
+        let count = self.filtered_sessions().len();
+        if count == 0 {
             return;
         }
         let i = self.session_list.selected().unwrap_or(0);
-        let next = (i + 1) % self.sessions.len();
+        let next = (i + 1) % count;
         self.session_list.select(Some(next));
     }
 
     /// Load currently selected session.
     pub async fn load_selected(&mut self, host: &TuiHost) -> Result<()> {
+        let filtered = self.filtered_sessions();
         if let Some(i) = self.session_list.selected() {
-            if let Some(s) = self.sessions.get(i).cloned() {
-                let loaded = host.load_session(s.id).await?;
+            if let Some((_, s)) = filtered.get(i) {
+                let id = s.id;
+                let short_id = {
+                    let id_str = id.to_string();
+                    if id_str.len() > 8 {
+                        id_str[..8].to_string()
+                    } else {
+                        id_str
+                    }
+                };
+                let loaded = host.load_session(id).await?;
                 self.set_session(loaded);
                 self.show_sessions = false;
                 self.input_focused = true;
-                self.status = format!(
-                    "loaded {}",
-                    &s.id.to_string()[..8.min(s.id.to_string().len())]
-                );
+                self.status = format!("loaded {short_id}");
             }
         }
         Ok(())
@@ -379,6 +465,7 @@ impl App {
 
     /// Insert newline into composer at cursor.
     pub fn insert_newline(&mut self) {
+        self.save_undo();
         let byte = self.char_to_byte(self.input_cursor);
         self.input.insert(byte, '\n');
         self.input_cursor += 1;
@@ -387,6 +474,7 @@ impl App {
 
     /// Insert a character at cursor position.
     pub fn insert_char(&mut self, c: char) {
+        self.save_undo();
         let byte = self.char_to_byte(self.input_cursor);
         self.input.insert(byte, c);
         self.input_cursor += 1;
@@ -420,6 +508,7 @@ impl App {
         if self.input_cursor == 0 {
             return;
         }
+        self.save_undo();
         let byte = self.char_to_byte(self.input_cursor);
         let prev_char = self.input_cursor - 1;
         let prev_byte = self.char_to_byte(prev_char);
@@ -433,6 +522,7 @@ impl App {
         if self.input_cursor >= self.input.chars().count() {
             return;
         }
+        self.save_undo();
         let byte = self.char_to_byte(self.input_cursor);
         let ch = self.input[byte..].chars().next().unwrap_or('\0');
         self.input.drain(byte..byte + ch.len_utf8());
@@ -505,6 +595,7 @@ impl App {
         if self.input_cursor == 0 {
             return;
         }
+        self.save_undo();
         let byte = self.char_to_byte(self.input_cursor);
         self.input.drain(0..byte);
         self.input_cursor = 0;
@@ -517,6 +608,7 @@ impl App {
         if byte >= self.input.len() {
             return;
         }
+        self.save_undo();
         self.input.drain(byte..);
         self.refresh_completion();
     }
@@ -526,6 +618,7 @@ impl App {
         if self.input_cursor == 0 {
             return;
         }
+        self.save_undo();
         let old = self.input_cursor;
         self.cursor_word_left();
         let byte = self.char_to_byte(self.input_cursor);
@@ -541,6 +634,24 @@ impl App {
             .nth(char_idx)
             .map(|(byte, _)| byte)
             .unwrap_or(self.input.len())
+    }
+
+    /// Undo the last composer edit (Ctrl+Z).
+    pub fn undo(&mut self) {
+        if let Some((prev_input, prev_cursor)) = self.input_undo.pop() {
+            self.input = prev_input;
+            self.input_cursor = prev_cursor;
+        }
+    }
+
+    /// Save current composer state to the undo stack (before a mutation).
+    fn save_undo(&mut self) {
+        self.input_undo
+            .push((self.input.clone(), self.input_cursor));
+        // Cap at 100 entries to bound memory.
+        if self.input_undo.len() > 100 {
+            self.input_undo.drain(0..self.input_undo.len() - 100);
+        }
     }
 
     /// Take and clear the input buffer.
@@ -636,6 +747,8 @@ impl App {
         if !update.ok {
             self.status = format!("! {}", self.status);
         }
+        self.last_prompt_tokens = update.prompt_tokens;
+        self.last_completion_tokens = update.completion_tokens;
         self.scroll = 0;
     }
 

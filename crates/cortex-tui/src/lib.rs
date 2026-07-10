@@ -5,6 +5,7 @@
 #![deny(missing_docs)]
 
 mod app;
+mod approver;
 mod complete;
 mod draw;
 mod host;
@@ -14,6 +15,7 @@ pub use host::TuiHost;
 
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
+use approver::TuiApprovalRequest;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
     EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
@@ -63,6 +65,7 @@ async fn run_loop(
     let mut app = App::new(&host).await?;
     let mut events = EventStream::new();
     let (tx, mut rx) = mpsc::unbounded_channel::<UiEvent>();
+    let (approval_tx, mut approval_rx) = mpsc::unbounded_channel::<TuiApprovalRequest>();
     let mut run_cancel: Option<CancellationToken> = None;
 
     loop {
@@ -90,6 +93,7 @@ async fn run_loop(
                             key.modifiers,
                             &mut run_cancel,
                             &tx,
+                            &approval_tx,
                         )
                         .await?
                         {
@@ -131,6 +135,12 @@ async fn run_loop(
                     }
                 }
             }
+            Some(req) = approval_rx.recv() => {
+                app.approval = Some(app::ApprovalModal {
+                    request: req.request,
+                    respond: req.respond,
+                });
+            }
         }
     }
 
@@ -145,18 +155,44 @@ async fn handle_key(
     mods: KeyModifiers,
     run_cancel: &mut Option<CancellationToken>,
     tx: &mpsc::UnboundedSender<UiEvent>,
+    approval_tx: &mpsc::UnboundedSender<TuiApprovalRequest>,
 ) -> Result<bool> {
     // Global cancel / quit
     if code == KeyCode::Char('c') && mods.contains(KeyModifiers::CONTROL) {
         if let Some(c) = run_cancel.take() {
             c.cancel();
+            // Keep partial reply if present.
+            if let Some(draft) = app.streaming.take() {
+                if !draft.trim().is_empty() {
+                    app.push_line(MessageLine::assistant(format!("{draft} (cancelled)")));
+                }
+            }
             app.status = "cancelled".into();
             app.running = false;
-            app.streaming = None;
             app.activity = None;
             return Ok(false);
         }
         return Ok(true);
+    }
+
+    // Tool-approval modal: intercept all keys when open.
+    if app.approval.is_some() {
+        match code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if let Some(modal) = app.approval.take() {
+                    let _ = modal.respond.send(cortex_tools::ApprovalDecision::Allow);
+                    app.status = "approved".into();
+                }
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                if let Some(modal) = app.approval.take() {
+                    let _ = modal.respond.send(cortex_tools::ApprovalDecision::Deny);
+                    app.status = "denied".into();
+                }
+            }
+            _ => {}
+        }
+        return Ok(false);
     }
 
     // Sessions drawer
@@ -168,9 +204,16 @@ async fn handle_key(
     if app.show_sessions {
         match code {
             KeyCode::Esc => {
-                app.show_sessions = false;
-                app.input_focused = true;
-                app.status = "ready".into();
+                if app.session_search.is_empty() {
+                    app.show_sessions = false;
+                    app.input_focused = true;
+                    app.status = "ready".into();
+                } else {
+                    app.session_search.clear();
+                    app.session_list.select(Some(0));
+                    app.status =
+                        "sessions · ↑/↓ · Enter open · / search · d delete · Ctrl+B hide".into();
+                }
             }
             KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
             KeyCode::Down | KeyCode::Char('j') => app.select_next(),
@@ -190,6 +233,19 @@ async fn handle_key(
                 } else {
                     app.status = "sessions reloaded".into();
                 }
+            }
+            KeyCode::Char('d') => {
+                if let Err(e) = app.archive_selected(host).await {
+                    app.status = format!("archive failed: {e}");
+                }
+            }
+            KeyCode::Char(c)
+                if c != '/' && c != 'j' && c != 'k' && c != 'n' && c != 'r' && c != 'd' =>
+            {
+                app.session_search_insert(c);
+            }
+            KeyCode::Backspace => {
+                app.session_search_backspace();
             }
             _ => {}
         }
@@ -302,9 +358,14 @@ async fn handle_key(
                 if let Some(c) = run_cancel.take() {
                     c.cancel();
                 }
+                // Keep partial reply if present.
+                if let Some(draft) = app.streaming.take() {
+                    if !draft.trim().is_empty() {
+                        app.push_line(MessageLine::assistant(format!("{draft} (cancelled)")));
+                    }
+                }
                 app.running = false;
                 app.status = "cancelled".into();
-                app.streaming = None;
                 app.activity = None;
             } else if app.completion.is_some() {
                 app.clear_completion();
@@ -322,6 +383,21 @@ async fn handle_key(
                 app.accept_completion();
             }
         }
+        // Undo composer edit (Ctrl+Z).
+        KeyCode::Char('z') if app.input_focused && mods.contains(KeyModifiers::CONTROL) => {
+            app.undo();
+            return Ok(false);
+        }
+        // Toggle compact mode (Ctrl+U).
+        KeyCode::Char('u') if app.input_focused && mods.contains(KeyModifiers::CONTROL) => {
+            app.compact = !app.compact;
+            app.status = if app.compact {
+                "compact mode on".into()
+            } else {
+                "compact mode off".into()
+            };
+            return Ok(false);
+        }
         KeyCode::Enter if app.input_focused && !app.running => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
@@ -332,6 +408,18 @@ async fn handle_key(
             let parsed = parse_prompt(&prompt, &app.skill_ids);
             if let Some(meta) = parsed.meta {
                 return handle_meta(app, meta);
+            }
+            if prompt == "/export" {
+                match export_transcript(app) {
+                    Ok(path) => {
+                        app.push_line(MessageLine::system(format!("Exported to {path}")));
+                        app.status = format!("exported → {path}");
+                    }
+                    Err(e) => {
+                        app.status = format!("export failed: {e}");
+                    }
+                }
+                return Ok(false);
             }
 
             // Expand @paths for the agent; keep original text in the transcript.
@@ -377,9 +465,19 @@ async fn handle_key(
             let yolo = app.yolo;
             let max_turns = app.max_turns;
             let tx = tx.clone();
+            let approval_tx = approval_tx.clone();
             tokio::spawn(async move {
-                host.run_turn(session, agent_prompt, yolo, max_turns, skills, cancel, tx)
-                    .await;
+                host.run_turn(
+                    session,
+                    agent_prompt,
+                    yolo,
+                    max_turns,
+                    skills,
+                    cancel,
+                    tx,
+                    approval_tx,
+                )
+                .await;
             });
         }
         KeyCode::Char(c)
@@ -431,6 +529,60 @@ async fn handle_key(
     }
 
     Ok(false)
+}
+
+/// Export the current transcript as a markdown file.
+fn export_transcript(app: &App) -> Result<String, String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let filename = format!("cortex_export_{timestamp}.md");
+
+    // Try workspace dir first, fall back to current dir.
+    let ws = std::path::Path::new(&app.workspace);
+    let dir = if ws.is_dir() {
+        ws.to_path_buf()
+    } else {
+        PathBuf::from(".")
+    };
+    let path = dir.join(&filename);
+
+    let mut md = String::new();
+    md.push_str("# Cortex Session Export\n\n");
+    md.push_str(&format!(
+        "**Date:** {}\n",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")
+    ));
+    md.push_str(&format!("**Model:** {}\n\n", app.model_label));
+    md.push_str("---\n\n");
+
+    for line in &app.lines {
+        match line.role.as_str() {
+            "you" => {
+                md.push_str("## You\n\n");
+                md.push_str(&line.content);
+                md.push_str("\n\n");
+            }
+            "cortex" => {
+                md.push_str("## Cortex\n\n");
+                md.push_str(&line.content);
+                md.push_str("\n\n");
+            }
+            "tool" => {
+                md.push_str(&format!("> {}\n\n", line.content));
+            }
+            "system" => {
+                md.push_str(&format!("*{}*\n\n", line.content));
+            }
+            _ => {
+                md.push_str(&format!("### {}\n\n{}\n\n", line.role, line.content));
+            }
+        }
+    }
+
+    fs::write(&path, &md).map_err(|e| format!("write failed: {e}"))?;
+    Ok(path.display().to_string())
 }
 
 fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
@@ -496,57 +648,4 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
         }
     }
     Ok(false)
-}
-
-/// Export the current transcript as a markdown file.
-fn export_transcript(app: &App) -> std::result::Result<String, String> {
-    use std::fs;
-    use std::path::PathBuf;
-
-    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-    let filename = format!("cortex_export_{timestamp}.md");
-
-    let ws = std::path::Path::new(&app.workspace);
-    let dir = if ws.is_dir() {
-        ws.to_path_buf()
-    } else {
-        PathBuf::from(".")
-    };
-    let path = dir.join(&filename);
-
-    let mut md = String::new();
-    md.push_str("# Cortex Session Export\n\n");
-    md.push_str(&format!(
-        "**Date:** {}\n",
-        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")
-    ));
-    md.push_str(&format!("**Model:** {}\n\n", app.model_label));
-    md.push_str("---\n\n");
-
-    for line in &app.lines {
-        match line.role.as_str() {
-            "you" => {
-                md.push_str("## You\n\n");
-                md.push_str(&line.content);
-                md.push_str("\n\n");
-            }
-            "cortex" => {
-                md.push_str("## Cortex\n\n");
-                md.push_str(&line.content);
-                md.push_str("\n\n");
-            }
-            "tool" => {
-                md.push_str(&format!("> {}\n\n", line.content));
-            }
-            "system" => {
-                md.push_str(&format!("*{}*\n\n", line.content));
-            }
-            _ => {
-                md.push_str(&format!("### {}\n\n{}\n\n", line.role, line.content));
-            }
-        }
-    }
-
-    fs::write(&path, &md).map_err(|e| format!("write failed: {e}"))?;
-    Ok(path.display().to_string())
 }

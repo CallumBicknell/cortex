@@ -9,7 +9,7 @@ use cortex_events::{
     AssistantMessageProduced, AssistantTextDelta, ErrorRaised, LoopPhase, LoopPhaseChanged,
     ToolCallCompleted, ToolCallFailed, ToolCallRequested, UserMessageReceived,
 };
-use cortex_llm::{ChatRequest, FinishReason, Provider, StreamEvent};
+use cortex_llm::{ChatRequest, FinishReason, Provider, StreamEvent, Usage};
 use cortex_models::{Message, Session, TaskStatus, ToolCall, ToolResult};
 use cortex_tools::{is_file_mutating, ToolContext, ToolExecutor};
 use futures::StreamExt;
@@ -116,6 +116,8 @@ pub struct RunOutput {
     pub duration_ms: u64,
     /// Optional error message when failed/cancelled.
     pub error: Option<String>,
+    /// Accumulated token usage across all turns.
+    pub total_usage: Usage,
 }
 
 /// The agent loop engine.
@@ -187,6 +189,7 @@ impl AgentLoop {
         let mut turns = 0u32;
         let mut tool_results: Vec<ToolResult> = Vec::new();
         let mut final_message: Option<String> = None;
+        let mut total_usage = Usage::default();
 
         // --- Observe: accept user input ---
         phase = self
@@ -209,6 +212,7 @@ impl AgentLoop {
                 &mut turns,
                 &mut tool_results,
                 &mut final_message,
+                &mut total_usage,
             )
             .await;
 
@@ -233,6 +237,7 @@ impl AgentLoop {
                     tool_results,
                     duration_ms,
                     error: None,
+                    total_usage,
                 })
             }
             Err(err) => {
@@ -259,6 +264,7 @@ impl AgentLoop {
                     tool_results,
                     duration_ms,
                     error: Some(err.to_string()),
+                    total_usage,
                 })
             }
         }
@@ -275,6 +281,7 @@ impl AgentLoop {
         turns: &mut u32,
         tool_results: &mut Vec<ToolResult>,
         final_message: &mut Option<String>,
+        total_usage: &mut Usage,
     ) -> Result<TaskStatus> {
         let run_started = Instant::now();
         loop {
@@ -380,6 +387,10 @@ impl AgentLoop {
             };
 
             let assistant = response.message.clone();
+            // Accumulate token usage across turns.
+            total_usage.prompt_tokens += response.usage.prompt_tokens;
+            total_usage.completion_tokens += response.usage.completion_tokens;
+            total_usage.total_tokens += response.usage.total_tokens;
             self.publish(
                 AssistantMessageProduced::new(session.id, assistant.id, &assistant.content)
                     .with_run_id(run_id)

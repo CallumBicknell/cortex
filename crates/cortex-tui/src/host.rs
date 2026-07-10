@@ -1,6 +1,7 @@
 //! Host bindings: provider, tools, store, context assembly.
 
 use crate::app::{RunUpdate, UiEvent};
+use crate::approver::{TuiApprovalRequest, TuiApprover};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use cortex_core::{EnvelopeHandler, EventBus, EventEnvelope, InMemoryEventBus};
@@ -10,14 +11,12 @@ use cortex_models::{Role, Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, SummarizeConfig};
 use cortex_skills::{select_skills, SkillRegistry, SkillStore};
-use cortex_tools::{
-    AlwaysAllow, AlwaysDeny, Approver, PermissionPolicy, ToolContext, ToolExecutor,
-};
+use cortex_tools::{AlwaysAllow, Approver, PermissionPolicy, ToolContext, ToolExecutor};
 use cortex_workspace::RepoMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio_util::sync::CancellationToken;
 
 /// Everything the TUI needs to run agent turns.
@@ -133,10 +132,11 @@ impl TuiHost {
         skills: Vec<String>,
         cancel: CancellationToken,
         tx: UnboundedSender<UiEvent>,
+        approval_tx: mpsc::UnboundedSender<TuiApprovalRequest>,
     ) {
         let _ = tx.send(UiEvent::Status("running…".into()));
         let context = self.build_context(&prompt, &skills);
-        let tool_ctx = self.make_tool_context(cancel.clone(), yolo, Some(session.id));
+        let tool_ctx = self.make_tool_context(cancel.clone(), yolo, Some(session.id), approval_tx);
         let mut agent = AgentLoop::new(
             Arc::clone(&self.provider),
             self.model.clone(),
@@ -228,6 +228,8 @@ impl TuiHost {
                     duration_ms: output.duration_ms,
                     tools_ok,
                     tools_err,
+                    prompt_tokens: output.total_usage.prompt_tokens,
+                    completion_tokens: output.total_usage.completion_tokens,
                 }
             }
             Err(e) => RunUpdate {
@@ -241,6 +243,8 @@ impl TuiHost {
                 duration_ms: 0,
                 tools_ok: 0,
                 tools_err: 0,
+                prompt_tokens: 0,
+                completion_tokens: 0,
             },
         };
         let _ = tx.send(UiEvent::Done(Box::new(update)));
@@ -251,11 +255,12 @@ impl TuiHost {
         cancel: CancellationToken,
         yolo: bool,
         session_id: Option<cortex_common::SessionId>,
+        approval_tx: mpsc::UnboundedSender<TuiApprovalRequest>,
     ) -> ToolContext {
         let approver: Arc<dyn Approver> = if yolo {
             Arc::new(AlwaysAllow)
         } else {
-            Arc::new(AlwaysDeny)
+            Arc::new(TuiApprover::new(approval_tx))
         };
         let permissions = if yolo {
             PermissionPolicy::default().allow_all()
@@ -308,6 +313,14 @@ impl TuiHost {
     /// Load a session by id.
     pub async fn load_session(&self, id: cortex_common::SessionId) -> Result<Session> {
         self.store.load_session(id).await.context("load session")
+    }
+
+    /// Soft-archive a session.
+    pub async fn archive_session(&self, id: cortex_common::SessionId) -> Result<()> {
+        self.store
+            .archive_session(id)
+            .await
+            .context("archive session")
     }
 }
 
