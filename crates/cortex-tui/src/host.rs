@@ -9,7 +9,7 @@ use cortex_memory::{CheckpointState, SessionStore};
 use cortex_models::{Role, Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, SummarizeConfig};
-use cortex_skills::{select_skills, SkillRegistry};
+use cortex_skills::{select_skills, SkillRegistry, SkillStore};
 use cortex_tools::{
     AlwaysAllow, AlwaysDeny, Approver, PermissionPolicy, ToolContext, ToolExecutor,
 };
@@ -64,9 +64,29 @@ impl TuiHost {
         }
     }
 
+    /// Skill registry: builtins + `~/.cortex/skills` + project `.cortex/skills`.
+    pub fn skill_registry(&self) -> SkillRegistry {
+        let home = cortex_user_home().join("skills");
+        let home_store = SkillStore::new(home);
+        let project_store = SkillStore::for_workspace(&self.workspace);
+        SkillRegistry::with_builtins_and_stores(&[&home_store, &project_store])
+    }
+
+    /// All skill ids with short descriptions (for `/` autocomplete and `/skills`).
+    pub fn list_skills(&self) -> Vec<(String, String)> {
+        self.skill_registry()
+            .all()
+            .into_iter()
+            .map(|s| (s.id, s.description))
+            .collect()
+    }
+
     /// Build context for a user prompt.
     pub fn build_context(&self, prompt: &str, skills: &[String]) -> ContextBuilder {
-        let prompts = PromptCatalog::with_builtins();
+        let mut prompts = PromptCatalog::with_builtins();
+        // Project then home prompts (later load can override by id depending on catalog).
+        let _ = prompts.load_dir(self.workspace.join(".cortex").join("prompts"));
+        let _ = prompts.load_dir(cortex_user_home().join("prompts"));
         let system = prompts
             .render("system", &Default::default())
             .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
@@ -76,25 +96,30 @@ impl TuiHost {
             context = context.with_project_instructions(instr.to_prompt_section());
         }
 
-        if let Ok(map) = RepoMap::build(&self.workspace) {
-            context = context.with_repo_map(&map);
-            let project = Some(&map.project);
-            let reg = SkillRegistry::with_builtins();
-            let selection = select_skills(&reg, prompt, project, skills);
-            let mut skill_body = String::from("## Active skills\n");
-            for id in &selection.skill_ids {
-                skill_body.push_str(&format!("- {id}\n"));
+        let reg = self.skill_registry();
+        let project_info;
+        let project = match RepoMap::build(&self.workspace) {
+            Ok(map) => {
+                context = context.with_repo_map(&map);
+                project_info = map.project;
+                Some(&project_info)
             }
-            skill_body.push('\n');
-            for pid in &selection.prompts {
-                if let Ok(p) = prompts.get(pid) {
-                    skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
-                }
-            }
-            context = context
-                .with_skill_prompts(skill_body)
-                .with_allowed_tools(selection.tools);
+            Err(_) => None,
+        };
+        let selection = select_skills(&reg, prompt, project, skills);
+        let mut skill_body = String::from("## Active skills\n");
+        for id in &selection.skill_ids {
+            skill_body.push_str(&format!("- {id}\n"));
         }
+        skill_body.push('\n');
+        for pid in &selection.prompts {
+            if let Ok(p) = prompts.get(pid) {
+                skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
+            }
+        }
+        context = context
+            .with_skill_prompts(skill_body)
+            .with_allowed_tools(selection.tools);
         context
     }
 
@@ -280,6 +305,22 @@ impl TuiHost {
     pub async fn load_session(&self, id: cortex_common::SessionId) -> Result<Session> {
         self.store.load_session(id).await.context("load session")
     }
+}
+
+/// User-global cortex home (`CORTEX_HOME` or `~/.cortex`).
+fn cortex_user_home() -> PathBuf {
+    if let Ok(p) = std::env::var("CORTEX_HOME") {
+        let p = p.trim();
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.is_empty() {
+            return PathBuf::from(home).join(".cortex");
+        }
+    }
+    PathBuf::from(".cortex")
 }
 
 /// Bridge agent event bus → TUI channel.
