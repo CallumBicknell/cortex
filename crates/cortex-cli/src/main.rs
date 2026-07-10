@@ -442,11 +442,17 @@ enum SessionsCmd {
 async fn main() -> ExitCode {
     load_dotenv();
     let cli = Cli::parse();
-    // Chat/TUI use an alternate screen — silence INFO logs unless --verbose.
+    // Chat/TUI/setup wizard use an alternate screen — never log to stderr.
+    // (Even CORTEX_LOG_LEVEL=info must not paint over the UI; see init_tracing.)
     let quiet_ui = !cli.verbose
         && matches!(
             &cli.command,
-            Commands::Chat { plain: false, .. } | Commands::Tui { .. }
+            Commands::Chat { plain: false, .. }
+                | Commands::Tui { .. }
+                | Commands::Setup {
+                    no_wizard: false,
+                    ..
+                }
         );
     init_tracing(cli.verbose, quiet_ui);
 

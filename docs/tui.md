@@ -87,9 +87,9 @@ in the activity line. See [`docs/browser.md`](browser.md).
 - Run summary in the status bar (`turns · tools · ms`)
 - Sessions persist to the same SQLite DB as `cortex run`
 - Project instructions (`AGENTS.md` / `.cortex/instructions.md`) injected automatically
-- Logs default to **error** for all crates during `chat`/`tui` (set before
-  tracing init) so INFO lines never paint over the alternate screen. Use
-  `--verbose` or `RUST_LOG=info` to debug.
+- Logs never write to the terminal during `chat`/`tui`/`setup` (they paint over
+  the alternate screen). Instead they append to `~/.cortex/logs/cortex.log`.
+  Use `--verbose` only if you want stderr logs (can still corrupt the UI).
 - Starts a **fresh session** each launch; open prior ones with `Ctrl+B`
 
 ## Not yet
