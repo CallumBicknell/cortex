@@ -122,9 +122,14 @@ async fn handle_key(
     if code == KeyCode::Char('c') && mods.contains(KeyModifiers::CONTROL) {
         if let Some(c) = run_cancel.take() {
             c.cancel();
+            // Keep partial reply if present.
+            if let Some(draft) = app.streaming.take() {
+                if !draft.trim().is_empty() {
+                    app.push_line(MessageLine::assistant(format!("{draft} (cancelled)")));
+                }
+            }
             app.status = "cancelled".into();
             app.running = false;
-            app.streaming = None;
             app.activity = None;
             return Ok(false);
         }
@@ -246,9 +251,14 @@ async fn handle_key(
                 if let Some(c) = run_cancel.take() {
                     c.cancel();
                 }
+                // Keep partial reply if present.
+                if let Some(draft) = app.streaming.take() {
+                    if !draft.trim().is_empty() {
+                        app.push_line(MessageLine::assistant(format!("{draft} (cancelled)")));
+                    }
+                }
                 app.running = false;
                 app.status = "cancelled".into();
-                app.streaming = None;
                 app.activity = None;
             } else if !app.input.is_empty() {
                 app.input.clear();
