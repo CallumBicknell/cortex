@@ -13,12 +13,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Chat TUI**: never write tracing to stderr in chat/tui/setup (logs go to
   `~/.cortex/logs/cortex.log`) so INFO lines cannot paint over the alternate
   screen; start a fresh session (resume via Ctrl+B)
+- **TUI cursor**: `accept_completion` set cursor to byte length instead of char
+  count, breaking position after tab-completion on non-ASCII input
+- **TUI session list**: status column used Debug format (`{:?}`); now shows
+  lowercase labels (active, completed, failed, …)
 
 ### Changed
 
 - **`cortex chat`**: full-screen Claude Code–style TUI by default (use `--plain`
   for the old line REPL); cleaner conversation layout, multi-line composer,
   sessions modal, live stream + tool chips
+- **TUI input**: cursor is now char-index based (safe for non-ASCII) with
+  `char_to_byte` helper for all string operations
 
 ### Added
 
@@ -40,6 +46,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (OpenAI / Anthropic / OpenRouter keys, Ollama :11434), custom OpenAI-compatible
   providers, Anthropic native; `--default-model` / `--no-wizard` for scripts
 - **Local install**: `make install` / `scripts/install-local.sh` → `~/.local/bin/cortex`
+- **TUI readline shortcuts**: Ctrl+A (home), Ctrl+E (end), Ctrl+W (delete word),
+  Ctrl+U (delete to start), Ctrl+K (delete to end)
+- **TUI word movement**: Ctrl+Left/Right moves cursor by word
+- **TUI streaming cursor**: blinking block cursor (▌) during assistant stream
+- **TUI auto-scroll**: conversation follows new streaming content; scroll-up
+  pauses auto-follow with "↓ new content below" indicator
+- **TUI /undo**: removes last user+assistant exchange and restores the prompt
+- **TUI tool elapsed time**: shows `(X.Xs)` next to active tool chip
+- **TUI adaptive footer**: shorter hints on narrow terminals (<60 / <80 cols)
+- **TUI message truncation**: streaming and history truncation use
+  `floor_char_boundary` to avoid splitting multi-byte characters
 
 ## [0.2.1] — 2026-07-09
 
