@@ -34,10 +34,11 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Send message (or accept completion when popup is open) |
+| `Enter` | Send message, or **queue** it if the agent is still thinking; accept completion when popup is open |
 | Paste | Middle-click / terminal paste into composer (bracketed paste) |
 | `Tab` | Accept autocomplete (`/skill` or `@path`) |
-| `↑` / `↓` | Move completion selection |
+| `↑` / `↓` | Input history (previous prompts); when completion is open, move selection |
+| Type while thinking | Composer stays editable; Enter queues the next turn |
 | `Ctrl+J` | Newline in composer |
 | `Ctrl+B` | Toggle sessions list |
 | `Ctrl+Y` | Toggle YOLO |

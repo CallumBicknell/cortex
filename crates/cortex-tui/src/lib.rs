@@ -86,7 +86,7 @@ async fn run_loop(
                         }
                     }
                     Some(Ok(Event::Paste(text))) => {
-                        if app.input_focused && !app.running && !app.show_sessions {
+                        if app.input_focused && !app.show_sessions {
                             app.insert_str(&text);
                         }
                     }
@@ -115,6 +115,18 @@ async fn run_loop(
                     app.running = false;
                     if let Err(e) = app.reload_sessions(&host).await {
                         app.status = format!("{}, reload warn: {e}", app.status);
+                    }
+                    // Drain queue: start next message typed while we were thinking.
+                    if let Some(next) = app.pop_pending() {
+                        let remaining = app.pending.len();
+                        if let Err(e) =
+                            start_agent_turn(&mut app, &host, next, &mut run_cancel, &tx)
+                        {
+                            app.status = format!("queue start failed: {e}");
+                        } else if remaining > 0 {
+                            app.status =
+                                format!("running… · {remaining} more queued");
+                        }
                     }
                 }
             }
@@ -200,9 +212,9 @@ async fn handle_key(
         _ => {}
     }
 
-    // Newline: Ctrl+J
+    // Newline: Ctrl+J (works while thinking so multi-line drafts are possible)
     if code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL) {
-        if app.input_focused && !app.running {
+        if app.input_focused {
             app.insert_newline();
         }
         return Ok(false);
@@ -215,8 +227,8 @@ async fn handle_key(
         return Ok(false);
     }
 
-    // Completion navigation (when popup is open)
-    if app.completion.is_some() && app.input_focused && !app.running {
+    // Completion navigation (when popup is open) — also while thinking
+    if app.completion.is_some() && app.input_focused {
         match code {
             KeyCode::Up => {
                 if let Some(c) = app.completion.as_mut() {
@@ -247,9 +259,33 @@ async fn handle_key(
         }
     }
 
+    // ↑/↓ input history when completion popup is closed
+    if app.input_focused && app.completion.is_none() {
+        match code {
+            KeyCode::Up => {
+                app.history_prev();
+                return Ok(false);
+            }
+            KeyCode::Down => {
+                app.history_next();
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+
     match code {
         KeyCode::Esc => {
-            if app.running {
+            if app.completion.is_some() {
+                app.clear_completion();
+            } else if !app.input.is_empty() {
+                app.input.clear();
+                app.input_cursor = 0;
+                app.clear_completion();
+                app.history_index = None;
+                app.history_draft.clear();
+            } else if app.running {
+                // Empty input + Esc cancels the run (typing-friendly: Esc first clears draft).
                 if let Some(c) = run_cancel.take() {
                     c.cancel();
                 }
@@ -257,15 +293,9 @@ async fn handle_key(
                 app.status = "cancelled".into();
                 app.streaming = None;
                 app.activity = None;
-            } else if app.completion.is_some() {
-                app.clear_completion();
-            } else if !app.input.is_empty() {
-                app.input.clear();
-                app.input_cursor = 0;
-                app.clear_completion();
             }
         }
-        KeyCode::Tab if app.input_focused && !app.running => {
+        KeyCode::Tab if app.input_focused => {
             if app.completion.is_none() {
                 app.refresh_completion();
             }
@@ -273,7 +303,7 @@ async fn handle_key(
                 app.accept_completion();
             }
         }
-        KeyCode::Enter if app.input_focused && !app.running => {
+        KeyCode::Enter if app.input_focused => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
             if prompt.is_empty() {
@@ -285,66 +315,107 @@ async fn handle_key(
                 return handle_meta(app, meta);
             }
 
-            // Expand @paths for the agent; keep original text in the transcript.
-            let agent_prompt = expand_attachments(
-                &app.workspace_path,
-                &parsed.attachments,
-                &parsed.agent_prompt,
-            );
+            app.push_input_history(&parsed.display);
 
-            let mut skills = app.skills.clone();
-            for s in &parsed.skills {
-                if !skills.iter().any(|x| x == s) {
-                    skills.push(s.clone());
-                }
+            // While thinking: queue the message and keep typing free.
+            if app.running {
+                app.enqueue_pending(parsed.display.clone());
+                app.push_line(MessageLine::system(format!(
+                    "queued ({}): {}",
+                    app.pending.len(),
+                    truncate_for_status(&parsed.display, 60)
+                )));
+                app.status = format!("queued {} · running… (Ctrl+C cancel)", app.pending.len());
+                return Ok(false);
             }
 
-            if !parsed.skills.is_empty() || !parsed.attachments.is_empty() {
-                let mut bits = Vec::new();
-                if !parsed.skills.is_empty() {
-                    bits.push(format!("skills: {}", parsed.skills.join(", ")));
-                }
-                if !parsed.attachments.is_empty() {
-                    bits.push(format!("@ {}", parsed.attachments.join(", ")));
-                }
-                app.status = bits.join(" · ");
+            if let Err(e) = start_agent_turn(app, host, parsed.display, run_cancel, tx) {
+                app.status = format!("start failed: {e}");
             }
-
-            app.push_line(MessageLine::user(parsed.display));
-            let cancel = CancellationToken::new();
-            *run_cancel = Some(cancel.clone());
-            app.running = true;
-            if app.status == "ready" || app.status.is_empty() {
-                app.status = "running…".into();
-            } else {
-                app.status = format!("{} · running…", app.status);
-            }
-            app.streaming = None;
-            app.activity = None;
-            app.scroll = 0;
-
-            let host = host.clone_for_run();
-            let session = app.session.clone();
-            let yolo = app.yolo;
-            let max_turns = app.max_turns;
-            let tx = tx.clone();
-            tokio::spawn(async move {
-                host.run_turn(session, agent_prompt, yolo, max_turns, skills, cancel, tx)
-                    .await;
-            });
         }
-        KeyCode::Char(c)
-            if app.input_focused && !app.running && !mods.contains(KeyModifiers::CONTROL) =>
-        {
+        KeyCode::Char(c) if app.input_focused && !mods.contains(KeyModifiers::CONTROL) => {
             app.insert_char(c);
         }
-        KeyCode::Backspace if app.input_focused && !app.running => {
+        KeyCode::Backspace if app.input_focused => {
             app.backspace();
         }
         _ => {}
     }
 
     Ok(false)
+}
+
+/// Kick off one agent turn (shared by Enter and the pending queue).
+fn start_agent_turn(
+    app: &mut App,
+    host: &TuiHost,
+    prompt: String,
+    run_cancel: &mut Option<CancellationToken>,
+    tx: &mpsc::UnboundedSender<UiEvent>,
+) -> Result<()> {
+    let parsed = parse_prompt(&prompt, &app.skill_ids);
+    // Meta should not be queued as agent work.
+    if parsed.meta.is_some() {
+        return Ok(());
+    }
+
+    let agent_prompt = expand_attachments(
+        &app.workspace_path,
+        &parsed.attachments,
+        &parsed.agent_prompt,
+    );
+
+    let mut skills = app.skills.clone();
+    for s in &parsed.skills {
+        if !skills.iter().any(|x| x == s) {
+            skills.push(s.clone());
+        }
+    }
+
+    if !parsed.skills.is_empty() || !parsed.attachments.is_empty() {
+        let mut bits = Vec::new();
+        if !parsed.skills.is_empty() {
+            bits.push(format!("skills: {}", parsed.skills.join(", ")));
+        }
+        if !parsed.attachments.is_empty() {
+            bits.push(format!("@ {}", parsed.attachments.join(", ")));
+        }
+        app.status = bits.join(" · ");
+    }
+
+    app.push_line(MessageLine::user(parsed.display));
+    let cancel = CancellationToken::new();
+    *run_cancel = Some(cancel.clone());
+    app.running = true;
+    if app.status == "ready" || app.status.is_empty() || app.status.starts_with("done") {
+        app.status = "running…".into();
+    } else if !app.status.contains("running") {
+        app.status = format!("{} · running…", app.status);
+    }
+    app.streaming = None;
+    app.activity = None;
+    app.scroll = 0;
+
+    let host = host.clone_for_run();
+    let session = app.session.clone();
+    let yolo = app.yolo;
+    let max_turns = app.max_turns;
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        host.run_turn(session, agent_prompt, yolo, max_turns, skills, cancel, tx)
+            .await;
+    });
+    Ok(())
+}
+
+fn truncate_for_status(s: &str, max: usize) -> String {
+    let flat: String = s.chars().map(|c| if c == '\n' { ' ' } else { c }).collect();
+    if flat.chars().count() <= max {
+        flat
+    } else {
+        let t: String = flat.chars().take(max.saturating_sub(1)).collect();
+        format!("{t}…")
+    }
 }
 
 fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
@@ -365,7 +436,8 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
                 "Commands: /help  /skills  /new  /sessions  /yolo  /quit\n\
                  Skills: type / then Tab — e.g. /git fix the commit\n\
                  Files: type @ then Tab — e.g. fix @src/main.rs\n\
-                 Keys: Enter send · Tab complete · ↑/↓ select · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
+                 Keys: Enter send (queues while thinking) · ↑/↓ input history · Tab complete ·\n\
+                 Ctrl+J newline · PgUp/PgDn scroll · Ctrl+B sessions · Ctrl+C cancel",
             ));
         }
         MetaCommand::Skills => {

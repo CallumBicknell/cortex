@@ -235,27 +235,23 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     };
 
     let title = if app.running {
-        " thinking… (Ctrl+C cancel) "
+        " thinking… type to queue · Ctrl+C cancel "
     } else if app.completion.is_some() {
         " Tab/Enter accept · ↑↓ · Esc dismiss "
     } else {
-        " message · /skill · @path · Tab "
+        " message · /skill · @path · Tab · ↑ history "
     };
 
     let mut display = app.input.clone();
-    if app.input_focused && !app.running {
+    if app.input_focused {
         display.push('▌');
     }
     if display.is_empty() {
-        display = if app.running {
-            String::new()
-        } else {
-            "▌".into()
-        };
+        display = "▌".into();
     }
 
     // Prefix first line with ❯
-    let body = if app.input.is_empty() && app.input_focused && !app.running {
+    let body = if app.input.is_empty() && app.input_focused {
         "❯ ▌".to_string()
     } else {
         let mut out = String::new();
@@ -293,7 +289,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         String::new()
     };
-    let help = " PgUp/PgDn scroll  wheel  ↵ send  Tab  /skill  @path  /quit ";
+    let help = " ↑ hist  ↵ send/queue  PgUp scroll  Tab  /skill  @path  /quit ";
     let line = format!(" {}{scroll_hint}·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()

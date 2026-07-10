@@ -6,6 +6,7 @@ use anyhow::Result;
 use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
 use ratatui::widgets::ListState;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 
 /// A display block in the conversation.
@@ -168,6 +169,14 @@ pub struct App {
     pub skill_details: Vec<(String, String)>,
     /// Active composer completion popup.
     pub completion: Option<CompletionState>,
+    /// Previously sent user prompts (oldest → newest) for ↑/↓ history.
+    pub input_history: Vec<String>,
+    /// Index into `input_history` while browsing, or `None` for a fresh draft.
+    pub history_index: Option<usize>,
+    /// Draft saved when the user first presses ↑ from a live composer buffer.
+    pub history_draft: String,
+    /// Messages queued with Enter while a run is still in progress.
+    pub pending: VecDeque<String>,
 }
 
 impl App {
@@ -217,6 +226,10 @@ impl App {
             skill_ids,
             skill_details,
             completion: None,
+            input_history: Vec::new(),
+            history_index: None,
+            history_draft: String::new(),
+            pending: VecDeque::new(),
         })
     }
 
@@ -402,7 +415,79 @@ impl App {
         let s = std::mem::take(&mut self.input);
         self.input_cursor = 0;
         self.completion = None;
+        self.history_index = None;
+        self.history_draft.clear();
         s
+    }
+
+    /// Record a sent user prompt for ↑/↓ history (newest at end).
+    pub fn push_input_history(&mut self, prompt: &str) {
+        let t = prompt.trim_end();
+        if t.is_empty() {
+            return;
+        }
+        // Avoid consecutive duplicates.
+        if self.input_history.last().map(|s| s.as_str()) != Some(t) {
+            self.input_history.push(t.to_string());
+            if self.input_history.len() > 200 {
+                let drain = self.input_history.len() - 200;
+                self.input_history.drain(0..drain);
+            }
+        }
+        self.history_index = None;
+        self.history_draft.clear();
+    }
+
+    /// ↑ — older sent message (shell-style).
+    pub fn history_prev(&mut self) {
+        if self.input_history.is_empty() {
+            return;
+        }
+        match self.history_index {
+            None => {
+                self.history_draft = self.input.clone();
+                let i = self.input_history.len() - 1;
+                self.history_index = Some(i);
+                self.input = self.input_history[i].clone();
+            }
+            Some(0) => {
+                // Already at oldest.
+            }
+            Some(i) => {
+                let i = i - 1;
+                self.history_index = Some(i);
+                self.input = self.input_history[i].clone();
+            }
+        }
+        self.input_cursor = self.input.len();
+        self.completion = None;
+    }
+
+    /// ↓ — newer sent message, or restore the draft after the newest.
+    pub fn history_next(&mut self) {
+        let Some(i) = self.history_index else {
+            return;
+        };
+        if i + 1 < self.input_history.len() {
+            let i = i + 1;
+            self.history_index = Some(i);
+            self.input = self.input_history[i].clone();
+        } else {
+            self.history_index = None;
+            self.input = std::mem::take(&mut self.history_draft);
+        }
+        self.input_cursor = self.input.len();
+        self.completion = None;
+    }
+
+    /// Queue a prompt to run after the current agent turn finishes.
+    pub fn enqueue_pending(&mut self, prompt: String) {
+        self.pending.push_back(prompt);
+    }
+
+    /// Pop the next queued prompt, if any.
+    pub fn pop_pending(&mut self) -> Option<String> {
+        self.pending.pop_front()
     }
 
     /// Apply a finished run.
@@ -481,5 +566,70 @@ impl App {
     /// Scroll transcript down (newer).
     pub fn scroll_down(&mut self, n: u16) {
         self.scroll = self.scroll.saturating_sub(n);
+    }
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::*;
+
+    fn bare_app() -> App {
+        App {
+            workspace: String::new(),
+            model_label: String::new(),
+            database: String::new(),
+            sessions: Vec::new(),
+            session_list: ListState::default(),
+            session: Session::new(".", "m"),
+            lines: Vec::new(),
+            scroll: 0,
+            logs: Vec::new(),
+            input: String::new(),
+            input_cursor: 0,
+            input_focused: true,
+            show_sessions: false,
+            running: false,
+            yolo: true,
+            max_turns: 8,
+            skills: Vec::new(),
+            status: String::new(),
+            streaming: None,
+            activity: None,
+            workspace_path: PathBuf::from("."),
+            skill_ids: Vec::new(),
+            skill_details: Vec::new(),
+            completion: None,
+            input_history: Vec::new(),
+            history_index: None,
+            history_draft: String::new(),
+            pending: VecDeque::new(),
+        }
+    }
+
+    #[test]
+    fn history_up_down_roundtrip() {
+        let mut app = bare_app();
+        app.push_input_history("first");
+        app.push_input_history("second");
+        app.input = "draft".into();
+        app.history_prev();
+        assert_eq!(app.input, "second");
+        app.history_prev();
+        assert_eq!(app.input, "first");
+        app.history_next();
+        assert_eq!(app.input, "second");
+        app.history_next();
+        assert_eq!(app.input, "draft");
+        assert!(app.history_index.is_none());
+    }
+
+    #[test]
+    fn queue_fifo() {
+        let mut app = bare_app();
+        app.enqueue_pending("a".into());
+        app.enqueue_pending("b".into());
+        assert_eq!(app.pop_pending().as_deref(), Some("a"));
+        assert_eq!(app.pop_pending().as_deref(), Some("b"));
+        assert!(app.pop_pending().is_none());
     }
 }

@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (including multi-line) instead of being ignored or firing accidental Enter
 - **Chat TUI**: pin conversation scroll to the bottom by default (show latest
   replies); PgUp/wheel scroll history; Ctrl+L jumps back to latest
+- **Chat TUI**: type (and queue with Enter) while the agent is thinking; ↑/↓
+  recall previous prompts like shell history
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin
