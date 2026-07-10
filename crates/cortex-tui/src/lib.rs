@@ -15,8 +15,8 @@ pub use host::TuiHost;
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
 use crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
-    KeyModifiers,
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
+    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -39,6 +39,7 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
+    stdout().execute(EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
@@ -46,6 +47,7 @@ pub async fn run(host: TuiHost) -> Result<()> {
     let result = run_loop(&mut terminal, host).await;
 
     stdout().execute(DisableBracketedPaste).ok();
+    stdout().execute(DisableMouseCapture).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
     terminal.show_cursor().ok();
@@ -88,7 +90,17 @@ async fn run_loop(
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
-                    Some(Ok(Event::Mouse(_))) => {}
+                    Some(Ok(Event::Mouse(mouse))) => {
+                        match mouse.kind {
+                            MouseEventKind::ScrollUp => {
+                                app.scroll_up(3);
+                            }
+                            MouseEventKind::ScrollDown => {
+                                app.scroll_down(3);
+                            }
+                            _ => {}
+                        }
+                    }
                     Some(Err(e)) => {
                         app.status = format!("event error: {e}");
                     }
@@ -236,7 +248,7 @@ async fn handle_key(
         }
     }
 
-    // History navigation (when no completion popup, no sessions drawer, not running)
+    // History and cursor navigation (when no completion popup, no sessions drawer, not running)
     if app.input_focused && !app.running && app.completion.is_none() && !app.show_sessions {
         match code {
             KeyCode::Up => {
@@ -245,6 +257,26 @@ async fn handle_key(
             }
             KeyCode::Down => {
                 app.history_down();
+                return Ok(false);
+            }
+            KeyCode::Left => {
+                app.cursor_left();
+                return Ok(false);
+            }
+            KeyCode::Right => {
+                app.cursor_right();
+                return Ok(false);
+            }
+            KeyCode::Home => {
+                app.cursor_home();
+                return Ok(false);
+            }
+            KeyCode::End => {
+                app.cursor_end();
+                return Ok(false);
+            }
+            KeyCode::Delete => {
+                app.delete();
                 return Ok(false);
             }
             _ => {}

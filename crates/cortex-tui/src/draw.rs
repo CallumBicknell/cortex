@@ -197,7 +197,9 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 
     let mut display = app.input.clone();
     if app.input_focused && !app.running {
-        display.push('▌');
+        // Insert block cursor at the correct byte position.
+        let pos = display.len().min(app.input_cursor);
+        display.insert(pos, '▌');
     }
     if display.is_empty() {
         display = if app.running {

@@ -363,21 +363,22 @@ impl App {
         self.lines.push(line);
     }
 
-    /// Insert newline into composer.
+    /// Insert newline into composer at cursor.
     pub fn insert_newline(&mut self) {
-        self.input.push('\n');
-        self.input_cursor = self.input.len();
+        self.input.insert(self.input_cursor, '\n');
+        self.input_cursor += 1;
         self.refresh_completion();
     }
 
-    /// Insert a character at the end of input.
+    /// Insert a character at cursor position.
     pub fn insert_char(&mut self, c: char) {
-        self.input.push(c);
-        self.input_cursor = self.input.len();
+        let len = c.len_utf8();
+        self.input.insert(self.input_cursor, c);
+        self.input_cursor += len;
         self.refresh_completion();
     }
 
-    /// Insert pasted / multi-char text into the composer.
+    /// Insert pasted / multi-char text into the composer at cursor.
     ///
     /// Normalizes `\r\n` / `\r` to `\n` and caps extreme pastes so a huge
     /// clipboard dump cannot freeze the TUI.
@@ -391,16 +392,74 @@ impl App {
         if normalized.is_empty() {
             return;
         }
-        self.input.push_str(&normalized);
-        self.input_cursor = self.input.len();
+        self.input.insert_str(self.input_cursor, &normalized);
+        self.input_cursor += normalized.len();
         self.refresh_completion();
     }
 
-    /// Backspace.
+    /// Backspace — delete char before cursor.
     pub fn backspace(&mut self) {
-        self.input.pop();
-        self.input_cursor = self.input.len();
+        if self.input_cursor == 0 {
+            return;
+        }
+        // Find the previous char boundary.
+        let prev = self.input[..self.input_cursor]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        self.input.drain(prev..self.input_cursor);
+        self.input_cursor = prev;
         self.refresh_completion();
+    }
+
+    /// Delete char after cursor (Delete key).
+    pub fn delete(&mut self) {
+        if self.input_cursor >= self.input.len() {
+            return;
+        }
+        let ch = self.input[self.input_cursor..]
+            .chars()
+            .next()
+            .unwrap_or('\0');
+        self.input
+            .drain(self.input_cursor..self.input_cursor + ch.len_utf8());
+        self.refresh_completion();
+    }
+
+    /// Move cursor one char left.
+    pub fn cursor_left(&mut self) {
+        if self.input_cursor == 0 {
+            return;
+        }
+        let prev = self.input[..self.input_cursor]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        self.input_cursor = prev;
+    }
+
+    /// Move cursor one char right.
+    pub fn cursor_right(&mut self) {
+        if self.input_cursor >= self.input.len() {
+            return;
+        }
+        let ch = self.input[self.input_cursor..]
+            .chars()
+            .next()
+            .unwrap_or('\0');
+        self.input_cursor += ch.len_utf8();
+    }
+
+    /// Move cursor to start of input.
+    pub fn cursor_home(&mut self) {
+        self.input_cursor = 0;
+    }
+
+    /// Move cursor to end of input.
+    pub fn cursor_end(&mut self) {
+        self.input_cursor = self.input.len();
     }
 
     /// Take and clear the input buffer.
