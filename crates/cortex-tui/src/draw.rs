@@ -21,12 +21,13 @@ fn short_path(p: &str) -> String {
 /// Draw the full chat UI.
 pub fn ui(f: &mut Frame, app: &App) {
     let header_len = if app.compact { 0 } else { 1 };
+    let composer_inner_w = f.area().width.saturating_sub(2).max(8);
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(header_len), // header strip (hidden in compact)
             Constraint::Min(6),             // conversation
-            Constraint::Length(composer_height(app)),
+            Constraint::Length(composer_height(app, composer_inner_w)),
             Constraint::Length(1), // footer
         ])
         .split(f.area());
@@ -51,10 +52,72 @@ pub fn ui(f: &mut Frame, app: &App) {
     }
 }
 
-fn composer_height(app: &App) -> u16 {
-    let lines = app.input.lines().count().max(1) as u16;
-    // borders + content, cap so chat stays usable
-    (lines + 2).clamp(3, 10)
+fn composer_height(app: &App, inner_width: u16) -> u16 {
+    let rows = composer_visual_rows(app, inner_width).max(1);
+    // borders (+2), grow with content, keep chat readable
+    (rows + 2).clamp(3, 16)
+}
+
+/// How many terminal rows the composer body occupies when wrapped to `inner_width`.
+fn composer_visual_rows(app: &App, inner_width: u16) -> u16 {
+    let body = composer_body(app);
+    let width = inner_width.max(1);
+    body.split('\n')
+        .map(|line| {
+            let w = line.chars().count() as u16;
+            if w == 0 {
+                1
+            } else {
+                w.div_ceil(width)
+            }
+        })
+        .fold(0u16, |a, b| a.saturating_add(b))
+        .max(1)
+}
+
+/// Build the composer text (prefixes + caret), shared by height calc and draw.
+fn composer_body(app: &App) -> String {
+    let mut display = String::new();
+    let cur = app.input_cursor.min(app.input.chars().count());
+    let byte_cur = app
+        .input
+        .char_indices()
+        .nth(cur)
+        .map(|(i, _)| i)
+        .unwrap_or(app.input.len());
+    display.push_str(&app.input[..byte_cur]);
+    if app.input_focused {
+        display.push('▌');
+    }
+    display.push_str(&app.input[byte_cur..]);
+    if display.is_empty() {
+        display = if app.input_focused {
+            "▌".into()
+        } else {
+            String::new()
+        };
+    }
+
+    let mut out = String::new();
+    let raw = if display.ends_with('\n') {
+        format!("{display}\u{200b}")
+    } else {
+        display
+    };
+    for (i, line) in raw.split('\n').enumerate() {
+        let line = line.trim_end_matches('\u{200b}');
+        if i == 0 {
+            out.push_str("❯ ");
+        } else {
+            out.push_str("  ");
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if out.ends_with('\n') {
+        out.pop();
+    }
+    out
 }
 
 fn draw_header(f: &mut Frame, area: Rect, app: &App) {
@@ -227,46 +290,49 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
         " message · /skill · @path · Tab "
     };
 
-    let mut display = app.input.clone();
-    if app.input_focused && !app.running && app.cursor_visible {
-        // Insert block cursor at the correct position (convert char index to byte).
-        let byte_pos = display
-            .char_indices()
-            .nth(app.input_cursor)
-            .map(|(i, _)| i)
-            .unwrap_or(display.len());
-        display.insert(byte_pos, '▌');
-    }
-    if display.is_empty() {
-        display = if app.running {
-            String::new()
-        } else {
-            "▌".into()
-        };
-    }
+    let body = composer_body(app);
+    let inner_w = area.width.saturating_sub(2).max(1);
+    let inner_h = area.height.saturating_sub(2).max(1);
 
-    // Prefix first line with ❯
-    let body = if app.input.is_empty() && app.input_focused && !app.running {
-        "❯ ▌".to_string()
-    } else {
-        let mut out = String::new();
-        for (i, line) in display.lines().enumerate() {
-            if i == 0 {
-                out.push_str("❯ ");
+    // Scroll composer content so the caret stays in view.
+    let total_rows = composer_visual_rows(app, inner_w);
+    let scroll_y = if total_rows > inner_h {
+        // Count visual rows up to the caret position.
+        let cur = app.input_cursor.min(app.input.chars().count());
+        let byte_cur = app
+            .input
+            .char_indices()
+            .nth(cur)
+            .map(|(i, _)| i)
+            .unwrap_or(app.input.len());
+        let input_prefix = &app.input[..byte_cur];
+        // Count wraps in the input prefix (each hard newline + soft wraps).
+        let mut row = 0u16;
+        let mut col = 0u16;
+        // Account for the "❯ " prefix on the first line.
+        col = col.saturating_add(2);
+        for ch in input_prefix.chars() {
+            if ch == '\n' {
+                row = row.saturating_add(1);
+                col = 0;
             } else {
-                out.push_str("  ");
+                col = col.saturating_add(1);
+                if col >= inner_w {
+                    row = row.saturating_add(1);
+                    col = 0;
+                }
             }
-            out.push_str(line);
-            out.push('\n');
         }
-        if out.ends_with('\n') {
-            out.pop();
-        }
-        out
+        let max_scroll = total_rows.saturating_sub(inner_h);
+        row.saturating_sub(inner_h.saturating_sub(1))
+            .min(max_scroll)
+    } else {
+        0
     };
 
     let p = Paragraph::new(body)
         .wrap(Wrap { trim: false })
+        .scroll((scroll_y, 0))
         .style(Style::default().fg(Color::White).bg(Color::Rgb(18, 18, 24)))
         .block(
             Block::default()
