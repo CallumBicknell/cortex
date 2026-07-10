@@ -179,6 +179,8 @@ pub struct App {
     pub last_completion_tokens: u32,
     /// Undo stack for composer (input, cursor) pairs.
     pub input_undo: Vec<(String, usize)>,
+    /// Compact mode (less spacing, smaller header).
+    pub compact: bool,
 }
 
 impl App {
@@ -225,6 +227,7 @@ impl App {
             last_prompt_tokens: 0,
             last_completion_tokens: 0,
             input_undo: Vec::new(),
+            compact: false,
         })
     }
 

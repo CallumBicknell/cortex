@@ -18,17 +18,20 @@ fn short_path(p: &str) -> String {
 
 /// Draw the full chat UI.
 pub fn ui(f: &mut Frame, app: &App) {
+    let header_len = if app.compact { 0 } else { 1 };
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // header strip
-            Constraint::Min(6),    // conversation
+            Constraint::Length(header_len), // header strip (hidden in compact)
+            Constraint::Min(6),             // conversation
             Constraint::Length(composer_height(app)),
             Constraint::Length(1), // footer
         ])
         .split(f.area());
 
-    draw_header(f, root[0], app);
+    if !app.compact {
+        draw_header(f, root[0], app);
+    }
     draw_conversation(f, root[1], app);
     draw_composer(f, root[2], app);
     draw_footer(f, root[3], app);

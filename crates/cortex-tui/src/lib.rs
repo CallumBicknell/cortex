@@ -270,6 +270,16 @@ async fn handle_key(
             app.undo();
             return Ok(false);
         }
+        // Toggle compact mode (Ctrl+U).
+        KeyCode::Char('u') if app.input_focused && mods.contains(KeyModifiers::CONTROL) => {
+            app.compact = !app.compact;
+            app.status = if app.compact {
+                "compact mode on".into()
+            } else {
+                "compact mode off".into()
+            };
+            return Ok(false);
+        }
         KeyCode::Enter if app.input_focused && !app.running => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
