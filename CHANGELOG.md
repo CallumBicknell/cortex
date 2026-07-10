@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   count, breaking position after tab-completion on non-ASCII input
 - **TUI session list**: status column used Debug format (`{:?}`); now shows
   lowercase labels (active, completed, failed, …)
+- **TUI Shift key**: some terminals send `KeyCode::Char('a')` with `SHIFT`
+  instead of `KeyCode::Char('A')`; `apply_shift()` converts letters to
+  uppercase and number-row to symbols
 
 ### Changed
 
@@ -57,6 +60,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI adaptive footer**: shorter hints on narrow terminals (<60 / <80 cols)
 - **TUI message truncation**: streaming and history truncation use
   `floor_char_boundary` to avoid splitting multi-byte characters
+- **TUI tool-approval modal**: non-yolo users can approve/deny tool calls
+  via Y/N keys (oneshot channel to `TuiApprover`)
+- **TUI keep partial reply on cancel**: Ctrl+C preserves draft assistant
+  text instead of discarding it
+- **TUI session search + archive**: type to filter in session drawer,
+  'd' to archive a session
+- **TUI composer undo**: Ctrl+Z restores previous input state (100-entry stack)
+- **TUI `/compact`**: toggle compact mode (hide header row)
+- **TUI token usage**: footer shows ↑prompt ↓completion token counts
+- **TUI Shift+Enter**: inserts newline in composer (Kitty keyboard protocol
+  with fallback for unsupported terminals)
+- **TUI Ctrl+Up/Down**: scrolls conversation history (3 lines)
+- **TUI Ctrl+O**: copies last assistant reply to OS clipboard
+  (pbcopy/xclip/xsel/wl-copy)
 
 ## [0.2.1] — 2026-07-09
 
