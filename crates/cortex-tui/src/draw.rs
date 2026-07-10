@@ -249,8 +249,14 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
 
     // Show "↓ new" indicator when scrolled up.
     if app.scroll > 0 {
+        let below = app.lines.len().saturating_sub(app.scroll as usize);
+        let msg = if below > 0 {
+            format!("  ↓ {below} messages below (Ctrl+L to jump)")
+        } else {
+            "  ↓ new content below (Ctrl+L to jump)".to_string()
+        };
         lines.push(Line::from(Span::styled(
-            "  ↓ new content below (Ctrl+L to jump)",
+            msg,
             Style::default()
                 .fg(Color::Rgb(100, 160, 120))
                 .add_modifier(Modifier::ITALIC),
