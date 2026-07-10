@@ -199,6 +199,8 @@ impl TuiHost {
                     duration_ms: output.duration_ms,
                     tools_ok,
                     tools_err,
+                    prompt_tokens: output.total_usage.prompt_tokens,
+                    completion_tokens: output.total_usage.completion_tokens,
                 }
             }
             Err(e) => RunUpdate {
@@ -212,6 +214,8 @@ impl TuiHost {
                 duration_ms: 0,
                 tools_ok: 0,
                 tools_err: 0,
+                prompt_tokens: 0,
+                completion_tokens: 0,
             },
         };
         let _ = tx.send(UiEvent::Done(Box::new(update)));

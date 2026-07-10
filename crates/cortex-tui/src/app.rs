@@ -108,6 +108,10 @@ pub struct RunUpdate {
     pub tools_ok: u32,
     /// Tool results that failed.
     pub tools_err: u32,
+    /// Prompt/input tokens.
+    pub prompt_tokens: u32,
+    /// Completion/output tokens.
+    pub completion_tokens: u32,
 }
 
 /// Live UI events from a background run (stream + completion).
@@ -169,6 +173,10 @@ pub struct App {
     pub activity: Option<String>,
     /// Pending tool-approval modal (blocks input when `Some`).
     pub approval: Option<ApprovalModal>,
+    /// Last run prompt tokens.
+    pub last_prompt_tokens: u32,
+    /// Last run completion tokens.
+    pub last_completion_tokens: u32,
 }
 
 impl App {
@@ -212,6 +220,8 @@ impl App {
             streaming: None,
             activity: None,
             approval: None,
+            last_prompt_tokens: 0,
+            last_completion_tokens: 0,
         })
     }
 
@@ -426,6 +436,8 @@ impl App {
         if !update.ok {
             self.status = format!("! {}", self.status);
         }
+        self.last_prompt_tokens = update.prompt_tokens;
+        self.last_completion_tokens = update.completion_tokens;
         self.scroll = 0;
     }
 

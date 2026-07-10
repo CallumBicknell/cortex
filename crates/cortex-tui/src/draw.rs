@@ -237,14 +237,34 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
+    let tokens = if app.last_prompt_tokens > 0 || app.last_completion_tokens > 0 {
+        format!(
+            "  ↑{} ↓{}",
+            compact_tokens(app.last_prompt_tokens),
+            compact_tokens(app.last_completion_tokens)
+        )
+    } else {
+        String::new()
+    };
     let help = " ↵ send  ^J newline  ^B sessions  ^L clear scroll  ^C cancel  /quit ";
-    let line = format!(" {}  ·{} ", app.status, help);
+    let line = format!(" {}{tokens}  ·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()
             .fg(Color::Rgb(100, 100, 110))
             .bg(Color::Rgb(14, 14, 18)),
     );
     f.render_widget(p, area);
+}
+
+/// Format token count compactly (e.g. 1234 → "1.2k", 500 → "500").
+fn compact_tokens(n: u32) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}k", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
 }
 
 fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
