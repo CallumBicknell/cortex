@@ -281,6 +281,14 @@ impl TuiHost {
     pub async fn load_session(&self, id: cortex_common::SessionId) -> Result<Session> {
         self.store.load_session(id).await.context("load session")
     }
+
+    /// Soft-archive a session.
+    pub async fn archive_session(&self, id: cortex_common::SessionId) -> Result<()> {
+        self.store
+            .archive_session(id)
+            .await
+            .context("archive session")
+    }
 }
 
 /// Bridge agent event bus → TUI channel.

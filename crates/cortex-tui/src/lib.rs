@@ -160,9 +160,16 @@ async fn handle_key(
     if app.show_sessions {
         match code {
             KeyCode::Esc => {
-                app.show_sessions = false;
-                app.input_focused = true;
-                app.status = "ready".into();
+                if app.session_search.is_empty() {
+                    app.show_sessions = false;
+                    app.input_focused = true;
+                    app.status = "ready".into();
+                } else {
+                    app.session_search.clear();
+                    app.session_list.select(Some(0));
+                    app.status =
+                        "sessions · ↑/↓ · Enter open · / search · d delete · Ctrl+B hide".into();
+                }
             }
             KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
             KeyCode::Down | KeyCode::Char('j') => app.select_next(),
@@ -182,6 +189,19 @@ async fn handle_key(
                 } else {
                     app.status = "sessions reloaded".into();
                 }
+            }
+            KeyCode::Char('d') => {
+                if let Err(e) = app.archive_selected(host).await {
+                    app.status = format!("archive failed: {e}");
+                }
+            }
+            KeyCode::Char(c)
+                if c != '/' && c != 'j' && c != 'k' && c != 'n' && c != 'r' && c != 'd' =>
+            {
+                app.session_search_insert(c);
+            }
+            KeyCode::Backspace => {
+                app.session_search_backspace();
             }
             _ => {}
         }

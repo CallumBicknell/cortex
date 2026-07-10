@@ -151,6 +151,8 @@ pub struct App {
     pub input_focused: bool,
     /// Show sessions drawer.
     pub show_sessions: bool,
+    /// Session search filter (applied in drawer).
+    pub session_search: String,
     /// Agent currently running.
     pub running: bool,
     /// Auto-approve tools.
@@ -201,6 +203,7 @@ impl App {
             input_cursor: 0,
             input_focused: true,
             show_sessions: false,
+            session_search: String::new(),
             running: false,
             yolo: host.yolo,
             max_turns: host.max_turns,
@@ -255,49 +258,103 @@ impl App {
         self.show_sessions = !self.show_sessions;
         if self.show_sessions {
             self.input_focused = false;
-            self.status = "sessions · ↑/↓ · Enter open · Ctrl+B hide".into();
+            self.session_search.clear();
+            self.status = "sessions · ↑/↓ · Enter open · / search · d delete · Ctrl+B hide".into();
         } else {
             self.input_focused = true;
+            self.session_search.clear();
             self.status = "ready".into();
         }
     }
 
+    /// Filtered sessions based on search text.
+    pub fn filtered_sessions(&self) -> Vec<(usize, &SessionSummary)> {
+        if self.session_search.is_empty() {
+            self.sessions.iter().enumerate().collect()
+        } else {
+            let q = self.session_search.to_ascii_lowercase();
+            self.sessions
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| {
+                    let id = s.id.to_string().to_ascii_lowercase();
+                    let model = s.model.to_ascii_lowercase();
+                    let status = format!("{:?}", s.status).to_ascii_lowercase();
+                    id.contains(&q) || model.contains(&q) || status.contains(&q)
+                })
+                .collect()
+        }
+    }
+
+    /// Insert a character into the session search filter.
+    pub fn session_search_insert(&mut self, c: char) {
+        self.session_search.push(c);
+        self.session_list.select(Some(0));
+    }
+
+    /// Delete last character from session search filter.
+    pub fn session_search_backspace(&mut self) {
+        self.session_search.pop();
+        self.session_list.select(Some(0));
+    }
+
+    /// Archive (soft-delete) the currently selected session.
+    pub async fn archive_selected(&mut self, host: &TuiHost) -> Result<()> {
+        let filtered = self.filtered_sessions();
+        if let Some(i) = self.session_list.selected() {
+            if let Some((_, s)) = filtered.get(i) {
+                let id = s.id;
+                host.archive_session(id).await?;
+                self.reload_sessions(host).await?;
+                self.session_search.clear();
+                self.session_list.select(Some(0));
+                self.status = "session archived".into();
+            }
+        }
+        Ok(())
+    }
+
     /// Select previous session in list.
     pub fn select_prev(&mut self) {
-        if self.sessions.is_empty() {
+        let count = self.filtered_sessions().len();
+        if count == 0 {
             return;
         }
         let i = self.session_list.selected().unwrap_or(0);
-        let next = if i == 0 {
-            self.sessions.len() - 1
-        } else {
-            i - 1
-        };
+        let next = if i == 0 { count - 1 } else { i - 1 };
         self.session_list.select(Some(next));
     }
 
     /// Select next session in list.
     pub fn select_next(&mut self) {
-        if self.sessions.is_empty() {
+        let count = self.filtered_sessions().len();
+        if count == 0 {
             return;
         }
         let i = self.session_list.selected().unwrap_or(0);
-        let next = (i + 1) % self.sessions.len();
+        let next = (i + 1) % count;
         self.session_list.select(Some(next));
     }
 
     /// Load currently selected session.
     pub async fn load_selected(&mut self, host: &TuiHost) -> Result<()> {
+        let filtered = self.filtered_sessions();
         if let Some(i) = self.session_list.selected() {
-            if let Some(s) = self.sessions.get(i).cloned() {
-                let loaded = host.load_session(s.id).await?;
+            if let Some((_, s)) = filtered.get(i) {
+                let id = s.id;
+                let short_id = {
+                    let id_str = id.to_string();
+                    if id_str.len() > 8 {
+                        id_str[..8].to_string()
+                    } else {
+                        id_str
+                    }
+                };
+                let loaded = host.load_session(id).await?;
                 self.set_session(loaded);
                 self.show_sessions = false;
                 self.input_focused = true;
-                self.status = format!(
-                    "loaded {}",
-                    &s.id.to_string()[..8.min(s.id.to_string().len())]
-                );
+                self.status = format!("loaded {short_id}");
             }
         }
         Ok(())

@@ -1,6 +1,7 @@
 //! Claude Code–style chat drawing (minimal chrome, conversation-first).
 
 use crate::app::App;
+use cortex_models::SessionStatus;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -260,27 +261,106 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
 
     f.render_widget(Clear, rect);
 
-    let items: Vec<ListItem> = if app.sessions.is_empty() {
-        vec![ListItem::new("(no sessions yet)")]
+    let filtered = app.filtered_sessions();
+
+    // Search bar at top of modal
+    let search_line = if app.session_search.is_empty() {
+        Line::from(Span::styled(
+            "  type to filter…",
+            Style::default().fg(Color::Rgb(100, 100, 110)),
+        ))
     } else {
-        app.sessions
-            .iter()
-            .map(|s| {
-                let id = s.id.to_string();
-                let short = if id.len() > 8 { &id[..8] } else { &id };
-                ListItem::new(format!(
-                    "{}  ·  {} msgs  ·  {:?}",
-                    short, s.message_count, s.status
-                ))
-            })
-            .collect()
+        Line::from(vec![
+            Span::styled("  /", Style::default().fg(Color::Rgb(100, 100, 110))),
+            Span::styled(
+                app.session_search.clone(),
+                Style::default()
+                    .fg(Color::Rgb(180, 200, 255))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("  ({} found)", filtered.len()),
+                Style::default().fg(Color::Rgb(100, 100, 110)),
+            ),
+        ])
+    };
+
+    let mut items: Vec<ListItem> = Vec::new();
+    items.push(ListItem::new(search_line));
+
+    // Separator
+    items.push(ListItem::new(Line::from(Span::styled(
+        "─".repeat(w.saturating_sub(2) as usize),
+        Style::default().fg(Color::Rgb(50, 50, 60)),
+    ))));
+
+    if filtered.is_empty() {
+        items.push(ListItem::new(if app.session_search.is_empty() {
+            "(no sessions yet)".to_string()
+        } else {
+            "(no matches)".to_string()
+        }));
+    } else {
+        for (_, s) in &filtered {
+            let id = s.id.to_string();
+            let short = if id.len() > 8 { &id[..8] } else { &id };
+
+            // Relative time
+            let ago = relative_time(s.updated_at);
+
+            // Model abbreviation (strip provider prefix)
+            let model_short = s.model.rsplit('/').next().unwrap_or(&s.model);
+            let model_display = if model_short.len() > 20 {
+                format!("{}…", &model_short[..19])
+            } else {
+                model_short.to_string()
+            };
+
+            // Status badge
+            let status_str = match s.status {
+                SessionStatus::Completed => "✓",
+                SessionStatus::Failed => "✗",
+                SessionStatus::Active => "●",
+                SessionStatus::Paused => "❍",
+                SessionStatus::Archived => "⋄",
+            };
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    short.to_string(),
+                    Style::default().fg(Color::Rgb(140, 150, 160)),
+                ),
+                Span::styled(
+                    format!("  {status_str} "),
+                    Style::default().fg(Color::Rgb(120, 140, 160)),
+                ),
+                Span::styled(
+                    format!("{:2} msgs", s.message_count),
+                    Style::default().fg(Color::Rgb(160, 160, 170)),
+                ),
+                Span::styled(
+                    format!("  {model_display}"),
+                    Style::default().fg(Color::Rgb(100, 130, 170)),
+                ),
+                Span::styled(
+                    format!("  {ago}"),
+                    Style::default().fg(Color::Rgb(90, 90, 100)),
+                ),
+            ])));
+        }
+    }
+
+    let title = if app.session_search.is_empty() {
+        " sessions · ↑/↓ open · / search · d delete · n new "
+    } else {
+        " sessions · ↑/↓ open · Esc clear search "
     };
 
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" sessions · Enter open · Esc/Ctrl+B close ")
+                .title(title)
                 .border_style(Style::default().fg(Color::Cyan))
                 .style(Style::default().bg(Color::Rgb(20, 22, 28))),
         )
@@ -292,7 +372,29 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
         )
         .highlight_symbol("▸ ");
     let mut state = app.session_list;
+    // Offset selection index by 2 to account for search bar + separator rows
+    let adjusted = state.selected().map(|i| i + 2);
+    state.select(adjusted);
     f.render_stateful_widget(list, rect, &mut state);
+}
+
+/// Format a datetime as relative time string.
+fn relative_time(dt: chrono::DateTime<chrono::Utc>) -> String {
+    let now = chrono::Utc::now();
+    let diff = now.signed_duration_since(dt);
+    let secs = diff.num_seconds();
+
+    if secs < 60 {
+        "just now".to_string()
+    } else if secs < 3600 {
+        format!("{}m ago", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h ago", secs / 3600)
+    } else if secs < 604800 {
+        format!("{}d ago", secs / 86400)
+    } else {
+        dt.format("%b %d").to_string()
+    }
 }
 
 /// Centered modal for tool-approval requests.
