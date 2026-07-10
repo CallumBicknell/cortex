@@ -28,27 +28,33 @@ cortex chat --plain            # old line-based REPL
  ready  ·  ↵ send  ^J newline  ^B sessions …
 ```
 
-Conversation-first: single column, multi-line messages, live token stream, subtle tool chips. Sessions open as a modal (Ctrl+B), not a permanent sidebar.
+Conversation-first: single column, multi-line messages, live token stream, subtle tool chips. Sessions open as a modal (Ctrl+B), not a permanent sidebar. Tool approval pops up as a centered modal (Y/N) when not in yolo mode.
 
 ## Keys
 
 | Key | Action |
 |-----|--------|
 | `Enter` | Send message (or accept completion when popup is open) |
+| `Shift+Enter` | Newline in composer (Kitty protocol; falls back to unsupported terminals) |
 | Paste | Middle-click / terminal paste into composer (bracketed paste) |
 | `Tab` | Accept autocomplete (`/skill` or `@path`) |
 | `↑` / `↓` | Move completion selection |
-| `Ctrl+J` | Newline in composer |
+| `Ctrl+J` | Newline in composer (works everywhere) |
+| `Ctrl+Z` | Undo last composer edit |
+| `Ctrl+O` | Copy last assistant reply to clipboard |
 | `Ctrl+B` | Toggle sessions list |
 | `Ctrl+Y` | Toggle YOLO |
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
+| `Ctrl+↑` / `Ctrl+↓` | Scroll conversation up/down |
 | `PgUp` / `PgDn` | Scroll transcript |
 | `Esc` | Dismiss completion, cancel run, or clear input |
 | `/help` | Command list |
 | `/skills` | List skill packs |
 | `/new` | New session |
 | `/sessions` | Open sessions |
+| `/compact` | Toggle compact mode (hide header) |
+| `/undo` | Undo last user+assistant exchange |
 | `/yolo` | Toggle auto-approve |
 | `/quit` | Exit |
 
