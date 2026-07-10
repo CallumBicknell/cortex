@@ -388,16 +388,6 @@ async fn handle_key(
             app.undo();
             return Ok(false);
         }
-        // Toggle compact mode (Ctrl+U).
-        KeyCode::Char('u') if app.input_focused && mods.contains(KeyModifiers::CONTROL) => {
-            app.compact = !app.compact;
-            app.status = if app.compact {
-                "compact mode on".into()
-            } else {
-                "compact mode off".into()
-            };
-            return Ok(false);
-        }
         KeyCode::Enter if app.input_focused && !app.running => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
@@ -483,7 +473,12 @@ async fn handle_key(
         KeyCode::Char(c)
             if app.input_focused && !app.running && !mods.contains(KeyModifiers::CONTROL) =>
         {
-            app.insert_char(c);
+            let ch = if mods.contains(KeyModifiers::SHIFT) {
+                apply_shift(c)
+            } else {
+                c
+            };
+            app.insert_char(ch);
         }
         KeyCode::Backspace if app.input_focused && !app.running => {
             app.backspace();
@@ -529,6 +524,39 @@ async fn handle_key(
     }
 
     Ok(false)
+}
+
+/// Apply Shift modifier to a character.
+///
+/// Some terminals send the unshifted key code with `KeyModifiers::SHIFT`
+/// instead of the shifted character. This converts lowercase letters to
+/// uppercase and common number-row keys to their shifted symbols (US layout).
+fn apply_shift(c: char) -> char {
+    match c {
+        'a'..='z' => (c as u8 - b'a' + b'A') as char,
+        '1' => '!',
+        '2' => '@',
+        '3' => '#',
+        '4' => '$',
+        '5' => '%',
+        '6' => '^',
+        '7' => '&',
+        '8' => '*',
+        '9' => '(',
+        '0' => ')',
+        '-' => '_',
+        '=' => '+',
+        '[' => '{',
+        ']' => '}',
+        '\\' => '|',
+        ';' => ':',
+        '\'' => '"',
+        ',' => '<',
+        '.' => '>',
+        '/' => '?',
+        '`' => '~',
+        _ => c,
+    }
 }
 
 /// Export the current transcript as a markdown file.
@@ -645,6 +673,14 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
             } else {
                 app.status = "nothing to undo".into();
             }
+        }
+        MetaCommand::Compact => {
+            app.compact = !app.compact;
+            app.status = if app.compact {
+                "compact mode on".into()
+            } else {
+                "compact mode off".into()
+            };
         }
     }
     Ok(false)

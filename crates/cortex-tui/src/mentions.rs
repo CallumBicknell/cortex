@@ -30,6 +30,8 @@ pub enum MetaCommand {
     Export,
     /// Undo last exchange (remove last user+assistant pair).
     Undo,
+    /// Toggle compact mode (hide header).
+    Compact,
 }
 
 /// Result of parsing a user composer line.
@@ -187,6 +189,7 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
         "skills" => Some(MetaCommand::Skills),
         "export" => Some(MetaCommand::Export),
         "undo" => Some(MetaCommand::Undo),
+        "compact" => Some(MetaCommand::Compact),
         _ => None,
     }
 }
