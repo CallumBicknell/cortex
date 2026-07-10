@@ -12,7 +12,7 @@ const MAX_ATTACH_TOTAL: usize = 200_000;
 const MAX_DIR_ENTRIES: usize = 80;
 
 /// Built-in meta slash commands handled by the TUI (not sent to the model).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetaCommand {
     /// Show help.
     Help,
@@ -32,6 +32,10 @@ pub enum MetaCommand {
     Undo,
     /// Toggle compact mode (hide header).
     Compact,
+    /// Show conversation stats.
+    Stats,
+    /// Rename the current session.
+    Rename(String),
 }
 
 /// Result of parsing a user composer line.
@@ -175,10 +179,19 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
     if !s.starts_with('/') {
         return None;
     }
-    // Only pure meta lines (optional trailing whitespace already trimmed).
     let cmd = s.trim_start_matches('/');
-    if cmd.contains(char::is_whitespace) {
-        return None;
+    // Handle commands with arguments (e.g. /rename My Session).
+    if let Some((name, args)) = cmd.split_once(char::is_whitespace) {
+        match name.to_ascii_lowercase().as_str() {
+            "rename" => {
+                let arg = args.trim();
+                if arg.is_empty() {
+                    return None;
+                }
+                return Some(MetaCommand::Rename(arg.to_string()));
+            }
+            _ => return None,
+        }
     }
     match cmd.to_ascii_lowercase().as_str() {
         "help" => Some(MetaCommand::Help),
@@ -190,6 +203,7 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
         "export" => Some(MetaCommand::Export),
         "undo" => Some(MetaCommand::Undo),
         "compact" => Some(MetaCommand::Compact),
+        "stats" => Some(MetaCommand::Stats),
         _ => None,
     }
 }

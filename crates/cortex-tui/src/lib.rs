@@ -279,6 +279,18 @@ async fn handle_key(
             app.scroll_down(3);
             return Ok(false);
         }
+        // Ctrl+Home: jump to oldest message (top).
+        KeyCode::Home if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll = u16::MAX;
+            app.auto_follow = false;
+            return Ok(false);
+        }
+        // Ctrl+End: jump to newest message (bottom).
+        KeyCode::End if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll = 0;
+            app.auto_follow = true;
+            return Ok(false);
+        }
         KeyCode::Char('l') if mods.contains(KeyModifiers::CONTROL) => {
             app.scroll = 0;
             app.auto_follow = true;
@@ -711,10 +723,25 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
         }
         MetaCommand::Help => {
             app.push_line(MessageLine::system(
-                "Commands: /help  /skills  /new  /sessions  /export  /undo  /yolo  /quit\n\
-                 Skills: type / then Tab — e.g. /git fix the commit\n\
-                 Files: type @ then Tab — e.g. fix @src/main.rs\n\
-                 Keys: Enter send · Tab complete · ↑/↓ history · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
+                "Commands:\n\
+                 /help     Show this help\n\
+                 /skills   List skill packs\n\
+                 /stats    Show conversation stats\n\
+                 /rename X Rename session to X\n\
+                 /new      Start fresh session\n\
+                 /sessions Open sessions list (d=delete, /=search)\n\
+                 /export   Export transcript as markdown\n\
+                 /undo     Undo last exchange\n\
+                 /compact  Toggle compact mode\n\
+                 /yolo     Toggle auto-approve tools\n\
+                 /quit     Exit\n\n\
+                 Keys:\n\
+                 Enter      Send · Shift+Enter newline · Tab autocomplete\n\
+                 ↑/↓        History · Ctrl+↑/↓ scroll conversation\n\
+                 Ctrl+J     Newline · Ctrl+Z undo · Ctrl+O copy last reply\n\
+                 Ctrl+B     Sessions · Ctrl+Y yolo · Ctrl+C cancel\n\
+                 Ctrl+L     Jump to bottom · Ctrl+Home/End top/bottom\n\
+                 PgUp/PgDn  Scroll transcript",
             ));
         }
         MetaCommand::Skills => {
@@ -764,6 +791,32 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
             } else {
                 "compact mode off".into()
             };
+        }
+        MetaCommand::Stats => {
+            let user_count = app.lines.iter().filter(|l| l.role == "you").count();
+            let asst_count = app.lines.iter().filter(|l| l.role == "cortex").count();
+            let tool_count = app.lines.iter().filter(|l| l.role == "tool").count();
+            let total_chars: usize = app.lines.iter().map(|l| l.content.len()).sum();
+            let body = format!(
+                "Session: {} ({} chars)\n\
+                 Messages: {} you · {} cortex · {} tool\n\
+                 Total content: {} chars (~{} tokens)\n\
+                 Tokens used: ↑{} ↓{}",
+                &app.session.id.to_string()[..8.min(app.session.id.to_string().len())],
+                app.session.id,
+                user_count,
+                asst_count,
+                tool_count,
+                total_chars,
+                total_chars / 4,
+                app.last_prompt_tokens,
+                app.last_completion_tokens,
+            );
+            app.push_line(MessageLine::system(body));
+        }
+        MetaCommand::Rename(name) => {
+            app.session_label = name.clone();
+            app.status = format!("renamed to \"{name}\"");
         }
     }
     Ok(false)

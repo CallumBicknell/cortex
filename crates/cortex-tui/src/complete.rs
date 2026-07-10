@@ -10,6 +10,8 @@ const MAX_ITEMS: usize = 12;
 pub const META_COMMANDS: &[(&str, &str)] = &[
     ("help", "Show commands and keys"),
     ("skills", "List available skills"),
+    ("stats", "Show conversation stats"),
+    ("rename", "Rename current session"),
     ("new", "Start a fresh session"),
     ("clear", "Alias for /new"),
     ("sessions", "Open sessions list"),

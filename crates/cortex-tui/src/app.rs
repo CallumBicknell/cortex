@@ -139,6 +139,8 @@ pub struct App {
     pub model_label: String,
     /// Database path display.
     pub database: String,
+    /// Custom session label (set by /rename).
+    pub session_label: String,
     /// Session list.
     pub sessions: Vec<SessionSummary>,
     /// List widget state.
@@ -235,6 +237,7 @@ impl App {
             workspace: host.workspace.display().to_string(),
             model_label: format!("{} · {}/{}", host.model_alias, host.provider_id, host.model),
             database: host.database.display().to_string(),
+            session_label: String::new(),
             sessions,
             session_list,
             session,

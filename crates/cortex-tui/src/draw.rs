@@ -123,12 +123,18 @@ fn composer_body(app: &App) -> String {
 fn draw_header(f: &mut Frame, area: Rect, app: &App) {
     let yolo = if app.yolo { "yolo" } else { "safe" };
     let run = if app.running { "  ●" } else { "" };
+    let session = if app.session_label.is_empty() {
+        short_path(&app.database)
+    } else {
+        let label: String = app.session_label.chars().take(24).collect();
+        label
+    };
     let text = format!(
         " cortex  ·  {}  ·  {}  ·  {}  ·  {}{}",
         app.model_label,
         short_path(&app.workspace),
         yolo,
-        short_path(&app.database),
+        session,
         run
     );
     let p = Paragraph::new(text).style(
@@ -283,11 +289,13 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     };
 
     let title = if app.running {
-        " thinking… (Ctrl+C cancel) "
+        " thinking… (Ctrl+C cancel) ".to_string()
     } else if app.completion.is_some() {
-        " Tab/Enter accept · ↑↓ · Esc dismiss "
+        " Tab/Enter accept · ↑↓ · Esc dismiss ".to_string()
     } else {
-        " message · /skill · @path · Tab "
+        let chars = app.input.chars().count();
+        let lines = app.input.lines().count().max(1);
+        format!(" message · {chars} chars · {lines} lines · Tab ")
     };
 
     let body = composer_body(app);
