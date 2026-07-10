@@ -11,7 +11,9 @@ use cortex_models::{Role, Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, SummarizeConfig};
 use cortex_skills::{select_skills, SkillRegistry};
-use cortex_tools::{AlwaysAllow, Approver, PermissionPolicy, ToolContext, ToolExecutor};
+use cortex_tools::{
+    is_file_mutating, AlwaysAllow, Approver, PermissionPolicy, ToolContext, ToolExecutor,
+};
 use cortex_workspace::RepoMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -164,7 +166,9 @@ impl TuiHost {
                             tools_ok += 1;
                         }
                         let flag = if t.is_error { "ERR" } else { "ok" };
-                        let preview: String = t.output.chars().take(120).collect();
+                        // Show more output for file-mutating tools (diffs, paths).
+                        let preview_len = if is_file_mutating(&t.name) { 300 } else { 120 };
+                        let preview: String = t.output.chars().take(preview_len).collect();
                         format!("[{flag}] {} — {preview}", t.name)
                     })
                     .collect();
