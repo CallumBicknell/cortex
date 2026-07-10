@@ -12,6 +12,8 @@ Rules:
 - Prefer specialized tools over shell when possible.
 - Keep changes minimal and correct.
 - Use the workspace map to navigate the repository efficiently.
+- When tools for a capability are listed (e.g. browser_*), you have that capability —
+  never claim you lack browser or network access if those tools are available.
 - When the task is complete, respond with a concise final answer and no tool calls.
 - If a tool fails, diagnose and retry with a different approach.
 "#;

@@ -236,23 +236,36 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     } else if app.completion.is_some() {
         " Tab/Enter accept · ↑↓ · Esc dismiss "
     } else {
-        " message · /skill · @path · Tab · ↑ history "
+        " message · S-Enter newline · /skill · @path · ↑ hist "
     };
 
-    let mut display = app.input.clone();
+    // Render caret at `input_cursor` (not always at the end).
+    let mut display = String::new();
+    let cur = app.input_cursor.min(app.input.len());
+    display.push_str(&app.input[..cur]);
     if app.input_focused {
         display.push('▌');
     }
+    display.push_str(&app.input[cur..]);
     if display.is_empty() {
-        display = "▌".into();
+        display = if app.input_focused {
+            "▌".into()
+        } else {
+            String::new()
+        };
     }
 
     // Prefix first line with ❯
-    let body = if app.input.is_empty() && app.input_focused {
-        "❯ ▌".to_string()
-    } else {
+    let body = {
         let mut out = String::new();
-        for (i, line) in display.lines().enumerate() {
+        // Preserve trailing empty line after final \n
+        let raw = if display.ends_with('\n') {
+            format!("{display}\u{200b}") // marker so split keeps trailing line
+        } else {
+            display.clone()
+        };
+        for (i, line) in raw.split('\n').enumerate() {
+            let line = line.trim_end_matches('\u{200b}');
             if i == 0 {
                 out.push_str("❯ ");
             } else {

@@ -112,6 +112,16 @@ impl TuiHost {
             skill_body.push_str(&format!("- {id}\n"));
         }
         skill_body.push('\n');
+        // Always list tool names the model may call this turn.
+        if !selection.tools.is_empty() {
+            skill_body.push_str("## Tools available this turn\n");
+            skill_body.push_str(&selection.tools.join(", "));
+            skill_body.push_str("\n\n");
+        }
+        if selection.skill_ids.iter().any(|s| s == "browser") {
+            skill_body.push_str(BROWSER_CAPABILITY_NOTICE);
+            skill_body.push('\n');
+        }
         for pid in &selection.prompts {
             if let Ok(p) = prompts.get(pid) {
                 skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
@@ -327,6 +337,18 @@ fn compact_tool_preview(s: &str, max_chars: usize) -> String {
         format!("{truncated}…")
     }
 }
+
+/// Injected when the browser skill is active so models do not false-refuse.
+const BROWSER_CAPABILITY_NOTICE: &str = r#"## Browser capability (ACTIVE)
+
+You have a live CDP browser via tools: `browser_navigate`, `browser_snapshot`,
+`browser_content`, `browser_click`, `browser_evaluate`, `browser_close`.
+
+- Do **not** say you lack browser or network access.
+- When asked to visit, open, log in, scrape, or interact with a site, call these tools.
+- For login: navigate → snapshot → evaluate/click to fill user-provided credentials → submit → snapshot → report.
+- Credentials the user supplies for their own account are for this session only.
+"#;
 
 /// User-global cortex home (`CORTEX_HOME` or `~/.cortex`).
 fn cortex_user_home() -> PathBuf {

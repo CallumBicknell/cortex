@@ -206,11 +206,12 @@ async fn handle_key(
         _ => {}
     }
 
-    // Newline: Ctrl+J (works while thinking so multi-line drafts are possible)
-    if code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL) {
-        if app.input_focused {
-            app.insert_newline();
-        }
+    // Newline without send: Shift+Enter or Ctrl+J
+    if app.input_focused
+        && ((code == KeyCode::Enter && mods.contains(KeyModifiers::SHIFT))
+            || (code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL)))
+    {
+        app.insert_newline();
         return Ok(false);
     }
 
@@ -262,15 +263,35 @@ async fn handle_key(
         }
     }
 
-    // ↑/↓ input history when completion popup is closed
+    // Cursor + smart history when completion popup is closed
     if app.input_focused && app.completion.is_none() {
         match code {
+            KeyCode::Left => {
+                app.move_left();
+                return Ok(false);
+            }
+            KeyCode::Right => {
+                app.move_right();
+                return Ok(false);
+            }
+            KeyCode::Home => {
+                app.move_home();
+                return Ok(false);
+            }
+            KeyCode::End => {
+                app.move_end();
+                return Ok(false);
+            }
             KeyCode::Up => {
-                app.history_prev();
+                app.move_up_or_history();
                 return Ok(false);
             }
             KeyCode::Down => {
-                app.history_next();
+                app.move_down_or_history();
+                return Ok(false);
+            }
+            KeyCode::Delete => {
+                app.delete_forward();
                 return Ok(false);
             }
             _ => {}
@@ -306,7 +327,7 @@ async fn handle_key(
                 app.accept_completion();
             }
         }
-        KeyCode::Enter if app.input_focused => {
+        KeyCode::Enter if app.input_focused && !mods.contains(KeyModifiers::SHIFT) => {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
             if prompt.is_empty() {
@@ -362,11 +383,18 @@ fn start_agent_turn(
         return Ok(());
     }
 
-    let agent_prompt = expand_attachments(
-        &app.workspace_path,
-        &parsed.attachments,
-        &parsed.agent_prompt,
-    );
+    // Keep slash-skill intent visible to the model (tokens were stripped for
+    // cleanliness, but without a signal the LLM often false-refuses browsing).
+    let mut agent_body = parsed.agent_prompt.clone();
+    if !parsed.skills.is_empty() {
+        let list = parsed.skills.join(", ");
+        agent_body = format!(
+            "[Skill packs explicitly activated for this turn: {list}]\n\
+             Use the tools from these packs. Do not claim you lack those capabilities.\n\n\
+             {agent_body}"
+        );
+    }
+    let agent_prompt = expand_attachments(&app.workspace_path, &parsed.attachments, &agent_body);
 
     let mut skills = app.skills.clone();
     for s in &parsed.skills {
@@ -496,9 +524,9 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
                 "Commands: /help  /skills  /new  /sessions  /yolo  /copy  /quit\n\
                  Skills: type / then Tab — e.g. /git fix the commit\n\
                  Files: type @ then Tab — e.g. fix @src/main.rs\n\
-                 Keys: Enter send (queues while thinking) · ↑/↓ input history · Tab complete ·\n\
-                 Ctrl+J newline · PgUp/PgDn scroll · Ctrl+O copy last reply ·\n\
-                 Mouse: drag to select text in the chat (terminal copy) · Ctrl+B sessions · Ctrl+C cancel",
+                 Keys: Enter send (queues while thinking) · Shift+Enter / Ctrl+J newline ·\n\
+                 ←/→ cursor · ↑/↓ line then history · Tab complete · PgUp/PgDn scroll ·\n\
+                 Ctrl+O copy last reply · drag-select chat · Ctrl+B sessions · Ctrl+C cancel",
             ));
         }
         MetaCommand::Copy => match copy_last_assistant(app) {

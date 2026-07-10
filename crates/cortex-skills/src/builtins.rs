@@ -143,7 +143,9 @@ pub fn builtin_skills() -> Vec<Skill> {
         .tags(["symbols", "definition", "lsp", "outline", "goto"]),
         Skill::new(
             "browser",
-            "Headless browser via CDP (Obscura, Chrome, Chromium, custom)",
+            "Live headless browser via CDP — navigate, login, scrape, click, evaluate JS \
+             (Obscura / Chrome). Use whenever the user wants to visit a URL, open a site, \
+             log in, fill forms, or inspect a web page — even without saying 'browser'.",
         )
         .tools([
             "browser_navigate",
@@ -153,6 +155,7 @@ pub fn builtin_skills() -> Vec<Skill> {
             "browser_click",
             "browser_close",
         ])
+        .prompts(["skills/browser"])
         .tags([
             "browser",
             "cdp",
@@ -163,6 +166,21 @@ pub fn builtin_skills() -> Vec<Skill> {
             "playwright",
             "scrape",
             "headless",
+            "login",
+            "log in",
+            "sign in",
+            "credentials",
+            "password",
+            "username",
+            "visit",
+            "website",
+            "web page",
+            "webpage",
+            "url",
+            "http",
+            "https",
+            "open the site",
+            "browse",
         ]),
         Skill::new("testing", "Run and fix automated tests")
             .tools(["shell", "read_file", "edit_file", "apply_patch"])

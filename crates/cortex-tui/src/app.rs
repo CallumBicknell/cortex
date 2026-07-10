@@ -239,8 +239,12 @@ impl App {
         })
     }
 
-    /// Refresh autocomplete from the current input buffer.
+    /// Refresh autocomplete from the current input buffer (only when caret is at end).
     pub fn refresh_completion(&mut self) {
+        if !self.cursor_at_end() {
+            self.completion = None;
+            return;
+        }
         self.completion = complete::refresh_completion(
             &self.input,
             &self.skill_ids,
@@ -376,24 +380,87 @@ impl App {
         self.lines.push(line);
     }
 
-    /// Insert newline into composer.
+    /// Clamp `input_cursor` to a valid char boundary in `input`.
+    fn clamp_cursor(&mut self) {
+        if self.input_cursor > self.input.len() {
+            self.input_cursor = self.input.len();
+        } else if !self.input.is_char_boundary(self.input_cursor) {
+            // Snap left to the previous boundary.
+            while self.input_cursor > 0 && !self.input.is_char_boundary(self.input_cursor) {
+                self.input_cursor -= 1;
+            }
+        }
+    }
+
+    /// Whether the caret is at the end of the buffer (for slash/@ completion).
+    pub fn cursor_at_end(&self) -> bool {
+        self.input_cursor >= self.input.len()
+    }
+
+    /// (line_index, column in chars) for the caret.
+    pub fn cursor_line_col(&self) -> (usize, usize) {
+        let cur = self.input_cursor.min(self.input.len());
+        let before = &self.input[..cur];
+        let line = before.matches('\n').count();
+        let col = before.rsplit('\n').next().unwrap_or("").chars().count();
+        (line, col)
+    }
+
+    /// Number of logical lines in the composer (at least 1).
+    pub fn input_line_count(&self) -> usize {
+        if self.input.is_empty() {
+            1
+        } else {
+            self.input.chars().filter(|c| *c == '\n').count() + 1
+        }
+    }
+
+    /// Move caret to (line, col), clamping col to the target line length.
+    pub fn set_cursor_line_col(&mut self, target_line: usize, target_col: usize) {
+        if self.input.is_empty() {
+            self.input_cursor = 0;
+            return;
+        }
+        let mut line = 0usize;
+        let mut col = 0usize;
+        for (i, ch) in self.input.char_indices() {
+            if line == target_line && col == target_col {
+                self.input_cursor = i;
+                return;
+            }
+            if ch == '\n' {
+                if line == target_line {
+                    // Past end of this line — stop on the newline.
+                    self.input_cursor = i;
+                    return;
+                }
+                line += 1;
+                col = 0;
+            } else if line == target_line {
+                col += 1;
+            }
+        }
+        self.input_cursor = self.input.len();
+    }
+
+    /// Insert a newline at the caret (Shift+Enter / Ctrl+J).
     pub fn insert_newline(&mut self) {
-        self.input.push('\n');
-        self.input_cursor = self.input.len();
-        self.refresh_completion();
+        self.insert_str("\n");
     }
 
-    /// Insert a character at the end of input.
+    /// Insert a character at the caret.
     pub fn insert_char(&mut self, c: char) {
-        self.input.push(c);
-        self.input_cursor = self.input.len();
-        self.refresh_completion();
+        self.clamp_cursor();
+        self.input.insert(self.input_cursor, c);
+        self.input_cursor += c.len_utf8();
+        if self.cursor_at_end() {
+            self.refresh_completion();
+        } else {
+            self.completion = None;
+        }
     }
 
-    /// Insert pasted / multi-char text into the composer.
-    ///
-    /// Normalizes `\r\n` / `\r` to `\n` and caps extreme pastes so a huge
-    /// clipboard dump cannot freeze the TUI.
+    /// Insert pasted / multi-char text at the caret.
     pub fn insert_str(&mut self, s: &str) {
         const MAX_PASTE_CHARS: usize = 100_000;
         let mut normalized = s.replace("\r\n", "\n").replace('\r', "\n");
@@ -404,16 +471,120 @@ impl App {
         if normalized.is_empty() {
             return;
         }
-        self.input.push_str(&normalized);
-        self.input_cursor = self.input.len();
-        self.refresh_completion();
+        self.clamp_cursor();
+        self.input.insert_str(self.input_cursor, &normalized);
+        self.input_cursor += normalized.len();
+        if self.cursor_at_end() {
+            self.refresh_completion();
+        } else {
+            self.completion = None;
+        }
     }
 
-    /// Backspace.
+    /// Delete the character before the caret.
     pub fn backspace(&mut self) {
-        self.input.pop();
-        self.input_cursor = self.input.len();
-        self.refresh_completion();
+        self.clamp_cursor();
+        if self.input_cursor == 0 {
+            return;
+        }
+        let prev = self.input[..self.input_cursor]
+            .chars()
+            .next_back()
+            .map(|c| c.len_utf8())
+            .unwrap_or(1);
+        let start = self.input_cursor - prev;
+        self.input.replace_range(start..self.input_cursor, "");
+        self.input_cursor = start;
+        if self.cursor_at_end() {
+            self.refresh_completion();
+        } else {
+            self.completion = None;
+        }
+    }
+
+    /// Delete the character after the caret.
+    pub fn delete_forward(&mut self) {
+        self.clamp_cursor();
+        if self.input_cursor >= self.input.len() {
+            return;
+        }
+        let next = self.input[self.input_cursor..]
+            .chars()
+            .next()
+            .map(|c| c.len_utf8())
+            .unwrap_or(1);
+        let end = self.input_cursor + next;
+        self.input.replace_range(self.input_cursor..end, "");
+        self.completion = None;
+    }
+
+    /// Move caret one character left.
+    pub fn move_left(&mut self) {
+        self.clamp_cursor();
+        if self.input_cursor == 0 {
+            return;
+        }
+        let prev = self.input[..self.input_cursor]
+            .chars()
+            .next_back()
+            .map(|c| c.len_utf8())
+            .unwrap_or(1);
+        self.input_cursor -= prev;
+        self.completion = None;
+    }
+
+    /// Move caret one character right.
+    pub fn move_right(&mut self) {
+        self.clamp_cursor();
+        if self.input_cursor >= self.input.len() {
+            return;
+        }
+        let next = self.input[self.input_cursor..]
+            .chars()
+            .next()
+            .map(|c| c.len_utf8())
+            .unwrap_or(1);
+        self.input_cursor += next;
+        self.completion = None;
+    }
+
+    /// Move caret to start of current line.
+    pub fn move_home(&mut self) {
+        let (line, _) = self.cursor_line_col();
+        self.set_cursor_line_col(line, 0);
+        self.completion = None;
+    }
+
+    /// Move caret to end of current line.
+    pub fn move_end(&mut self) {
+        let (line, _) = self.cursor_line_col();
+        let lines: Vec<&str> = self.input.split('\n').collect();
+        let len = lines.get(line).map(|l| l.chars().count()).unwrap_or(0);
+        self.set_cursor_line_col(line, len);
+        self.completion = None;
+    }
+
+    /// Up: previous line if possible, else input history.
+    pub fn move_up_or_history(&mut self) {
+        let (line, col) = self.cursor_line_col();
+        if line > 0 {
+            self.set_cursor_line_col(line - 1, col);
+            self.completion = None;
+        } else {
+            self.history_prev();
+        }
+    }
+
+    /// Down: next line if possible, else input history / restore draft.
+    pub fn move_down_or_history(&mut self) {
+        let (line, col) = self.cursor_line_col();
+        let last = self.input_line_count().saturating_sub(1);
+        if line < last {
+            self.set_cursor_line_col(line + 1, col);
+            self.completion = None;
+        } else {
+            self.history_next();
+        }
     }
 
     /// Take and clear the input buffer.
@@ -432,7 +603,6 @@ impl App {
         if t.is_empty() {
             return;
         }
-        // Avoid consecutive duplicates.
         if self.input_history.last().map(|s| s.as_str()) != Some(t) {
             self.input_history.push(t.to_string());
             if self.input_history.len() > 200 {
@@ -444,7 +614,7 @@ impl App {
         self.history_draft.clear();
     }
 
-    /// ↑ — older sent message (shell-style).
+    /// ↑ history — older sent message (only when already on first composer line).
     pub fn history_prev(&mut self) {
         if self.input_history.is_empty() {
             return;
@@ -456,9 +626,7 @@ impl App {
                 self.history_index = Some(i);
                 self.input = self.input_history[i].clone();
             }
-            Some(0) => {
-                // Already at oldest.
-            }
+            Some(0) => {}
             Some(i) => {
                 let i = i - 1;
                 self.history_index = Some(i);
@@ -469,7 +637,7 @@ impl App {
         self.completion = None;
     }
 
-    /// ↓ — newer sent message, or restore the draft after the newest.
+    /// ↓ history — newer message, or restore the draft after the newest.
     pub fn history_next(&mut self) {
         let Some(i) = self.history_index else {
             return;
@@ -689,5 +857,34 @@ mod history_tests {
         assert_eq!(app.scroll_top, 75);
         app.scroll_down(1000);
         assert!(app.follow);
+    }
+
+    #[test]
+    fn cursor_left_right_and_insert_mid() {
+        let mut app = bare_app();
+        app.insert_str("hello");
+        app.move_left();
+        app.move_left();
+        app.insert_char('X');
+        assert_eq!(app.input, "helXlo");
+        assert_eq!(&app.input[..app.input_cursor], "helX");
+    }
+
+    #[test]
+    fn up_moves_within_multiline_before_history() {
+        let mut app = bare_app();
+        app.push_input_history("old prompt");
+        app.insert_str("line1\nline2\nline3");
+        // cursor at end of line3
+        app.move_up_or_history();
+        let (line, _) = app.cursor_line_col();
+        assert_eq!(line, 1); // line2
+        assert_eq!(app.input, "line1\nline2\nline3");
+        app.move_up_or_history();
+        let (line, _) = app.cursor_line_col();
+        assert_eq!(line, 0);
+        // now on first line — Up should load history
+        app.move_up_or_history();
+        assert_eq!(app.input, "old prompt");
     }
 }

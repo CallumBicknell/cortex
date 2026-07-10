@@ -224,6 +224,28 @@ mod tests {
         }
         // always-on coding still present so the agent can write notes if needed
         assert!(sel.skill_ids.contains(&"coding".to_string()));
+        assert!(
+            sel.prompts.iter().any(|p| p.contains("browser")),
+            "browser skill prompt missing: {:?}",
+            sel.prompts
+        );
+    }
+
+    #[test]
+    fn natural_language_login_selects_browser() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "if i give you some credentials to visit a site and login to it, could you do so?",
+            None,
+            &[],
+        );
+        assert!(
+            sel.skill_ids.contains(&"browser".to_string()),
+            "expected browser skill for login/visit prompt, got {:?}",
+            sel.skill_ids
+        );
+        assert!(sel.tools.iter().any(|t| t == "browser_navigate"));
     }
 
     #[test]

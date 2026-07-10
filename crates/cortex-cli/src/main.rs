@@ -1049,6 +1049,18 @@ fn build_context_for_task(
         }
     }
     skill_body.push('\n');
+    if !selection.tools.is_empty() {
+        skill_body.push_str("## Tools available this turn\n");
+        skill_body.push_str(&selection.tools.join(", "));
+        skill_body.push_str("\n\n");
+    }
+    if selection.skill_ids.iter().any(|s| s == "browser") {
+        skill_body.push_str(
+            "## Browser capability (ACTIVE)\n\
+             You have live CDP tools: browser_navigate, browser_snapshot, browser_content, \
+             browser_click, browser_evaluate, browser_close. Never claim you lack browser/network access.\n\n",
+        );
+    }
     for pid in &selection.prompts {
         if let Ok(p) = prompts.get(pid) {
             skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));

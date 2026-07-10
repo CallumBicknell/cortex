@@ -38,6 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   text; `Ctrl+O` / `/copy` copies the last assistant reply
 - **Chat TUI**: auto-scroll only while “following” the bottom; PgUp freezes the
   viewport so selection/reading is not yanked by streaming updates; Ctrl+L resumes
+- **Browser skill**: `/browser` and login/visit natural language expose CDP tools
+  with capability notices so the model does not false-refuse browsing
+- **Chat composer**: Shift+Enter newline, real caret, ←/→ cursor, ↑/↓ moves lines
+  then input history (shell-style)
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin

@@ -34,10 +34,12 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Send message, or **queue** it if the agent is still thinking; accept completion when popup is open |
-| Paste | Middle-click / terminal paste into composer (bracketed paste) |
+| `Enter` | Send message, or **queue** if the agent is thinking; accept completion when popup is open |
+| `Shift+Enter` / `Ctrl+J` | Insert newline (multi-line messages) |
+| `←` / `→` | Move caret within the composer (never history) |
+| `↑` / `↓` | Move between lines; at first/last line, browse input history |
+| Paste | Terminal paste into composer (bracketed paste) |
 | `Tab` | Accept autocomplete (`/skill` or `@path`) |
-| `↑` / `↓` | Input history (previous prompts); when completion is open, move selection |
 | Type while thinking | Composer stays editable; Enter queues the next turn |
 | `Ctrl+J` | Newline in composer |
 | `Ctrl+B` | Toggle sessions list |
@@ -72,9 +74,14 @@ Type `/` or `@` to open the completion popup. **Tab** or **Enter** accepts; **Es
 
 ### `/browser` and CDP
 
-`/browser visit https://example.com …` selects browser tools. If nothing is listening
-on the CDP port, Cortex **auto-starts** `obscura serve` (or Chrome when
-`backend = "chrome"`) when the binary is on `PATH` and the host is loopback.
+`/browser …` (or natural language like “visit / login / credentials”) activates the
+**browser** skill pack and injects capability guidance so the model uses
+`browser_navigate` / `browser_click` / `browser_evaluate` instead of claiming it
+cannot browse.
+
+If nothing is listening on the CDP port, Cortex **auto-starts** `obscura serve`
+(or Chrome when `backend = "chrome"`) when the binary is on `PATH` and the host
+is loopback.
 
 ```bash
 cortex chat

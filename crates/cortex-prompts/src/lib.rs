@@ -151,6 +151,10 @@ const BUILTIN_PROMPTS: &[(&str, &str)] = &[
     ("skills/git", include_str!("../../../prompts/skills/git.md")),
     ("skills/web", include_str!("../../../prompts/skills/web.md")),
     (
+        "skills/browser",
+        include_str!("../../../prompts/skills/browser.md"),
+    ),
+    (
         "skills/testing",
         include_str!("../../../prompts/skills/testing.md"),
     ),
