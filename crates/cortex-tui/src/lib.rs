@@ -16,7 +16,8 @@ use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
-    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
+    EventStream, KeyCode, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags, MouseEventKind,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -39,6 +40,14 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
+    // Kitty keyboard protocol: distinguish Shift+Enter from Enter. Without this
+    // most terminals send plain `\r` for both, so Shift+Enter cannot insert a newline.
+    // Unsupported terminals ignore the CSI; newline still works via Alt+Enter / Ctrl+J.
+    let _ = stdout().execute(PushKeyboardEnhancementFlags(
+        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+    ));
     // Capture the mouse so the *wheel* scrolls the conversation, not the
     // composer. (Without capture many terminals translate wheel → ↑/↓ keys,
     // which moved the input caret / history instead of chat history.)
@@ -51,6 +60,7 @@ pub async fn run(host: TuiHost) -> Result<()> {
     let result = run_loop(&mut terminal, host).await;
 
     stdout().execute(DisableMouseCapture).ok();
+    let _ = stdout().execute(PopKeyboardEnhancementFlags);
     stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
@@ -226,11 +236,10 @@ async fn handle_key(
         _ => {}
     }
 
-    // Newline without send: Shift+Enter or Ctrl+J
-    if app.input_focused
-        && ((code == KeyCode::Enter && mods.contains(KeyModifiers::SHIFT))
-            || (code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL)))
-    {
+    // Newline without send (do this *before* plain Enter = send).
+    // Shift+Enter needs keyboard-enhancement CSI (enabled at startup).
+    // Fallbacks: Alt+Enter, Ctrl+Enter, Ctrl+J (works everywhere in raw mode).
+    if app.input_focused && is_composer_newline(code, mods) {
         app.insert_newline();
         return Ok(false);
     }
@@ -347,7 +356,13 @@ async fn handle_key(
                 app.accept_completion();
             }
         }
-        KeyCode::Enter if app.input_focused && !mods.contains(KeyModifiers::SHIFT) => {
+        // Plain Enter only — modified Enter is handled as newline above.
+        KeyCode::Enter
+            if app.input_focused
+                && !mods.intersects(
+                    KeyModifiers::SHIFT | KeyModifiers::ALT | KeyModifiers::CONTROL,
+                ) =>
+        {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
             if prompt.is_empty() {
@@ -458,6 +473,23 @@ fn start_agent_turn(
             .await;
     });
     Ok(())
+}
+
+/// Keys that insert a newline in the composer instead of sending.
+fn is_composer_newline(code: KeyCode, mods: KeyModifiers) -> bool {
+    match code {
+        // Shift+Enter / Alt+Enter / Ctrl+Enter (once the terminal reports modifiers)
+        KeyCode::Enter
+            if mods.intersects(KeyModifiers::SHIFT | KeyModifiers::ALT | KeyModifiers::CONTROL) =>
+        {
+            true
+        }
+        // Ctrl+J — reliable everywhere (raw-mode `\n`)
+        KeyCode::Char('j') if mods.contains(KeyModifiers::CONTROL) => true,
+        // Some stacks deliver a literal newline char
+        KeyCode::Char('\n') => true,
+        _ => false,
+    }
 }
 
 fn truncate_for_status(s: &str, max: usize) -> String {

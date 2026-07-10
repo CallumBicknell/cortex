@@ -322,7 +322,7 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     } else if app.completion.is_some() {
         " Tab/Enter accept · ↑↓ · Esc dismiss "
     } else {
-        " message · S-Enter newline · /skill · @path · ↑ hist "
+        " message · S-Enter/^J newline · /skill · @path · ↑ hist "
     };
 
     let body = composer_body(app);

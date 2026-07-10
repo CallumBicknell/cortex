@@ -35,7 +35,7 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | Key | Action |
 |-----|--------|
 | `Enter` | Send message, or **queue** if the agent is thinking; accept completion when popup is open |
-| `Shift+Enter` / `Ctrl+J` | Insert newline (multi-line messages) |
+| `Shift+Enter` / `Alt+Enter` / `Ctrl+Enter` / `Ctrl+J` | Insert newline (multi-line). Shift+Enter needs a modern terminal (Kitty/WezTerm/Alacritty/foot/Ghostty); **Ctrl+J always works** |
 | `←` / `→` | Move caret within the composer (never history) |
 | `↑` / `↓` | Move between lines; at first/last line, browse input history |
 | Paste | Terminal paste into composer (bracketed paste) |
