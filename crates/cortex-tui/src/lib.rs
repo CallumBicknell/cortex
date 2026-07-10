@@ -18,7 +18,8 @@ use app::{App, MessageLine, UiEvent};
 use approver::TuiApprovalRequest;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
-    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
+    EventStream, KeyCode, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags, MouseEventKind,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -42,6 +43,12 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
+    // Kitty keyboard protocol: distinguish Shift+Enter from Enter.
+    let _ = stdout().execute(PushKeyboardEnhancementFlags(
+        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+    ));
     stdout().execute(EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
@@ -49,6 +56,7 @@ pub async fn run(host: TuiHost) -> Result<()> {
 
     let result = run_loop(&mut terminal, host).await;
 
+    let _ = stdout().execute(PopKeyboardEnhancementFlags);
     stdout().execute(DisableBracketedPaste).ok();
     stdout().execute(DisableMouseCapture).ok();
     disable_raw_mode().ok();
@@ -252,7 +260,7 @@ async fn handle_key(
         return Ok(false);
     }
 
-    // Scroll
+    // Conversation scroll (not the composer)
     match code {
         KeyCode::PageUp => {
             app.scroll_up(8);
@@ -260,6 +268,15 @@ async fn handle_key(
         }
         KeyCode::PageDown => {
             app.scroll_down(8);
+            return Ok(false);
+        }
+        // Ctrl+↑/↓ always scrolls chat history (plain ↑/↓ stay for the input).
+        KeyCode::Up if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll_up(3);
+            return Ok(false);
+        }
+        KeyCode::Down if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll_down(3);
             return Ok(false);
         }
         KeyCode::Char('l') if mods.contains(KeyModifiers::CONTROL) => {
@@ -270,8 +287,10 @@ async fn handle_key(
         _ => {}
     }
 
-    // Newline: Ctrl+J
-    if code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL) {
+    // Newline: Ctrl+J or Shift+Enter (Kitty protocol)
+    if (code == KeyCode::Char('j') && mods.contains(KeyModifiers::CONTROL))
+        || (code == KeyCode::Enter && mods.contains(KeyModifiers::SHIFT))
+    {
         if app.input_focused && !app.running {
             app.insert_newline();
         }
@@ -388,7 +407,14 @@ async fn handle_key(
             app.undo();
             return Ok(false);
         }
-        KeyCode::Enter if app.input_focused && !app.running => {
+        // Plain Enter only — modified Enter is handled as newline above.
+        KeyCode::Enter
+            if app.input_focused
+                && !app.running
+                && !mods.intersects(
+                    KeyModifiers::SHIFT | KeyModifiers::ALT | KeyModifiers::CONTROL,
+                ) =>
+        {
             let prompt = app.take_input();
             let prompt = prompt.trim_end().to_string();
             if prompt.is_empty() {
