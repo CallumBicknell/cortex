@@ -23,6 +23,7 @@ pub fn ui(f: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(1), // header strip
             Constraint::Min(6),    // conversation
+            Constraint::Length(1), // breathing room above composer
             Constraint::Length(composer_height(app)),
             Constraint::Length(1), // footer
         ])
@@ -30,11 +31,16 @@ pub fn ui(f: &mut Frame, app: &App) {
 
     draw_header(f, root[0], app);
     draw_conversation(f, root[1], app);
-    draw_composer(f, root[2], app);
-    draw_footer(f, root[3], app);
+    // Spacer: same bg as conversation so the last message is not glued to the border.
+    f.render_widget(
+        Paragraph::new("").style(Style::default().bg(Color::Rgb(12, 12, 16))),
+        root[2],
+    );
+    draw_composer(f, root[3], app);
+    draw_footer(f, root[4], app);
 
     if let Some(comp) = &app.completion {
-        draw_completion_popup(f, root[2], comp);
+        draw_completion_popup(f, root[3], comp);
     }
 
     if app.show_sessions {
