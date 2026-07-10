@@ -368,6 +368,25 @@ impl App {
         self.refresh_completion();
     }
 
+    /// Insert pasted / multi-char text into the composer.
+    ///
+    /// Normalizes `\r\n` / `\r` to `\n` and caps extreme pastes so a huge
+    /// clipboard dump cannot freeze the TUI.
+    pub fn insert_str(&mut self, s: &str) {
+        const MAX_PASTE_CHARS: usize = 100_000;
+        let mut normalized = s.replace("\r\n", "\n").replace('\r', "\n");
+        if normalized.chars().count() > MAX_PASTE_CHARS {
+            normalized = normalized.chars().take(MAX_PASTE_CHARS).collect();
+            normalized.push_str("\n…[paste truncated]");
+        }
+        if normalized.is_empty() {
+            return;
+        }
+        self.input.push_str(&normalized);
+        self.input_cursor = self.input.len();
+        self.refresh_completion();
+    }
+
     /// Backspace.
     pub fn backspace(&mut self) {
         self.input.pop();

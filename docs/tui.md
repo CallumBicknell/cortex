@@ -35,6 +35,7 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | Key | Action |
 |-----|--------|
 | `Enter` | Send message (or accept completion when popup is open) |
+| Paste | Middle-click / terminal paste into composer (bracketed paste) |
 | `Tab` | Accept autocomplete (`/skill` or `@path`) |
 | `↑` / `↓` | Move completion selection |
 | `Ctrl+J` | Newline in composer |

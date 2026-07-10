@@ -14,7 +14,10 @@ pub use host::TuiHost;
 
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
-use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
+    KeyModifiers,
+};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -33,12 +36,16 @@ pub async fn run(host: TuiHost) -> Result<()> {
     info!("starting cortex chat TUI");
     enable_raw_mode().context("enable raw mode")?;
     stdout().execute(EnterAlternateScreen)?;
+    // Bracketed paste: terminals send Event::Paste instead of raw key spam
+    // (which would fire Enter mid-paste and break multi-line clipboard dumps).
+    stdout().execute(EnableBracketedPaste)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
 
     let result = run_loop(&mut terminal, host).await;
 
+    stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
     terminal.show_cursor().ok();
@@ -73,6 +80,11 @@ async fn run_loop(
                         .await?
                         {
                             break;
+                        }
+                    }
+                    Some(Ok(Event::Paste(text))) => {
+                        if app.input_focused && !app.running && !app.show_sessions {
+                            app.insert_str(&text);
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
