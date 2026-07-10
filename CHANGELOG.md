@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Tab autocomplete (↑/↓ select); attachments inlined for the agent; `/skills` list
 - **Chat TUI**: tool errors show a short reason (e.g. CDP not running) instead of
   bare `[ERR] browser_navigate`; CDP connect message points at `obscura serve`
+- **Browser tools**: auto-start local Obscura/Chrome when CDP is not listening
+  (`auto_start = true` by default; loopback only)
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin

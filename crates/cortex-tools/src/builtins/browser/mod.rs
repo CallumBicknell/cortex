@@ -2,6 +2,7 @@
 
 mod cdp;
 mod config;
+mod spawn;
 
 pub use config::{BrowserBackend, BrowserConfig};
 
@@ -12,14 +13,18 @@ use async_trait::async_trait;
 use cdp::CdpSession;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use spawn::{is_connection_failure, spawn_and_wait, ManagedBrowser};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tracing::info;
 
 /// Shared browser handle used by all browser_* tools.
 #[derive(Clone)]
 pub struct BrowserHandle {
     config: BrowserConfig,
     session: Arc<Mutex<Option<CdpSession>>>,
+    /// Serialises auto-start so concurrent tool calls only spawn once.
+    spawn_gate: Arc<Mutex<ManagedBrowser>>,
 }
 
 impl BrowserHandle {
@@ -28,12 +33,22 @@ impl BrowserHandle {
         Self {
             config,
             session: Arc::new(Mutex::new(None)),
+            spawn_gate: Arc::new(Mutex::new(ManagedBrowser::default())),
         }
     }
 
     /// Default Obscura endpoint config (env-aware).
     pub fn from_env_or_default() -> Self {
         Self::new(BrowserConfig::from_env_or_default())
+    }
+
+    async fn try_connect(&self) -> Result<CdpSession> {
+        let endpoint = self
+            .config
+            .resolve_cdp_url()
+            .await
+            .map_err(ToolError::Execution)?;
+        CdpSession::connect(&endpoint, self.config.timeout_secs).await
     }
 
     async fn ensure_session(&self) -> Result<()> {
@@ -43,17 +58,76 @@ impl BrowserHandle {
                     .into(),
             ));
         }
-        let mut guard = self.session.lock().await;
-        if guard.is_none() {
-            let endpoint = self
-                .config
-                .resolve_cdp_url()
-                .await
-                .map_err(ToolError::Execution)?;
-            let sess = CdpSession::connect(&endpoint, self.config.timeout_secs).await?;
-            *guard = Some(sess);
+
+        {
+            let guard = self.session.lock().await;
+            if guard.is_some() {
+                return Ok(());
+            }
         }
-        Ok(())
+
+        match self.try_connect().await {
+            Ok(sess) => {
+                let mut guard = self.session.lock().await;
+                if guard.is_none() {
+                    *guard = Some(sess);
+                }
+                Ok(())
+            }
+            Err(first_err)
+                if !self.config.should_auto_start() || !is_connection_failure(&first_err) =>
+            {
+                Err(first_err)
+            }
+            Err(first_err) => {
+                // Auto-start a local browser, then reconnect.
+                let started = {
+                    let mut managed = self.spawn_gate.lock().await;
+                    // Another waiter may have connected while we waited for the gate.
+                    let already = {
+                        let guard = self.session.lock().await;
+                        guard.is_some()
+                    };
+                    if already {
+                        None
+                    } else if let Ok(sess) = self.try_connect().await {
+                        let mut guard = self.session.lock().await;
+                        if guard.is_none() {
+                            *guard = Some(sess);
+                        }
+                        None
+                    } else {
+                        match spawn_and_wait(&self.config, &mut managed).await {
+                            Ok(msg) => {
+                                info!(%msg, "browser auto-start ready");
+                                Some(Ok(msg))
+                            }
+                            Err(start_err) => Some(Err(ToolError::Execution(format!(
+                                "{first_err}; auto-start also failed: {start_err}"
+                            )))),
+                        }
+                    }
+                };
+
+                match started {
+                    None => Ok(()), // session already established by peer or retry
+                    Some(Err(e)) => Err(e),
+                    Some(Ok(note)) => match self.try_connect().await {
+                        Ok(sess) => {
+                            let mut guard = self.session.lock().await;
+                            if guard.is_none() {
+                                *guard = Some(sess);
+                            }
+                            info!(%note, "CDP session established after auto-start");
+                            Ok(())
+                        }
+                        Err(e) => Err(ToolError::Execution(format!(
+                            "{note}; reconnect still failed: {e}"
+                        ))),
+                    },
+                }
+            }
+        }
     }
 
     async fn navigate(&self, url: &str, wait_until: &str) -> Result<String> {
@@ -441,11 +515,12 @@ mod tests {
         assert!(err.to_string().to_lowercase().contains("disabled"));
     }
 
-    /// When nothing is listening on the CDP port, navigate fails with a clear fix hint.
+    /// When nothing is listening and auto_start is off, navigate fails with a clear fix hint.
     #[tokio::test]
     async fn navigate_fails_clearly_when_cdp_down() {
         let handle = BrowserHandle::new(BrowserConfig {
             enabled: true,
+            auto_start: false,
             // Unlikely to be a live browser; forces connection error.
             host: "127.0.0.1".into(),
             port: 1,
@@ -469,6 +544,45 @@ mod tests {
             msg.contains("obscura serve") || msg.contains("docs/browser.md"),
             "missing actionable hint: {msg}"
         );
+    }
+
+    /// Auto-start Obscura on a free port when CDP is down (requires `obscura` on PATH).
+    #[tokio::test]
+    async fn auto_starts_obscura_when_missing() {
+        if spawn::find_in_path(&["obscura"]).is_none() {
+            eprintln!("skip: obscura not on PATH");
+            return;
+        }
+        // Bind port 0 to pick a free port, then release it for obscura.
+        let port = {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.local_addr().unwrap().port()
+        };
+        let handle = BrowserHandle::new(BrowserConfig {
+            enabled: true,
+            auto_start: true,
+            auto_start_timeout_secs: 20,
+            host: "127.0.0.1".into(),
+            port,
+            cdp_url: format!("ws://127.0.0.1:{port}/devtools/browser"),
+            backend: BrowserBackend::Obscura,
+            ..BrowserConfig::default()
+        });
+        let tool = BrowserNavigateTool::new(handle.clone());
+        let out = tool
+            .execute(
+                &ToolContext::for_tests(std::env::temp_dir()),
+                json!({ "url": "https://example.com" }),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("auto-start navigate failed: {e}"));
+        assert!(
+            out.contains("example.com") || out.contains("http") || !out.is_empty(),
+            "unexpected navigate output: {out}"
+        );
+        let _ = BrowserCloseTool::new(handle)
+            .execute(&ToolContext::for_tests(std::env::temp_dir()), json!({}))
+            .await;
     }
 
     #[tokio::test]
