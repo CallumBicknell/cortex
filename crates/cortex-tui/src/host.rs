@@ -10,10 +10,8 @@ use cortex_memory::{CheckpointState, SessionStore};
 use cortex_models::{Role, Session, SessionStatus, TaskStatus};
 use cortex_prompts::PromptCatalog;
 use cortex_runtime::{AgentLoop, AgentLoopConfig, ContextBuilder, RunInput, SummarizeConfig};
-use cortex_skills::{select_skills, SkillRegistry};
-use cortex_tools::{
-    is_file_mutating, AlwaysAllow, Approver, PermissionPolicy, ToolContext, ToolExecutor,
-};
+use cortex_skills::{select_skills, SkillRegistry, SkillStore};
+use cortex_tools::{AlwaysAllow, Approver, PermissionPolicy, ToolContext, ToolExecutor};
 use cortex_workspace::RepoMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -65,9 +63,29 @@ impl TuiHost {
         }
     }
 
+    /// Skill registry: builtins + `~/.cortex/skills` + project `.cortex/skills`.
+    pub fn skill_registry(&self) -> SkillRegistry {
+        let home = cortex_user_home().join("skills");
+        let home_store = SkillStore::new(home);
+        let project_store = SkillStore::for_workspace(&self.workspace);
+        SkillRegistry::with_builtins_and_stores(&[&home_store, &project_store])
+    }
+
+    /// All skill ids with short descriptions (for `/` autocomplete and `/skills`).
+    pub fn list_skills(&self) -> Vec<(String, String)> {
+        self.skill_registry()
+            .all()
+            .into_iter()
+            .map(|s| (s.id, s.description))
+            .collect()
+    }
+
     /// Build context for a user prompt.
     pub fn build_context(&self, prompt: &str, skills: &[String]) -> ContextBuilder {
-        let prompts = PromptCatalog::with_builtins();
+        let mut prompts = PromptCatalog::with_builtins();
+        // Project then home prompts (later load can override by id depending on catalog).
+        let _ = prompts.load_dir(self.workspace.join(".cortex").join("prompts"));
+        let _ = prompts.load_dir(cortex_user_home().join("prompts"));
         let system = prompts
             .render("system", &Default::default())
             .unwrap_or_else(|_| cortex_runtime::DEFAULT_SYSTEM_PROMPT.to_string());
@@ -77,25 +95,30 @@ impl TuiHost {
             context = context.with_project_instructions(instr.to_prompt_section());
         }
 
-        if let Ok(map) = RepoMap::build(&self.workspace) {
-            context = context.with_repo_map(&map);
-            let project = Some(&map.project);
-            let reg = SkillRegistry::with_builtins();
-            let selection = select_skills(&reg, prompt, project, skills);
-            let mut skill_body = String::from("## Active skills\n");
-            for id in &selection.skill_ids {
-                skill_body.push_str(&format!("- {id}\n"));
+        let reg = self.skill_registry();
+        let project_info;
+        let project = match RepoMap::build(&self.workspace) {
+            Ok(map) => {
+                context = context.with_repo_map(&map);
+                project_info = map.project;
+                Some(&project_info)
             }
-            skill_body.push('\n');
-            for pid in &selection.prompts {
-                if let Ok(p) = prompts.get(pid) {
-                    skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
-                }
-            }
-            context = context
-                .with_skill_prompts(skill_body)
-                .with_allowed_tools(selection.tools);
+            Err(_) => None,
+        };
+        let selection = select_skills(&reg, prompt, project, skills);
+        let mut skill_body = String::from("## Active skills\n");
+        for id in &selection.skill_ids {
+            skill_body.push_str(&format!("- {id}\n"));
         }
+        skill_body.push('\n');
+        for pid in &selection.prompts {
+            if let Ok(p) = prompts.get(pid) {
+                skill_body.push_str(&format!("### {pid}\n{}\n\n", p.body.trim()));
+            }
+        }
+        context = context
+            .with_skill_prompts(skill_body)
+            .with_allowed_tools(selection.tools);
         context
     }
 
@@ -166,10 +189,12 @@ impl TuiHost {
                             tools_ok += 1;
                         }
                         let flag = if t.is_error { "ERR" } else { "ok" };
-                        // Show more output for file-mutating tools (diffs, paths).
-                        let preview_len = if is_file_mutating(&t.name) { 300 } else { 120 };
-                        let preview: String = t.output.chars().take(preview_len).collect();
-                        format!("[{flag}] {} — {preview}", t.name)
+                        let preview = compact_tool_preview(&t.output, 160);
+                        if preview.is_empty() {
+                            format!("[{flag}] {}", t.name)
+                        } else {
+                            format!("[{flag}] {} — {preview}", t.name)
+                        }
                     })
                     .collect();
                 let assistant = output
@@ -299,6 +324,39 @@ impl TuiHost {
     }
 }
 
+/// One-line tool error preview for the activity strip.
+fn compact_tool_preview(s: &str, max_chars: usize) -> String {
+    let flat: String = s
+        .chars()
+        .map(|c| if c.is_whitespace() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if flat.chars().count() <= max_chars {
+        flat
+    } else {
+        let truncated: String = flat.chars().take(max_chars.saturating_sub(1)).collect();
+        format!("{truncated}…")
+    }
+}
+
+/// User-global cortex home (`CORTEX_HOME` or `~/.cortex`).
+fn cortex_user_home() -> PathBuf {
+    if let Ok(p) = std::env::var("CORTEX_HOME") {
+        let p = p.trim();
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.is_empty() {
+            return PathBuf::from(home).join(".cortex");
+        }
+    }
+    PathBuf::from(".cortex")
+}
+
 /// Bridge agent event bus → TUI channel.
 struct TuiBusBridge {
     tx: UnboundedSender<UiEvent>,
@@ -336,7 +394,18 @@ impl EnvelopeHandler for TuiBusBridge {
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
                 let flag = if err { "ERR" } else { "ok" };
-                let _ = self.tx.send(UiEvent::ToolLog(format!("[{flag}] {name}")));
+                let mut line = format!("[{flag}] {name}");
+                // Surface failure reason (e.g. CDP not running) — bare ERR is unactionable.
+                if err {
+                    if let Some(out) = event.payload.get("output").and_then(|v| v.as_str()) {
+                        let preview = compact_tool_preview(out, 140);
+                        if !preview.is_empty() {
+                            line.push_str(" — ");
+                            line.push_str(&preview);
+                        }
+                    }
+                }
+                let _ = self.tx.send(UiEvent::ToolLog(line));
             }
             "agent.tool_call.failed" => {
                 let name = event
@@ -344,7 +413,20 @@ impl EnvelopeHandler for TuiBusBridge {
                     .get("name")
                     .and_then(|v| v.as_str())
                     .unwrap_or("tool");
-                let _ = self.tx.send(UiEvent::ToolLog(format!("[ERR] {name}")));
+                let mut line = format!("[ERR] {name}");
+                if let Some(err) = event
+                    .payload
+                    .get("error")
+                    .or_else(|| event.payload.get("output"))
+                    .and_then(|v| v.as_str())
+                {
+                    let preview = compact_tool_preview(err, 140);
+                    if !preview.is_empty() {
+                        line.push_str(" — ");
+                        line.push_str(&preview);
+                    }
+                }
+                let _ = self.tx.send(UiEvent::ToolLog(line));
             }
             "agent.subagent.started" => {
                 let _ = self.tx.send(UiEvent::ToolLog("↳ sub-agent started".into()));

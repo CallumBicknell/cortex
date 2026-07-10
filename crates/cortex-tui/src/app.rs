@@ -1,11 +1,13 @@
 //! TUI application state — Claude Code–style chat surface.
 
+use crate::complete::{self, CompletionState};
 use crate::host::TuiHost;
 use anyhow::Result;
 use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
 use cortex_tools::{ApprovalDecision, ApprovalRequest};
 use ratatui::widgets::ListState;
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 
 /// A display block in the conversation.
@@ -181,6 +183,14 @@ pub struct App {
     pub input_undo: Vec<(String, usize)>,
     /// Compact mode (less spacing, smaller header).
     pub compact: bool,
+    /// Workspace root (for `@path` completion / attachment expansion).
+    pub workspace_path: PathBuf,
+    /// Known skill ids for `/skill` autocomplete.
+    pub skill_ids: Vec<String>,
+    /// Skill id → short description.
+    pub skill_details: Vec<(String, String)>,
+    /// Active composer completion popup.
+    pub completion: Option<CompletionState>,
 }
 
 impl App {
@@ -195,8 +205,12 @@ impl App {
         if !sessions.is_empty() {
             session_list.select(Some(0));
         }
+        let skills = host.list_skills();
+        let skill_ids: Vec<String> = skills.iter().map(|(id, _)| id.clone()).collect();
+        let skill_details = skills;
         let welcome = format!(
-            "Cortex · {} · {}\n\nType a message and press Enter to send.\nCtrl+J newline · Ctrl+B sessions · Ctrl+C cancel · /quit to exit",
+            "Cortex · {} · {}\n\nType a message and press Enter to send.\n\
+             /skill · @path · Tab complete · Ctrl+J newline · Ctrl+B sessions · /quit",
             host.model_alias,
             host.workspace.display()
         );
@@ -228,7 +242,52 @@ impl App {
             last_completion_tokens: 0,
             input_undo: Vec::new(),
             compact: false,
+            workspace_path: host.workspace.clone(),
+            skill_ids,
+            skill_details,
+            completion: None,
         })
+    }
+
+    /// Refresh autocomplete from the current input buffer.
+    pub fn refresh_completion(&mut self) {
+        self.completion = complete::refresh_completion(
+            &self.input,
+            &self.skill_ids,
+            &self.skill_details,
+            &self.workspace_path,
+        );
+    }
+
+    /// Accept the selected completion item into the input buffer.
+    ///
+    /// Directory `@path/` completions stay open so nesting can continue; file
+    /// and `/skill` completions dismiss the popup (next Enter sends).
+    pub fn accept_completion(&mut self) -> bool {
+        let Some(state) = self.completion.clone() else {
+            return false;
+        };
+        if state.items.is_empty() {
+            self.completion = None;
+            return false;
+        }
+        let keep_open = state
+            .current()
+            .map(|i| i.insert.ends_with('/'))
+            .unwrap_or(false);
+        self.input = complete::apply_completion(&self.input, &state);
+        self.input_cursor = self.input.len();
+        if keep_open {
+            self.refresh_completion();
+        } else {
+            self.completion = None;
+        }
+        true
+    }
+
+    /// Dismiss completion popup.
+    pub fn clear_completion(&mut self) {
+        self.completion = None;
     }
 
     /// Start a fresh session.
@@ -386,6 +445,7 @@ impl App {
         self.save_undo();
         self.input.push('\n');
         self.input_cursor = self.input.len();
+        self.refresh_completion();
     }
 
     /// Insert a character at the end of input.
@@ -393,6 +453,26 @@ impl App {
         self.save_undo();
         self.input.push(c);
         self.input_cursor = self.input.len();
+        self.refresh_completion();
+    }
+
+    /// Insert pasted / multi-char text into the composer.
+    ///
+    /// Normalizes `\r\n` / `\r` to `\n` and caps extreme pastes so a huge
+    /// clipboard dump cannot freeze the TUI.
+    pub fn insert_str(&mut self, s: &str) {
+        const MAX_PASTE_CHARS: usize = 100_000;
+        let mut normalized = s.replace("\r\n", "\n").replace('\r', "\n");
+        if normalized.chars().count() > MAX_PASTE_CHARS {
+            normalized = normalized.chars().take(MAX_PASTE_CHARS).collect();
+            normalized.push_str("\n…[paste truncated]");
+        }
+        if normalized.is_empty() {
+            return;
+        }
+        self.input.push_str(&normalized);
+        self.input_cursor = self.input.len();
+        self.refresh_completion();
     }
 
     /// Backspace.
@@ -400,6 +480,7 @@ impl App {
         self.save_undo();
         self.input.pop();
         self.input_cursor = self.input.len();
+        self.refresh_completion();
     }
 
     /// Undo the last composer edit (Ctrl+Z).
@@ -424,6 +505,7 @@ impl App {
     pub fn take_input(&mut self) -> String {
         let s = std::mem::take(&mut self.input);
         self.input_cursor = 0;
+        self.completion = None;
         s
     }
 

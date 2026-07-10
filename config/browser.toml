@@ -30,3 +30,11 @@ wait_until = "load"
 
 # Navigation / command timeout (seconds)
 timeout_secs = 30
+
+# If CDP is not already listening on host:port, spawn a local browser
+# (obscura for backend=obscura, chromium/chrome for backend=chrome).
+# Only applies to loopback hosts. Set false to require a pre-started browser.
+auto_start = true
+
+# Seconds to wait for an auto-started browser to accept connections.
+auto_start_timeout_secs = 15

@@ -43,6 +43,13 @@ pub struct BrowserConfig {
     /// Timeout seconds for CDP operations.
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+    /// When true, spawn a local Obscura/Chrome if CDP is not already listening.
+    /// Only applies to loopback hosts (`127.0.0.1` / `localhost`).
+    #[serde(default = "default_true")]
+    pub auto_start: bool,
+    /// How long to wait for an auto-started browser to accept connections.
+    #[serde(default = "default_auto_start_timeout")]
+    pub auto_start_timeout_secs: u64,
 }
 
 fn default_true() -> bool {
@@ -60,6 +67,9 @@ fn default_wait() -> String {
 fn default_timeout() -> u64 {
     30
 }
+fn default_auto_start_timeout() -> u64 {
+    15
+}
 
 impl Default for BrowserConfig {
     fn default() -> Self {
@@ -72,6 +82,8 @@ impl Default for BrowserConfig {
             port: default_port(),
             wait_until: default_wait(),
             timeout_secs: default_timeout(),
+            auto_start: true,
+            auto_start_timeout_secs: default_auto_start_timeout(),
         }
     }
 }
@@ -117,6 +129,14 @@ impl BrowserConfig {
         if let Ok(v) = std::env::var("CORTEX_CDP_PORT") {
             if let Ok(p) = v.parse() {
                 cfg.port = p;
+            }
+        }
+        if let Ok(v) = std::env::var("CORTEX_BROWSER_AUTO_START") {
+            cfg.auto_start = matches!(v.as_str(), "1" | "true" | "yes" | "on");
+        }
+        if let Ok(v) = std::env::var("CORTEX_BROWSER_AUTO_START_TIMEOUT_SECS") {
+            if let Ok(n) = v.parse() {
+                cfg.auto_start_timeout_secs = n;
             }
         }
         cfg

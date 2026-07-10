@@ -1,6 +1,7 @@
 //! Claude Code–style chat drawing (minimal chrome, conversation-first).
 
 use crate::app::App;
+use crate::complete::{CompleteKind, CompletionState};
 use cortex_models::SessionStatus;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -35,6 +36,10 @@ pub fn ui(f: &mut Frame, app: &App) {
     draw_conversation(f, root[1], app);
     draw_composer(f, root[2], app);
     draw_footer(f, root[3], app);
+
+    if let Some(comp) = &app.completion {
+        draw_completion_popup(f, root[2], comp);
+    }
 
     if app.show_sessions {
         draw_sessions_overlay(f, f.area(), app);
@@ -182,6 +187,8 @@ fn push_body(lines: &mut Vec<Line>, content: &str, color: Color) {
 fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     let border = if app.running {
         Style::default().fg(Color::Rgb(180, 120, 60))
+    } else if app.completion.is_some() {
+        Style::default().fg(Color::Rgb(120, 160, 220))
     } else if app.input_focused {
         Style::default().fg(Color::Rgb(100, 160, 120))
     } else {
@@ -190,8 +197,10 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 
     let title = if app.running {
         " thinking… (Ctrl+C cancel) "
+    } else if app.completion.is_some() {
+        " Tab/Enter accept · ↑↓ · Esc dismiss "
     } else {
-        " message "
+        " message · /skill · @path · Tab "
     };
 
     let mut display = app.input.clone();
@@ -249,7 +258,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         String::new()
     };
-    let help = " ↵ send  ^J newline  ^B sessions  ^L clear scroll  ^C cancel  /quit ";
+    let help = " ↵ send  Tab complete  /skill  @path  ^J nl  ^B sessions  ^L clear scroll  ^C cancel  /quit ";
     let line = format!(" {}{tokens}  ·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()
@@ -268,6 +277,65 @@ fn compact_tokens(n: u32) -> String {
     } else {
         n.to_string()
     }
+}
+
+/// Floating completion list above the composer.
+fn draw_completion_popup(f: &mut Frame, composer_area: Rect, state: &CompletionState) {
+    let n = state.items.len().min(10) as u16;
+    if n == 0 {
+        return;
+    }
+    let height = n + 2; // border
+    let width = composer_area.width.clamp(24, 72);
+    let x = composer_area.x;
+    let y = composer_area.y.saturating_sub(height);
+    let rect = Rect::new(x, y, width, height);
+    f.render_widget(Clear, rect);
+
+    let title = match state.kind {
+        CompleteKind::Slash => " / skills & commands ",
+        CompleteKind::Path => " @ paths ",
+    };
+
+    let items: Vec<ListItem> = state
+        .items
+        .iter()
+        .map(|it| {
+            let detail: String = it.detail.chars().take(40).collect();
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("{:24}", it.label),
+                    Style::default().fg(Color::Rgb(200, 210, 220)),
+                ),
+                Span::styled(
+                    format!(" {detail}"),
+                    Style::default().fg(Color::Rgb(110, 120, 130)),
+                ),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .border_style(Style::default().fg(Color::Rgb(100, 150, 210)))
+                .style(Style::default().bg(Color::Rgb(22, 24, 32))),
+        )
+        .highlight_style(
+            Style::default()
+                .fg(Color::Rgb(20, 22, 28))
+                .bg(Color::Rgb(140, 190, 255))
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▸ ");
+
+    let mut list_state = ratatui::widgets::ListState::default();
+    list_state.select(Some(
+        state.selected.min(state.items.len().saturating_sub(1)),
+    ));
+    f.render_stateful_widget(list, rect, &mut list_state);
 }
 
 fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
