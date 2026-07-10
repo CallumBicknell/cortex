@@ -18,13 +18,16 @@ fn short_path(p: &str) -> String {
 
 /// Draw the full chat UI.
 pub fn ui(f: &mut Frame, app: &mut App) {
+    // Inner width of the composer (full width minus box borders). Used to size
+    // height from *visual* wraps, not only hard newlines.
+    let composer_inner_w = f.area().width.saturating_sub(2).max(8);
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1), // header strip
             Constraint::Min(6),    // conversation
             Constraint::Length(1), // breathing room above composer
-            Constraint::Length(composer_height(app)),
+            Constraint::Length(composer_height(app, composer_inner_w)),
             Constraint::Length(1), // footer
         ])
         .split(f.area());
@@ -48,10 +51,93 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
 }
 
-fn composer_height(app: &App) -> u16 {
-    let lines = app.input.lines().count().max(1) as u16;
-    // borders + content, cap so chat stays usable
-    (lines + 2).clamp(3, 10)
+/// Composer widget height: borders + visual rows (hard newlines *and* soft wraps).
+fn composer_height(app: &App, inner_width: u16) -> u16 {
+    let rows = composer_visual_rows(app, inner_width).max(1);
+    // borders (+2), grow with content, keep chat readable
+    (rows + 2).clamp(3, 16)
+}
+
+/// How many terminal rows the composer body occupies when wrapped to `inner_width`.
+fn composer_visual_rows(app: &App, inner_width: u16) -> u16 {
+    let body = composer_body(app);
+    let width = inner_width.max(1);
+    body.split('\n')
+        .map(|line| {
+            // Approximate display width (ASCII-heavy chat; good enough for layout).
+            let w = line.chars().count() as u16;
+            if w == 0 {
+                1
+            } else {
+                w.div_ceil(width)
+            }
+        })
+        .fold(0u16, |a, b| a.saturating_add(b))
+        .max(1)
+}
+
+/// Visual row of the caret within the wrapped composer body (0-based).
+fn composer_caret_row(app: &App, inner_width: u16) -> u16 {
+    let body = composer_body(app);
+    let width = inner_width.max(1);
+    let caret_pos = body.find('▌').unwrap_or(body.len());
+    let mut row = 0u16;
+    let mut col = 0u16;
+    for (i, ch) in body.char_indices() {
+        if i >= caret_pos {
+            break;
+        }
+        if ch == '\n' {
+            row = row.saturating_add(1);
+            col = 0;
+        } else {
+            col = col.saturating_add(1);
+            if col >= width {
+                row = row.saturating_add(1);
+                col = 0;
+            }
+        }
+    }
+    row
+}
+
+/// Build the composer text (prefixes + caret), shared by height + draw.
+fn composer_body(app: &App) -> String {
+    let mut display = String::new();
+    let cur = app.input_cursor.min(app.input.len());
+    display.push_str(&app.input[..cur]);
+    if app.input_focused {
+        display.push('▌');
+    }
+    display.push_str(&app.input[cur..]);
+    if display.is_empty() {
+        display = if app.input_focused {
+            "▌".into()
+        } else {
+            String::new()
+        };
+    }
+
+    let mut out = String::new();
+    let raw = if display.ends_with('\n') {
+        format!("{display}\u{200b}")
+    } else {
+        display
+    };
+    for (i, line) in raw.split('\n').enumerate() {
+        let line = line.trim_end_matches('\u{200b}');
+        if i == 0 {
+            out.push_str("❯ ");
+        } else {
+            out.push_str("  ");
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if out.ends_with('\n') {
+        out.pop();
+    }
+    out
 }
 
 fn draw_header(f: &mut Frame, area: Rect, app: &App) {
@@ -239,49 +325,25 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
         " message · S-Enter newline · /skill · @path · ↑ hist "
     };
 
-    // Render caret at `input_cursor` (not always at the end).
-    let mut display = String::new();
-    let cur = app.input_cursor.min(app.input.len());
-    display.push_str(&app.input[..cur]);
-    if app.input_focused {
-        display.push('▌');
-    }
-    display.push_str(&app.input[cur..]);
-    if display.is_empty() {
-        display = if app.input_focused {
-            "▌".into()
-        } else {
-            String::new()
-        };
-    }
-
-    // Prefix first line with ❯
-    let body = {
-        let mut out = String::new();
-        // Preserve trailing empty line after final \n
-        let raw = if display.ends_with('\n') {
-            format!("{display}\u{200b}") // marker so split keeps trailing line
-        } else {
-            display.clone()
-        };
-        for (i, line) in raw.split('\n').enumerate() {
-            let line = line.trim_end_matches('\u{200b}');
-            if i == 0 {
-                out.push_str("❯ ");
-            } else {
-                out.push_str("  ");
-            }
-            out.push_str(line);
-            out.push('\n');
-        }
-        if out.ends_with('\n') {
-            out.pop();
-        }
-        out
+    let body = composer_body(app);
+    // Keep the caret in view when soft-wrapped content exceeds the box height.
+    let inner_w = area.width.saturating_sub(2).max(1);
+    let inner_h = area.height.saturating_sub(2).max(1);
+    let total_rows = composer_visual_rows(app, inner_w);
+    let caret_row = composer_caret_row(app, inner_w);
+    let scroll_y = if total_rows > inner_h {
+        let max_scroll = total_rows.saturating_sub(inner_h);
+        // Prefer showing the caret; clamp into valid scroll range.
+        caret_row
+            .saturating_sub(inner_h.saturating_sub(1))
+            .min(max_scroll)
+    } else {
+        0
     };
 
     let p = Paragraph::new(body)
         .wrap(Wrap { trim: false })
+        .scroll((scroll_y, 0))
         .style(Style::default().fg(Color::White).bg(Color::Rgb(18, 18, 24)))
         .block(
             Block::default()
@@ -419,8 +481,13 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
 
 #[cfg(test)]
 mod tests {
-    use super::visual_row_count;
+    use super::{composer_height, composer_visual_rows, visual_row_count};
+    use crate::app::App;
+    use cortex_models::Session;
     use ratatui::text::Line;
+    use ratatui::widgets::ListState;
+    use std::collections::VecDeque;
+    use std::path::PathBuf;
 
     #[test]
     fn visual_rows_counts_plain_lines() {
@@ -432,5 +499,53 @@ mod tests {
     fn visual_rows_wraps_long_line() {
         let lines = vec![Line::from("abcdefghijklmnopqrst")]; // 20 chars
         assert_eq!(visual_row_count(&lines, 10), 2);
+    }
+
+    fn bare_app(input: &str) -> App {
+        App {
+            workspace: String::new(),
+            model_label: String::new(),
+            database: String::new(),
+            sessions: Vec::new(),
+            session_list: ListState::default(),
+            session: Session::new(".", "m"),
+            lines: Vec::new(),
+            follow: true,
+            scroll_top: 0,
+            last_max_scroll: 0,
+            logs: Vec::new(),
+            input: input.into(),
+            input_cursor: input.len(),
+            input_focused: true,
+            show_sessions: false,
+            running: false,
+            yolo: true,
+            max_turns: 8,
+            skills: Vec::new(),
+            status: String::new(),
+            streaming: None,
+            activity: None,
+            workspace_path: PathBuf::from("."),
+            skill_ids: Vec::new(),
+            skill_details: Vec::new(),
+            completion: None,
+            input_history: Vec::new(),
+            history_index: None,
+            history_draft: String::new(),
+            pending: VecDeque::new(),
+        }
+    }
+
+    #[test]
+    fn long_single_line_grows_composer_height() {
+        // 80 visible cols → long line must wrap to multiple rows, not stay height 3.
+        let app = bare_app(&"x".repeat(120));
+        let h = composer_height(&app, 40);
+        assert!(
+            h > 3,
+            "expected soft-wrap to grow composer beyond one content row, got {h}"
+        );
+        let rows = composer_visual_rows(&app, 40);
+        assert!(rows >= 3, "expected multiple visual rows, got {rows}");
     }
 }
