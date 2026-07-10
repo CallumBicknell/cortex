@@ -131,7 +131,10 @@ pub struct App {
     pub session: Session,
     /// Transcript lines.
     pub lines: Vec<MessageLine>,
-    /// Scroll offset from bottom (0 = stick to bottom).
+    /// Lines scrolled up from the bottom (0 = pin to latest / follow stream).
+    ///
+    /// Converted to Paragraph top-offset at draw time — ratatui's scroll is
+    /// from the top, so 0 here means "show the end of the transcript".
     pub scroll: u16,
     /// Recent tool activity (footer strip / optional).
     pub logs: Vec<String>,

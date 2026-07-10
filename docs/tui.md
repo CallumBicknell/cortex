@@ -43,7 +43,9 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | `Ctrl+Y` | Toggle YOLO |
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
-| `PgUp` / `PgDn` | Scroll transcript |
+| `PgUp` / `PgDn` | Scroll transcript (up = older, down = newer; pin to bottom when at end) |
+| Mouse wheel | Scroll transcript |
+| `Ctrl+L` | Jump transcript to bottom |
 | `Esc` | Dismiss completion, cancel run, or clear input |
 | `/help` | Command list |
 | `/skills` | List skill packs |

@@ -17,7 +17,7 @@ fn short_path(p: &str) -> String {
 }
 
 /// Draw the full chat UI.
-pub fn ui(f: &mut Frame, app: &App) {
+pub fn ui(f: &mut Frame, app: &mut App) {
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -73,7 +73,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(p, area);
 }
 
-fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
+fn draw_conversation(f: &mut Frame, area: Rect, app: &mut App) {
     let mut lines: Vec<Line> = Vec::new();
 
     for m in &app.lines {
@@ -162,9 +162,20 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
         )));
     }
 
+    // Paragraph.scroll is an offset from the *top*. `app.scroll` is lines
+    // above the bottom (0 = pin to latest). Convert + clamp.
+    let width = area.width.max(1);
+    let viewport = area.height;
+    let total_rows = visual_row_count(&lines, width);
+    let max_from_bottom = total_rows.saturating_sub(viewport);
+    if app.scroll > max_from_bottom {
+        app.scroll = max_from_bottom;
+    }
+    let from_top = scroll_from_top(total_rows, viewport, app.scroll);
+
     let p = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
-        .scroll((app.scroll, 0))
+        .scroll((from_top, 0))
         .style(Style::default().bg(Color::Rgb(12, 12, 16)));
     f.render_widget(p, area);
 }
@@ -180,6 +191,36 @@ fn push_body(lines: &mut Vec<Line>, content: &str, color: Color) {
             Style::default().fg(color),
         )));
     }
+}
+
+/// How many terminal rows a styled line occupies when wrapped to `width`.
+fn line_visual_rows(line: &Line<'_>, width: u16) -> u16 {
+    if width == 0 {
+        return 1;
+    }
+    let w = line.width() as u16;
+    if w == 0 {
+        1
+    } else {
+        w.div_ceil(width)
+    }
+}
+
+/// Total wrapped row count for conversation lines.
+fn visual_row_count(lines: &[Line<'_>], width: u16) -> u16 {
+    lines
+        .iter()
+        .map(|l| line_visual_rows(l, width))
+        .fold(0u16, |acc, n| acc.saturating_add(n))
+}
+
+/// Convert “lines above bottom” into Paragraph scroll (from top).
+///
+/// `from_bottom == 0` pins the view to the latest content.
+fn scroll_from_top(total_rows: u16, viewport: u16, from_bottom: u16) -> u16 {
+    let max_from_bottom = total_rows.saturating_sub(viewport);
+    let from_bottom = from_bottom.min(max_from_bottom);
+    max_from_bottom.saturating_sub(from_bottom)
 }
 
 fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
@@ -247,8 +288,13 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
-    let help = " ↵ send  Tab complete  /skill  @path  ^J nl  ^B sessions  /quit ";
-    let line = format!(" {}  ·{} ", app.status, help);
+    let scroll_hint = if app.scroll > 0 {
+        format!(" ↑{}  ", app.scroll)
+    } else {
+        String::new()
+    };
+    let help = " PgUp/PgDn scroll  wheel  ↵ send  Tab  /skill  @path  /quit ";
+    let line = format!(" {}{scroll_hint}·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()
             .fg(Color::Rgb(100, 100, 110))
@@ -363,4 +409,32 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
         .highlight_symbol("▸ ");
     let mut state = app.session_list;
     f.render_stateful_widget(list, rect, &mut state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_bottom_when_overflow() {
+        // 100 rows of content, 20-row viewport, stick to bottom.
+        assert_eq!(scroll_from_top(100, 20, 0), 80);
+    }
+
+    #[test]
+    fn scroll_up_from_bottom() {
+        assert_eq!(scroll_from_top(100, 20, 10), 70);
+    }
+
+    #[test]
+    fn no_overflow_stays_at_top() {
+        assert_eq!(scroll_from_top(10, 20, 0), 0);
+        assert_eq!(scroll_from_top(10, 20, 5), 0);
+    }
+
+    #[test]
+    fn clamp_from_bottom() {
+        // Asking for more history than exists shows the top.
+        assert_eq!(scroll_from_top(100, 20, 999), 0);
+    }
 }

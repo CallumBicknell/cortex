@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`auto_start = true` by default; loopback only)
 - **Chat TUI**: enable bracketed paste so clipboard paste lands in the composer
   (including multi-line) instead of being ignored or firing accidental Enter
+- **Chat TUI**: pin conversation scroll to the bottom by default (show latest
+  replies); PgUp/wheel scroll history; Ctrl+L jumps back to latest
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin

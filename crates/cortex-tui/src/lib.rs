@@ -15,8 +15,8 @@ pub use host::TuiHost;
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
 use crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
-    KeyModifiers,
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
+    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -39,12 +39,15 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
+    // Mouse wheel scrolls the conversation transcript.
+    stdout().execute(EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
 
     let result = run_loop(&mut terminal, host).await;
 
+    stdout().execute(DisableMouseCapture).ok();
     stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
@@ -63,7 +66,7 @@ async fn run_loop(
     let mut run_cancel: Option<CancellationToken> = None;
 
     loop {
-        terminal.draw(|f| draw::ui(f, &app))?;
+        terminal.draw(|f| draw::ui(f, &mut app))?;
 
         tokio::select! {
             maybe_ev = events.next() => {
@@ -88,7 +91,15 @@ async fn run_loop(
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
-                    Some(Ok(Event::Mouse(_))) => {}
+                    Some(Ok(Event::Mouse(m))) => {
+                        if !app.show_sessions {
+                            match m.kind {
+                                MouseEventKind::ScrollUp => app.scroll_up(3),
+                                MouseEventKind::ScrollDown => app.scroll_down(3),
+                                _ => {}
+                            }
+                        }
+                    }
                     Some(Err(e)) => {
                         app.status = format!("event error: {e}");
                     }
