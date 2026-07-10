@@ -82,6 +82,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI soft-wrap composer**: long lines grow the composer box instead
   of clipping; caret scrolls into view when content exceeds box height
 - **TUI composer char count**: title bar shows live chars/lines count
+- **TUI elapsed turn timer**: footer shows running time during agent turns
+  (e.g. '12s' or '02:15')
+- **TUI streaming char count**: footer shows live character count while
+  assistant is generating (e.g. '342 chars')
+- **TUI scroll indicator**: shows message count below when scrolled up
+  (e.g. '↓ 5 messages below')
 
 ## [0.2.1] — 2026-07-09
 
