@@ -15,8 +15,8 @@ pub use host::TuiHost;
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
 use crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
-    KeyModifiers,
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
+    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -39,15 +39,18 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
-    // Do NOT enable mouse capture — it steals the pointer from the terminal
-    // and blocks native drag-select / copy in the conversation. Scroll with
-    // PgUp/PgDn (and Ctrl+L to jump to bottom) instead.
+    // Capture the mouse so the *wheel* scrolls the conversation, not the
+    // composer. (Without capture many terminals translate wheel → ↑/↓ keys,
+    // which moved the input caret / history instead of chat history.)
+    // Text selection: hold Shift and drag (terminal native), or Ctrl+O / /copy.
+    stdout().execute(EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
 
     let result = run_loop(&mut terminal, host).await;
 
+    stdout().execute(DisableMouseCapture).ok();
     stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
@@ -91,9 +94,17 @@ async fn run_loop(
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
-                    // Mouse events ignored (capture off) so the terminal can
-                    // drag-select and copy conversation text natively.
-                    Some(Ok(Event::Mouse(_))) => {}
+                    Some(Ok(Event::Mouse(m))) => {
+                        // Always scroll the *conversation*, never the composer.
+                        // (Composer only auto-scrolls to keep the caret visible.)
+                        if !app.show_sessions {
+                            match m.kind {
+                                MouseEventKind::ScrollUp => app.scroll_up(3),
+                                MouseEventKind::ScrollDown => app.scroll_down(3),
+                                _ => {}
+                            }
+                        }
+                    }
                     Some(Err(e)) => {
                         app.status = format!("event error: {e}");
                     }
@@ -189,7 +200,7 @@ async fn handle_key(
         return Ok(false);
     }
 
-    // Scroll
+    // Conversation scroll (not the composer)
     match code {
         KeyCode::PageUp => {
             app.scroll_up(8);
@@ -197,6 +208,15 @@ async fn handle_key(
         }
         KeyCode::PageDown => {
             app.scroll_down(8);
+            return Ok(false);
+        }
+        // Ctrl+↑/↓ always scrolls chat history (plain ↑/↓ stay for the input).
+        KeyCode::Up if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll_up(3);
+            return Ok(false);
+        }
+        KeyCode::Down if mods.contains(KeyModifiers::CONTROL) => {
+            app.scroll_down(3);
             return Ok(false);
         }
         KeyCode::Char('l') if mods.contains(KeyModifiers::CONTROL) => {
