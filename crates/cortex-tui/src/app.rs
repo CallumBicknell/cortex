@@ -7,6 +7,7 @@ use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
 use ratatui::widgets::ListState;
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// A display block in the conversation.
 #[derive(Debug, Clone)]
@@ -67,7 +68,8 @@ impl MessageLine {
             content.push_str(&format!("→ {}", names.join(", ")));
         }
         if content.len() > 12_000 {
-            content.truncate(12_000);
+            let boundary = content.floor_char_boundary(12_000);
+            content.truncate(boundary);
             content.push('…');
         }
         Self {
@@ -137,7 +139,7 @@ pub struct App {
     pub logs: Vec<String>,
     /// Input buffer (may contain newlines).
     pub input: String,
-    /// Cursor position in input (byte index, simplified: end of string for now).
+    /// Cursor position in input (char index, not byte index).
     pub input_cursor: usize,
     /// Whether the input box is focused.
     pub input_focused: bool,
@@ -171,6 +173,14 @@ pub struct App {
     pub history_index: Option<usize>,
     /// Draft saved when entering history browsing mode.
     pub history_draft: String,
+    /// Auto-follow new streaming content (reset scroll to bottom).
+    pub auto_follow: bool,
+    /// Whether the streaming cursor is visible (toggled for blink animation).
+    pub cursor_visible: bool,
+    /// Last time the cursor blink state toggled.
+    pub last_blink: Instant,
+    /// Tool start time for elapsed display (tool_name -> start time).
+    pub tool_start: Option<Instant>,
 }
 
 impl App {
@@ -223,6 +233,10 @@ impl App {
             history: Vec::new(),
             history_index: None,
             history_draft: String::new(),
+            auto_follow: true,
+            cursor_visible: true,
+            last_blink: Instant::now(),
+            tool_start: None,
         })
     }
 
@@ -365,16 +379,17 @@ impl App {
 
     /// Insert newline into composer at cursor.
     pub fn insert_newline(&mut self) {
-        self.input.insert(self.input_cursor, '\n');
+        let byte = self.char_to_byte(self.input_cursor);
+        self.input.insert(byte, '\n');
         self.input_cursor += 1;
         self.refresh_completion();
     }
 
     /// Insert a character at cursor position.
     pub fn insert_char(&mut self, c: char) {
-        let len = c.len_utf8();
-        self.input.insert(self.input_cursor, c);
-        self.input_cursor += len;
+        let byte = self.char_to_byte(self.input_cursor);
+        self.input.insert(byte, c);
+        self.input_cursor += 1;
         self.refresh_completion();
     }
 
@@ -385,15 +400,18 @@ impl App {
     pub fn insert_str(&mut self, s: &str) {
         const MAX_PASTE_CHARS: usize = 100_000;
         let mut normalized = s.replace("\r\n", "\n").replace('\r', "\n");
-        if normalized.chars().count() > MAX_PASTE_CHARS {
+        let char_count = normalized.chars().count();
+        if char_count > MAX_PASTE_CHARS {
             normalized = normalized.chars().take(MAX_PASTE_CHARS).collect();
             normalized.push_str("\n…[paste truncated]");
         }
         if normalized.is_empty() {
             return;
         }
-        self.input.insert_str(self.input_cursor, &normalized);
-        self.input_cursor += normalized.len();
+        let inserted_chars = normalized.chars().count();
+        let byte = self.char_to_byte(self.input_cursor);
+        self.input.insert_str(byte, &normalized);
+        self.input_cursor += inserted_chars;
         self.refresh_completion();
     }
 
@@ -402,54 +420,37 @@ impl App {
         if self.input_cursor == 0 {
             return;
         }
-        // Find the previous char boundary.
-        let prev = self.input[..self.input_cursor]
-            .char_indices()
-            .next_back()
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        self.input.drain(prev..self.input_cursor);
-        self.input_cursor = prev;
+        let byte = self.char_to_byte(self.input_cursor);
+        let prev_char = self.input_cursor - 1;
+        let prev_byte = self.char_to_byte(prev_char);
+        self.input.drain(prev_byte..byte);
+        self.input_cursor = prev_char;
         self.refresh_completion();
     }
 
     /// Delete char after cursor (Delete key).
     pub fn delete(&mut self) {
-        if self.input_cursor >= self.input.len() {
+        if self.input_cursor >= self.input.chars().count() {
             return;
         }
-        let ch = self.input[self.input_cursor..]
-            .chars()
-            .next()
-            .unwrap_or('\0');
-        self.input
-            .drain(self.input_cursor..self.input_cursor + ch.len_utf8());
+        let byte = self.char_to_byte(self.input_cursor);
+        let ch = self.input[byte..].chars().next().unwrap_or('\0');
+        self.input.drain(byte..byte + ch.len_utf8());
         self.refresh_completion();
     }
 
     /// Move cursor one char left.
     pub fn cursor_left(&mut self) {
-        if self.input_cursor == 0 {
-            return;
+        if self.input_cursor > 0 {
+            self.input_cursor -= 1;
         }
-        let prev = self.input[..self.input_cursor]
-            .char_indices()
-            .next_back()
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        self.input_cursor = prev;
     }
 
     /// Move cursor one char right.
     pub fn cursor_right(&mut self) {
-        if self.input_cursor >= self.input.len() {
-            return;
+        if self.input_cursor < self.input.chars().count() {
+            self.input_cursor += 1;
         }
-        let ch = self.input[self.input_cursor..]
-            .chars()
-            .next()
-            .unwrap_or('\0');
-        self.input_cursor += ch.len_utf8();
     }
 
     /// Move cursor to start of input.
@@ -459,7 +460,87 @@ impl App {
 
     /// Move cursor to end of input.
     pub fn cursor_end(&mut self) {
-        self.input_cursor = self.input.len();
+        self.input_cursor = self.input.chars().count();
+    }
+
+    /// Move cursor one word left (to start of previous word).
+    pub fn cursor_word_left(&mut self) {
+        if self.input_cursor == 0 {
+            return;
+        }
+        let chars: Vec<char> = self.input.chars().collect();
+        let mut i = self.input_cursor;
+        // Skip non-word chars.
+        while i > 0 && !chars[i - 1].is_alphanumeric() {
+            i -= 1;
+        }
+        // Skip word chars.
+        while i > 0 && chars[i - 1].is_alphanumeric() {
+            i -= 1;
+        }
+        self.input_cursor = i;
+    }
+
+    /// Move cursor one word right (to start of next word).
+    pub fn cursor_word_right(&mut self) {
+        let chars: Vec<char> = self.input.chars().collect();
+        let len = chars.len();
+        if self.input_cursor >= len {
+            return;
+        }
+        let mut i = self.input_cursor;
+        // Skip word chars.
+        while i < len && chars[i].is_alphanumeric() {
+            i += 1;
+        }
+        // Skip non-word chars.
+        while i < len && !chars[i].is_alphanumeric() {
+            i += 1;
+        }
+        self.input_cursor = i;
+    }
+
+    /// Delete from cursor to start of line (Ctrl+U).
+    pub fn delete_to_start(&mut self) {
+        if self.input_cursor == 0 {
+            return;
+        }
+        let byte = self.char_to_byte(self.input_cursor);
+        self.input.drain(0..byte);
+        self.input_cursor = 0;
+        self.refresh_completion();
+    }
+
+    /// Delete from cursor to end of line (Ctrl+K).
+    pub fn delete_to_end(&mut self) {
+        let byte = self.char_to_byte(self.input_cursor);
+        if byte >= self.input.len() {
+            return;
+        }
+        self.input.drain(byte..);
+        self.refresh_completion();
+    }
+
+    /// Delete word backward (Ctrl+W).
+    pub fn delete_word_backward(&mut self) {
+        if self.input_cursor == 0 {
+            return;
+        }
+        let old = self.input_cursor;
+        self.cursor_word_left();
+        let byte = self.char_to_byte(self.input_cursor);
+        let old_byte = self.char_to_byte(old);
+        self.input.drain(byte..old_byte);
+        self.refresh_completion();
+    }
+
+    /// Convert a char index to a byte offset in the input string.
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        self.input
+            .char_indices()
+            .nth(char_idx)
+            .map(|(byte, _)| byte)
+            .unwrap_or(self.input.len())
     }
 
     /// Take and clear the input buffer.
@@ -487,14 +568,14 @@ impl App {
                 self.history_draft = self.input.clone();
                 let idx = self.history.len() - 1;
                 self.input = self.history[idx].clone();
-                self.input_cursor = self.input.len();
+                self.input_cursor = self.input.chars().count();
                 self.history_index = Some(idx);
             }
             Some(0) => {} // Already at oldest.
             Some(idx) => {
                 let new = idx - 1;
                 self.input = self.history[new].clone();
-                self.input_cursor = self.input.len();
+                self.input_cursor = self.input.chars().count();
                 self.history_index = Some(new);
             }
         }
@@ -509,12 +590,12 @@ impl App {
                 if idx + 1 >= self.history.len() {
                     // Exiting history: restore draft.
                     self.input = self.history_draft.clone();
-                    self.input_cursor = self.input.len();
+                    self.input_cursor = self.input.chars().count();
                     self.history_index = None;
                 } else {
                     let new = idx + 1;
                     self.input = self.history[new].clone();
-                    self.input_cursor = self.input.len();
+                    self.input_cursor = self.input.chars().count();
                     self.history_index = Some(new);
                 }
             }
@@ -537,10 +618,7 @@ impl App {
             }
         }
         self.logs.extend(update.logs);
-        if self.logs.len() > 100 {
-            let drain = self.logs.len() - 100;
-            self.logs.drain(0..drain);
-        }
+        self.trim_logs();
         let summary = format!(
             "{} · {} turns · tools {}/{} · {}ms",
             if update.ok { "done" } else { "failed" },
@@ -569,17 +647,22 @@ impl App {
                 buf.push_str(&text);
                 if buf.len() > 24_000 {
                     let keep = buf.len() - 16_000;
-                    *buf = format!("…{}", &buf[keep..]);
+                    let boundary = buf.floor_char_boundary(keep);
+                    *buf = format!("…{}", &buf[boundary..]);
                 }
                 self.status = "streaming…".into();
+                if self.auto_follow {
+                    self.scroll = 0;
+                }
             }
             UiEvent::ToolLog(line) => {
+                // Track tool start time for elapsed display.
+                if line.starts_with("→ ") {
+                    self.tool_start = Some(Instant::now());
+                }
                 self.activity = Some(line.clone());
                 self.logs.push(line);
-                if self.logs.len() > 100 {
-                    let drain = self.logs.len() - 100;
-                    self.logs.drain(0..drain);
-                }
+                self.trim_logs();
             }
             UiEvent::Status(s) => {
                 self.status = s;
@@ -593,10 +676,20 @@ impl App {
     /// Scroll transcript up (older).
     pub fn scroll_up(&mut self, n: u16) {
         self.scroll = self.scroll.saturating_add(n);
+        self.auto_follow = false;
     }
 
     /// Scroll transcript down (newer).
     pub fn scroll_down(&mut self, n: u16) {
         self.scroll = self.scroll.saturating_sub(n);
+    }
+
+    /// Trim log buffer to max entries.
+    fn trim_logs(&mut self) {
+        const MAX_LOGS: usize = 100;
+        if self.logs.len() > MAX_LOGS {
+            let drain = self.logs.len() - MAX_LOGS;
+            self.logs.drain(0..drain);
+        }
     }
 }

@@ -28,6 +28,8 @@ pub enum MetaCommand {
     Skills,
     /// Export transcript as markdown.
     Export,
+    /// Undo last exchange (remove last user+assistant pair).
+    Undo,
 }
 
 /// Result of parsing a user composer line.
@@ -184,6 +186,7 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
         "yolo" => Some(MetaCommand::Yolo),
         "skills" => Some(MetaCommand::Skills),
         "export" => Some(MetaCommand::Export),
+        "undo" => Some(MetaCommand::Undo),
         _ => None,
     }
 }

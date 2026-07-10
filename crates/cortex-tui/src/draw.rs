@@ -12,7 +12,8 @@ fn short_path(p: &str) -> String {
     if p.len() <= 48 {
         p.to_string()
     } else {
-        format!("…{}", &p[p.len() - 46..])
+        let byte = p.floor_char_boundary(p.len() - 46);
+        format!("…{}", &p[byte..])
     }
 }
 
@@ -129,19 +130,32 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )));
         push_body(&mut lines, draft, Color::Rgb(230, 230, 235));
-        // caret on last line
+        // Streaming cursor — blinks when active.
         if let Some(last) = lines.last_mut() {
-            last.spans.push(Span::styled(
-                " ▌",
-                Style::default().fg(Color::Rgb(120, 180, 255)),
-            ));
+            if app.cursor_visible {
+                last.spans.push(Span::styled(
+                    " ▌",
+                    Style::default().fg(Color::Rgb(120, 180, 255)),
+                ));
+            }
         }
     }
 
     if let Some(act) = &app.activity {
         if app.running {
+            let elapsed = app
+                .tool_start
+                .map(|t| {
+                    let secs = t.elapsed().as_secs_f64();
+                    if secs >= 1.0 {
+                        format!(" ({secs:.1}s)")
+                    } else {
+                        String::new()
+                    }
+                })
+                .unwrap_or_default();
             lines.push(Line::from(Span::styled(
-                format!("  · {act}"),
+                format!("  · {act}{elapsed}"),
                 Style::default()
                     .fg(Color::Rgb(180, 140, 220))
                     .add_modifier(Modifier::ITALIC),
@@ -153,6 +167,16 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
         lines.push(Line::from(Span::styled(
             "Start typing below…",
             Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    // Show "↓ new" indicator when scrolled up.
+    if app.scroll > 0 {
+        lines.push(Line::from(Span::styled(
+            "  ↓ new content below (Ctrl+L to jump)",
+            Style::default()
+                .fg(Color::Rgb(100, 160, 120))
+                .add_modifier(Modifier::ITALIC),
         )));
     }
 
@@ -196,10 +220,14 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
     };
 
     let mut display = app.input.clone();
-    if app.input_focused && !app.running {
-        // Insert block cursor at the correct byte position.
-        let pos = display.len().min(app.input_cursor);
-        display.insert(pos, '▌');
+    if app.input_focused && !app.running && app.cursor_visible {
+        // Insert block cursor at the correct position (convert char index to byte).
+        let byte_pos = display
+            .char_indices()
+            .nth(app.input_cursor)
+            .map(|(i, _)| i)
+            .unwrap_or(display.len());
+        display.insert(byte_pos, '▌');
     }
     if display.is_empty() {
         display = if app.running {
@@ -243,7 +271,13 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
-    let help = " ↵ send  ↑↓ history  Tab complete  /skill  @path  ^J nl  ^B sessions  /quit ";
+    let help = if area.width < 60 {
+        " ↵ send  ↑↓ history  ^J nl  ^B sessions "
+    } else if area.width < 80 {
+        " ↵ send  ↑↓ history  Tab complete  ^J nl  ^B sessions  /quit "
+    } else {
+        " ↵ send  ↑↓ history  Tab complete  /skill  @path  ^J nl  ^B sessions  /quit "
+    };
     let line = format!(" {}  ·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()

@@ -27,6 +27,7 @@ use mentions::{expand_attachments, parse_prompt, MetaCommand};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io::{self, stdout};
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -65,6 +66,17 @@ async fn run_loop(
     let mut run_cancel: Option<CancellationToken> = None;
 
     loop {
+        // Blink cursor every 500ms when focused and not running.
+        if app.input_focused && !app.running && app.last_blink.elapsed().as_millis() >= 500 {
+            app.cursor_visible = !app.cursor_visible;
+            app.last_blink = Instant::now();
+        }
+        // Also blink during streaming.
+        if app.running && app.last_blink.elapsed().as_millis() >= 500 {
+            app.cursor_visible = !app.cursor_visible;
+            app.last_blink = Instant::now();
+        }
+
         terminal.draw(|f| draw::ui(f, &app))?;
 
         tokio::select! {
@@ -196,6 +208,7 @@ async fn handle_key(
         }
         KeyCode::Char('l') if mods.contains(KeyModifiers::CONTROL) => {
             app.scroll = 0;
+            app.auto_follow = true;
             return Ok(false);
         }
         _ => {}
@@ -377,6 +390,43 @@ async fn handle_key(
         KeyCode::Backspace if app.input_focused && !app.running => {
             app.backspace();
         }
+        // Readline shortcuts (Ctrl+A/E/W/U/K).
+        KeyCode::Char('a')
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.cursor_home();
+        }
+        KeyCode::Char('e')
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.cursor_end();
+        }
+        KeyCode::Char('w')
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.delete_word_backward();
+        }
+        KeyCode::Char('u')
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.delete_to_start();
+        }
+        KeyCode::Char('k')
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.delete_to_end();
+        }
+        // Word movement (Ctrl+Left/Right).
+        KeyCode::Left
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.cursor_word_left();
+        }
+        KeyCode::Right
+            if app.input_focused && !app.running && mods.contains(KeyModifiers::CONTROL) =>
+        {
+            app.cursor_word_right();
+        }
         _ => {}
     }
 
@@ -398,7 +448,7 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
         }
         MetaCommand::Help => {
             app.push_line(MessageLine::system(
-                "Commands: /help  /skills  /new  /sessions  /export  /yolo  /quit\n\
+                "Commands: /help  /skills  /new  /sessions  /export  /undo  /yolo  /quit\n\
                  Skills: type / then Tab — e.g. /git fix the commit\n\
                  Files: type @ then Tab — e.g. fix @src/main.rs\n\
                  Keys: Enter send · Tab complete · ↑/↓ history · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
@@ -424,6 +474,26 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
                 app.status = format!("export failed: {e}");
             }
         },
+        MetaCommand::Undo => {
+            let last_user = app.lines.iter().rposition(|l| l.role == "you");
+            if let Some(user_idx) = last_user {
+                let assistant_idx = app.lines[user_idx + 1..]
+                    .iter()
+                    .position(|l| l.role == "cortex")
+                    .map(|i| user_idx + 1 + i);
+                if let Some(assist_idx) = assistant_idx {
+                    let prompt = app.lines[user_idx].content.clone();
+                    app.lines.drain(assist_idx..=user_idx);
+                    app.input = prompt;
+                    app.input_cursor = app.input.chars().count();
+                    app.status = "undid last exchange".into();
+                } else {
+                    app.status = "no assistant response to undo".into();
+                }
+            } else {
+                app.status = "nothing to undo".into();
+            }
+        }
     }
     Ok(false)
 }
