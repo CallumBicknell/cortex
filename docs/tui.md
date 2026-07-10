@@ -44,10 +44,10 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | `Ctrl+Y` | Toggle YOLO |
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
-| `PgUp` / `PgDn` | Scroll transcript (up = older, down = newer; pin to bottom when at end) |
-| Mouse drag | **Select text** in the conversation (terminal native copy — mouse capture is off on purpose) |
+| `PgUp` / `PgDn` | Scroll history (**freezes** auto-scroll so selection stays put while the agent streams) |
+| Mouse drag | **Select text** in the conversation (terminal native copy) |
+| `Ctrl+L` | Resume auto-scroll / jump to latest |
 | `Ctrl+O` / `/copy` | Copy the last assistant reply to the system clipboard |
-| `Ctrl+L` | Jump transcript to bottom |
 | `Esc` | Dismiss completion, cancel run, or clear input |
 | `/help` | Command list |
 | `/skills` | List skill packs |

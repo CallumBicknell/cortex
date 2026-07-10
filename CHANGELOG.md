@@ -36,6 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   recall previous prompts like shell history
 - **Chat TUI**: disable mouse capture so you can drag-select and copy chat
   text; `Ctrl+O` / `/copy` copies the last assistant reply
+- **Chat TUI**: auto-scroll only while “following” the bottom; PgUp freezes the
+  viewport so selection/reading is not yanked by streaming updates; Ctrl+L resumes
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin

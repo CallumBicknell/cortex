@@ -132,11 +132,15 @@ pub struct App {
     pub session: Session,
     /// Transcript lines.
     pub lines: Vec<MessageLine>,
-    /// Lines scrolled up from the bottom (0 = pin to latest / follow stream).
+    /// When true, the conversation view pins to the latest content (auto-scroll).
     ///
-    /// Converted to Paragraph top-offset at draw time — ratatui's scroll is
-    /// from the top, so 0 here means "show the end of the transcript".
-    pub scroll: u16,
+    /// Set false when the user scrolls up so selection / reading is not yanked
+    /// around as new stream tokens or tool lines append at the bottom.
+    pub follow: bool,
+    /// Absolute Paragraph Y offset (lines from the top) when `follow` is false.
+    pub scroll_top: u16,
+    /// Last computed max top-offset (`total_rows - viewport`), updated on draw.
+    pub last_max_scroll: u16,
     /// Recent tool activity (footer strip / optional).
     pub logs: Vec<String>,
     /// Input buffer (may contain newlines).
@@ -209,7 +213,9 @@ impl App {
             session_list,
             session,
             lines: vec![MessageLine::system(welcome)],
-            scroll: 0,
+            follow: true,
+            scroll_top: 0,
+            last_max_scroll: 0,
             logs: Vec::new(),
             input: String::new(),
             input_cursor: 0,
@@ -285,7 +291,7 @@ impl App {
         self.activity = None;
         self.session_list.select(None);
         self.status = "new session".into();
-        self.scroll = 0;
+        self.jump_to_bottom();
     }
 
     /// Replace active session and rebuild transcript.
@@ -301,7 +307,7 @@ impl App {
                 .push(MessageLine::system("Empty session — send a message."));
         }
         self.session = session;
-        self.scroll = 0;
+        self.jump_to_bottom();
         self.streaming = None;
         self.activity = None;
     }
@@ -526,7 +532,11 @@ impl App {
         if !update.ok {
             self.status = format!("! {}", self.status);
         }
-        self.scroll = 0;
+        // Only snap to bottom if the user was already following — never steal
+        // the viewport while they're selecting / reading history.
+        if self.follow {
+            self.jump_to_bottom();
+        }
     }
 
     /// Apply a live UI event from a background run.
@@ -558,14 +568,43 @@ impl App {
         }
     }
 
-    /// Scroll transcript up (older).
-    pub fn scroll_up(&mut self, n: u16) {
-        self.scroll = self.scroll.saturating_add(n);
+    /// Pin the conversation view to the latest content and resume auto-scroll.
+    pub fn jump_to_bottom(&mut self) {
+        self.follow = true;
+        self.scroll_top = 0;
     }
 
-    /// Scroll transcript down (newer).
+    /// Scroll transcript up (older content). Leaves follow mode so the view
+    /// stays put while new messages append (selection-friendly).
+    pub fn scroll_up(&mut self, n: u16) {
+        if self.follow {
+            self.follow = false;
+            self.scroll_top = self.last_max_scroll.saturating_sub(n);
+        } else {
+            self.scroll_top = self.scroll_top.saturating_sub(n);
+        }
+    }
+
+    /// Scroll transcript down (newer). Re-enables follow when the bottom is reached.
     pub fn scroll_down(&mut self, n: u16) {
-        self.scroll = self.scroll.saturating_sub(n);
+        if self.follow {
+            return;
+        }
+        let next = self.scroll_top.saturating_add(n);
+        if next >= self.last_max_scroll {
+            self.jump_to_bottom();
+        } else {
+            self.scroll_top = next;
+        }
+    }
+
+    /// How far above the bottom the view is (for the footer hint).
+    pub fn scroll_above_bottom(&self) -> u16 {
+        if self.follow {
+            0
+        } else {
+            self.last_max_scroll.saturating_sub(self.scroll_top)
+        }
     }
 }
 
@@ -582,7 +621,9 @@ mod history_tests {
             session_list: ListState::default(),
             session: Session::new(".", "m"),
             lines: Vec::new(),
-            scroll: 0,
+            follow: true,
+            scroll_top: 0,
+            last_max_scroll: 0,
             logs: Vec::new(),
             input: String::new(),
             input_cursor: 0,
@@ -631,5 +672,22 @@ mod history_tests {
         assert_eq!(app.pop_pending().as_deref(), Some("a"));
         assert_eq!(app.pop_pending().as_deref(), Some("b"));
         assert!(app.pop_pending().is_none());
+    }
+
+    #[test]
+    fn scroll_up_freezes_follow_with_stable_top() {
+        let mut app = bare_app();
+        app.follow = true;
+        app.last_max_scroll = 80;
+        app.scroll_up(10);
+        assert!(!app.follow);
+        assert_eq!(app.scroll_top, 70);
+        // Further growth of last_max_scroll must not move scroll_top.
+        app.last_max_scroll = 120;
+        assert_eq!(app.scroll_top, 70);
+        app.scroll_down(5);
+        assert_eq!(app.scroll_top, 75);
+        app.scroll_down(1000);
+        assert!(app.follow);
     }
 }

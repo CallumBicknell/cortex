@@ -162,16 +162,22 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &mut App) {
         )));
     }
 
-    // Paragraph.scroll is an offset from the *top*. `app.scroll` is lines
-    // above the bottom (0 = pin to latest). Convert + clamp.
+    // Two modes:
+    // - follow: pin to bottom (auto-scroll as stream/tools grow)
+    // - !follow: fixed top offset so selection / history reading does not jump
+    //   when new lines append at the end
     let width = area.width.max(1);
     let viewport = area.height;
     let total_rows = visual_row_count(&lines, width);
-    let max_from_bottom = total_rows.saturating_sub(viewport);
-    if app.scroll > max_from_bottom {
-        app.scroll = max_from_bottom;
-    }
-    let from_top = scroll_from_top(total_rows, viewport, app.scroll);
+    let max_scroll = total_rows.saturating_sub(viewport);
+    app.last_max_scroll = max_scroll;
+
+    let from_top = if app.follow {
+        max_scroll
+    } else {
+        app.scroll_top = app.scroll_top.min(max_scroll);
+        app.scroll_top
+    };
 
     let p = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
@@ -212,15 +218,6 @@ fn visual_row_count(lines: &[Line<'_>], width: u16) -> u16 {
         .iter()
         .map(|l| line_visual_rows(l, width))
         .fold(0u16, |acc, n| acc.saturating_add(n))
-}
-
-/// Convert “lines above bottom” into Paragraph scroll (from top).
-///
-/// `from_bottom == 0` pins the view to the latest content.
-fn scroll_from_top(total_rows: u16, viewport: u16, from_bottom: u16) -> u16 {
-    let max_from_bottom = total_rows.saturating_sub(viewport);
-    let from_bottom = from_bottom.min(max_from_bottom);
-    max_from_bottom.saturating_sub(from_bottom)
 }
 
 fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
@@ -284,12 +281,12 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
-    let scroll_hint = if app.scroll > 0 {
-        format!(" ↑{}  ", app.scroll)
+    let scroll_hint = if !app.follow {
+        format!(" ↑{} (frozen)  ", app.scroll_above_bottom())
     } else {
         String::new()
     };
-    let help = " drag-select copy  ↑ hist  PgUp scroll  ^O copy last  /quit ";
+    let help = " drag-select  PgUp freeze+scroll  ^L follow  ^O copy  /quit ";
     let line = format!(" {}{scroll_hint}·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()
@@ -409,28 +406,18 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::visual_row_count;
+    use ratatui::text::Line;
 
     #[test]
-    fn pin_bottom_when_overflow() {
-        // 100 rows of content, 20-row viewport, stick to bottom.
-        assert_eq!(scroll_from_top(100, 20, 0), 80);
+    fn visual_rows_counts_plain_lines() {
+        let lines = vec![Line::from("a"), Line::from("b"), Line::from("c")];
+        assert_eq!(visual_row_count(&lines, 80), 3);
     }
 
     #[test]
-    fn scroll_up_from_bottom() {
-        assert_eq!(scroll_from_top(100, 20, 10), 70);
-    }
-
-    #[test]
-    fn no_overflow_stays_at_top() {
-        assert_eq!(scroll_from_top(10, 20, 0), 0);
-        assert_eq!(scroll_from_top(10, 20, 5), 0);
-    }
-
-    #[test]
-    fn clamp_from_bottom() {
-        // Asking for more history than exists shows the top.
-        assert_eq!(scroll_from_top(100, 20, 999), 0);
+    fn visual_rows_wraps_long_line() {
+        let lines = vec![Line::from("abcdefghijklmnopqrst")]; // 20 chars
+        assert_eq!(visual_row_count(&lines, 10), 2);
     }
 }

@@ -200,7 +200,7 @@ async fn handle_key(
             return Ok(false);
         }
         KeyCode::Char('l') if mods.contains(KeyModifiers::CONTROL) => {
-            app.scroll = 0;
+            app.jump_to_bottom();
             return Ok(false);
         }
         _ => {}
@@ -397,7 +397,8 @@ fn start_agent_turn(
     }
     app.streaming = None;
     app.activity = None;
-    app.scroll = 0;
+    // New user turns resume follow so you see the reply stream.
+    app.jump_to_bottom();
 
     let host = host.clone_for_run();
     let session = app.session.clone();
