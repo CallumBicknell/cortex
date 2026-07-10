@@ -392,9 +392,11 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
             "(no matches)".to_string()
         }));
     } else {
+        let active_id = &app.session.id;
         for (_, s) in &filtered {
             let id = s.id.to_string();
             let short = if id.len() > 8 { &id[..8] } else { &id };
+            let is_current = s.id == *active_id;
 
             // Relative time
             let ago = relative_time(s.updated_at);
@@ -416,11 +418,16 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
                 SessionStatus::Archived => "⋄",
             };
 
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    short.to_string(),
-                    Style::default().fg(Color::Rgb(140, 150, 160)),
-                ),
+            let id_style = if is_current {
+                Style::default()
+                    .fg(Color::Rgb(180, 210, 255))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Rgb(140, 150, 160))
+            };
+
+            let mut spans = vec![
+                Span::styled(short.to_string(), id_style),
                 Span::styled(
                     format!("  {status_str} "),
                     Style::default().fg(Color::Rgb(120, 140, 160)),
@@ -437,14 +444,25 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
                     format!("  {ago}"),
                     Style::default().fg(Color::Rgb(90, 90, 100)),
                 ),
-            ])));
+            ];
+            if is_current {
+                spans.push(Span::styled(
+                    "  (current)",
+                    Style::default()
+                        .fg(Color::Rgb(140, 190, 255))
+                        .add_modifier(Modifier::ITALIC),
+                ));
+            }
+            items.push(ListItem::new(Line::from(spans)));
         }
     }
 
+    let total_sessions = app.sessions.len();
     let title = if app.session_search.is_empty() {
-        " sessions · ↑/↓ open · / search · d delete · n new "
+        format!(" sessions ({total_sessions}) · ↑/↓ open · / search · d delete · n new ")
     } else {
-        " sessions · ↑/↓ open · Esc clear search "
+        let matched = filtered.len();
+        format!(" sessions ({matched}/{total_sessions}) · ↑/↓ open · Esc clear search ")
     };
 
     let list = List::new(items)
