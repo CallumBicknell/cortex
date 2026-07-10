@@ -15,8 +15,8 @@ pub use host::TuiHost;
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
 use crossterm::event::{
-    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
-    EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
+    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
+    KeyModifiers,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -39,15 +39,15 @@ pub async fn run(host: TuiHost) -> Result<()> {
     // Bracketed paste: terminals send Event::Paste instead of raw key spam
     // (which would fire Enter mid-paste and break multi-line clipboard dumps).
     stdout().execute(EnableBracketedPaste)?;
-    // Mouse wheel scrolls the conversation transcript.
-    stdout().execute(EnableMouseCapture)?;
+    // Do NOT enable mouse capture — it steals the pointer from the terminal
+    // and blocks native drag-select / copy in the conversation. Scroll with
+    // PgUp/PgDn (and Ctrl+L to jump to bottom) instead.
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
 
     let result = run_loop(&mut terminal, host).await;
 
-    stdout().execute(DisableMouseCapture).ok();
     stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
@@ -91,15 +91,9 @@ async fn run_loop(
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
-                    Some(Ok(Event::Mouse(m))) => {
-                        if !app.show_sessions {
-                            match m.kind {
-                                MouseEventKind::ScrollUp => app.scroll_up(3),
-                                MouseEventKind::ScrollDown => app.scroll_down(3),
-                                _ => {}
-                            }
-                        }
-                    }
+                    // Mouse events ignored (capture off) so the terminal can
+                    // drag-select and copy conversation text natively.
+                    Some(Ok(Event::Mouse(_))) => {}
                     Some(Err(e)) => {
                         app.status = format!("event error: {e}");
                     }
@@ -224,6 +218,15 @@ async fn handle_key(
     if code == KeyCode::Char('y') && mods.contains(KeyModifiers::CONTROL) {
         app.yolo = !app.yolo;
         app.status = format!("yolo={}", app.yolo);
+        return Ok(false);
+    }
+
+    // Copy last assistant reply to the system clipboard
+    if code == KeyCode::Char('o') && mods.contains(KeyModifiers::CONTROL) {
+        match copy_last_assistant(app) {
+            Ok(n) => app.status = format!("copied last reply ({n} chars)"),
+            Err(e) => app.status = format!("copy failed: {e}"),
+        }
         return Ok(false);
     }
 
@@ -418,6 +421,62 @@ fn truncate_for_status(s: &str, max: usize) -> String {
     }
 }
 
+/// Copy the most recent assistant message to the OS clipboard.
+fn copy_last_assistant(app: &App) -> std::result::Result<usize, String> {
+    let text = app
+        .lines
+        .iter()
+        .rev()
+        .find(|m| m.role == "cortex")
+        .map(|m| m.content.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "no assistant message to copy".to_string())?;
+    copy_to_clipboard(text)?;
+    Ok(text.len())
+}
+
+/// Best-effort clipboard write via common CLI tools (no extra crate).
+fn copy_to_clipboard(text: &str) -> std::result::Result<(), String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let candidates: &[(&str, &[&str])] = if cfg!(target_os = "macos") {
+        &[("pbcopy", &[])]
+    } else {
+        &[
+            ("wl-copy", &[]),
+            ("xclip", &["-selection", "clipboard"]),
+            ("xsel", &["--clipboard", "--input"]),
+        ]
+    };
+
+    let mut last_err = String::from("no clipboard tool found (install wl-copy, xclip, or xsel)");
+    for (bin, args) in candidates {
+        let Ok(mut child) = Command::new(bin)
+            .args(*args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            continue;
+        };
+        if let Some(mut stdin) = child.stdin.take() {
+            if let Err(e) = stdin.write_all(text.as_bytes()) {
+                last_err = format!("{bin}: write failed: {e}");
+                let _ = child.kill();
+                continue;
+            }
+        }
+        match child.wait() {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => last_err = format!("{bin} exited {status}"),
+            Err(e) => last_err = format!("{bin}: {e}"),
+        }
+    }
+    Err(last_err)
+}
+
 fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
     match meta {
         MetaCommand::Quit => return Ok(true),
@@ -433,13 +492,26 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
         }
         MetaCommand::Help => {
             app.push_line(MessageLine::system(
-                "Commands: /help  /skills  /new  /sessions  /yolo  /quit\n\
+                "Commands: /help  /skills  /new  /sessions  /yolo  /copy  /quit\n\
                  Skills: type / then Tab — e.g. /git fix the commit\n\
                  Files: type @ then Tab — e.g. fix @src/main.rs\n\
                  Keys: Enter send (queues while thinking) · ↑/↓ input history · Tab complete ·\n\
-                 Ctrl+J newline · PgUp/PgDn scroll · Ctrl+B sessions · Ctrl+C cancel",
+                 Ctrl+J newline · PgUp/PgDn scroll · Ctrl+O copy last reply ·\n\
+                 Mouse: drag to select text in the chat (terminal copy) · Ctrl+B sessions · Ctrl+C cancel",
             ));
         }
+        MetaCommand::Copy => match copy_last_assistant(app) {
+            Ok(n) => {
+                app.push_line(MessageLine::system(format!(
+                    "Copied last assistant reply ({n} chars) to the clipboard."
+                )));
+                app.status = format!("copied ({n} chars)");
+            }
+            Err(e) => {
+                app.push_line(MessageLine::system(format!("Copy failed: {e}")));
+                app.status = format!("copy failed: {e}");
+            }
+        },
         MetaCommand::Skills => {
             let mut body = String::from("Skills (type /name in the composer):\n");
             for (id, desc) in &app.skill_details {

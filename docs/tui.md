@@ -45,7 +45,8 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
 | `PgUp` / `PgDn` | Scroll transcript (up = older, down = newer; pin to bottom when at end) |
-| Mouse wheel | Scroll transcript |
+| Mouse drag | **Select text** in the conversation (terminal native copy — mouse capture is off on purpose) |
+| `Ctrl+O` / `/copy` | Copy the last assistant reply to the system clipboard |
 | `Ctrl+L` | Jump transcript to bottom |
 | `Esc` | Dismiss completion, cancel run, or clear input |
 | `/help` | Command list |
@@ -98,7 +99,7 @@ in the activity line. See [`docs/browser.md`](browser.md).
 ## Not yet
 
 - Inline tool-approval modal
-- Mouse selection / click-to-open paths
+- Click-to-open paths / in-app multi-selection ranges
 - Fuzzy multi-root `@` search across large monorepos
 - Diff viewer / file tree
 - Token cost from provider usage fields

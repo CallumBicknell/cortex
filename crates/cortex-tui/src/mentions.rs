@@ -26,6 +26,8 @@ pub enum MetaCommand {
     Yolo,
     /// List skills.
     Skills,
+    /// Copy last assistant reply to the system clipboard.
+    Copy,
 }
 
 /// Result of parsing a user composer line.
@@ -181,6 +183,7 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
         "sessions" => Some(MetaCommand::Sessions),
         "yolo" => Some(MetaCommand::Yolo),
         "skills" => Some(MetaCommand::Skills),
+        "copy" => Some(MetaCommand::Copy),
         _ => None,
     }
 }

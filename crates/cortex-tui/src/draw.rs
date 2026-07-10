@@ -289,7 +289,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         String::new()
     };
-    let help = " ↑ hist  ↵ send/queue  PgUp scroll  Tab  /skill  @path  /quit ";
+    let help = " drag-select copy  ↑ hist  PgUp scroll  ^O copy last  /quit ";
     let line = format!(" {}{scroll_hint}·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()

@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   replies); PgUp/wheel scroll history; Ctrl+L jumps back to latest
 - **Chat TUI**: type (and queue with Enter) while the agent is thinking; ↑/↓
   recall previous prompts like shell history
+- **Chat TUI**: disable mouse capture so you can drag-select and copy chat
+  text; `Ctrl+O` / `/copy` copies the last assistant reply
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin
