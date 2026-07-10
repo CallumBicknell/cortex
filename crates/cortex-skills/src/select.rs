@@ -193,6 +193,39 @@ mod tests {
         assert!(sel.tools.contains(&"http_request".to_string()));
     }
 
+    /// `/browser` in the TUI becomes an explicit skill — tools must include navigate.
+    #[test]
+    fn explicit_browser_slash_exposes_cdp_tools() {
+        let reg = SkillRegistry::with_builtins();
+        let sel = select_skills(
+            &reg,
+            "visit example.com and summarise",
+            None,
+            &["browser".into()],
+        );
+        assert!(
+            sel.skill_ids.contains(&"browser".to_string()),
+            "got {:?}",
+            sel.skill_ids
+        );
+        for tool in [
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_content",
+            "browser_evaluate",
+            "browser_click",
+            "browser_close",
+        ] {
+            assert!(
+                sel.tools.iter().any(|t| t == tool),
+                "missing {tool} in {:?}",
+                sel.tools
+            );
+        }
+        // always-on coding still present so the agent can write notes if needed
+        assert!(sel.skill_ids.contains(&"coding".to_string()));
+    }
+
     #[test]
     fn selects_frontend_design() {
         let reg = SkillRegistry::with_builtins();

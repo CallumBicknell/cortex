@@ -34,19 +34,51 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Send message |
+| `Enter` | Send message (or accept completion when popup is open) |
+| Paste | Middle-click / terminal paste into composer (bracketed paste) |
+| `Tab` | Accept autocomplete (`/skill` or `@path`) |
+| `↑` / `↓` | Move completion selection |
 | `Ctrl+J` | Newline in composer |
 | `Ctrl+B` | Toggle sessions list |
 | `Ctrl+Y` | Toggle YOLO |
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
 | `PgUp` / `PgDn` | Scroll transcript |
-| `Esc` | Cancel run or clear input |
+| `Esc` | Dismiss completion, cancel run, or clear input |
 | `/help` | Command list |
+| `/skills` | List skill packs |
 | `/new` | New session |
 | `/sessions` | Open sessions |
 | `/yolo` | Toggle auto-approve |
 | `/quit` | Exit |
+
+## `/skills` and `@paths`
+
+Claude Code–style composer mentions:
+
+| Syntax | Effect |
+|--------|--------|
+| `/git fix the commit` | Activates the `git` skill for that turn (plus always-on packs) |
+| `/solidity` + message | Force-select a skill; Tab completes skill ids and meta commands |
+| `@src/main.rs` | Inlines file contents into the agent prompt (transcript keeps `@…`) |
+| `@crates/cortex-tui/` | Attaches a directory listing |
+| `fix @a.rs with /web` | Combine path attachments and skill slash tokens |
+
+Type `/` or `@` to open the completion popup. **Tab** or **Enter** accepts; **Esc** dismisses. After accepting a directory (`@src/`), keep typing or Tab again to nest.
+
+### `/browser` and CDP
+
+`/browser visit https://example.com …` selects browser tools. If nothing is listening
+on the CDP port, Cortex **auto-starts** `obscura serve` (or Chrome when
+`backend = "chrome"`) when the binary is on `PATH` and the host is loopback.
+
+```bash
+cortex chat
+# ❯ /browser open https://example.com and summarise the title
+```
+
+Disable with `auto_start = false` in `browser.toml`. Failed tools show error text
+in the activity line. See [`docs/browser.md`](browser.md).
 
 ## Behaviour
 
@@ -64,5 +96,6 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 
 - Inline tool-approval modal
 - Mouse selection / click-to-open paths
+- Fuzzy multi-root `@` search across large monorepos
 - Diff viewer / file tree
 - Token cost from provider usage fields

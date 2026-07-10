@@ -5,19 +5,25 @@
 #![deny(missing_docs)]
 
 mod app;
+mod complete;
 mod draw;
 mod host;
+mod mentions;
 
 pub use host::TuiHost;
 
 use anyhow::{Context, Result};
 use app::{App, MessageLine, UiEvent};
-use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEventKind,
+    KeyModifiers,
+};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::ExecutableCommand;
 use futures::StreamExt;
+use mentions::{expand_attachments, parse_prompt, MetaCommand};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io::{self, stdout};
@@ -30,12 +36,16 @@ pub async fn run(host: TuiHost) -> Result<()> {
     info!("starting cortex chat TUI");
     enable_raw_mode().context("enable raw mode")?;
     stdout().execute(EnterAlternateScreen)?;
+    // Bracketed paste: terminals send Event::Paste instead of raw key spam
+    // (which would fire Enter mid-paste and break multi-line clipboard dumps).
+    stdout().execute(EnableBracketedPaste)?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).context("create terminal")?;
     terminal.clear()?;
 
     let result = run_loop(&mut terminal, host).await;
 
+    stdout().execute(DisableBracketedPaste).ok();
     disable_raw_mode().ok();
     stdout().execute(LeaveAlternateScreen).ok();
     terminal.show_cursor().ok();
@@ -70,6 +80,11 @@ async fn run_loop(
                         .await?
                         {
                             break;
+                        }
+                    }
+                    Some(Ok(Event::Paste(text))) => {
+                        if app.input_focused && !app.running && !app.show_sessions {
+                            app.insert_str(&text);
                         }
                     }
                     Some(Ok(Event::Resize(_, _))) => {}
@@ -189,6 +204,38 @@ async fn handle_key(
         return Ok(false);
     }
 
+    // Completion navigation (when popup is open)
+    if app.completion.is_some() && app.input_focused && !app.running {
+        match code {
+            KeyCode::Up => {
+                if let Some(c) = app.completion.as_mut() {
+                    c.select_prev();
+                }
+                return Ok(false);
+            }
+            KeyCode::Down => {
+                if let Some(c) = app.completion.as_mut() {
+                    c.select_next();
+                }
+                return Ok(false);
+            }
+            KeyCode::Tab => {
+                app.accept_completion();
+                return Ok(false);
+            }
+            KeyCode::Enter => {
+                // Accept completion instead of sending.
+                app.accept_completion();
+                return Ok(false);
+            }
+            KeyCode::Esc => {
+                app.clear_completion();
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+
     match code {
         KeyCode::Esc => {
             if app.running {
@@ -199,9 +246,20 @@ async fn handle_key(
                 app.status = "cancelled".into();
                 app.streaming = None;
                 app.activity = None;
+            } else if app.completion.is_some() {
+                app.clear_completion();
             } else if !app.input.is_empty() {
                 app.input.clear();
                 app.input_cursor = 0;
+                app.clear_completion();
+            }
+        }
+        KeyCode::Tab if app.input_focused && !app.running => {
+            if app.completion.is_none() {
+                app.refresh_completion();
+            }
+            if app.completion.is_some() {
+                app.accept_completion();
             }
         }
         KeyCode::Enter if app.input_focused && !app.running => {
@@ -210,35 +268,46 @@ async fn handle_key(
             if prompt.is_empty() {
                 return Ok(false);
             }
-            // Slash commands
-            if prompt == "/quit" || prompt == "/exit" || prompt == "/q" {
-                return Ok(true);
-            }
-            if prompt == "/new" || prompt == "/clear" {
-                app.new_session();
-                return Ok(false);
-            }
-            if prompt == "/sessions" {
-                app.toggle_sessions();
-                return Ok(false);
-            }
-            if prompt == "/yolo" {
-                app.yolo = !app.yolo;
-                app.status = format!("yolo={}", app.yolo);
-                return Ok(false);
-            }
-            if prompt == "/help" {
-                app.push_line(MessageLine::system(
-                    "Commands: /new  /sessions  /yolo  /quit\nKeys: Enter send · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel · PgUp/PgDn scroll",
-                ));
-                return Ok(false);
+
+            let parsed = parse_prompt(&prompt, &app.skill_ids);
+            if let Some(meta) = parsed.meta {
+                return handle_meta(app, meta);
             }
 
-            app.push_line(MessageLine::user(prompt.clone()));
+            // Expand @paths for the agent; keep original text in the transcript.
+            let agent_prompt = expand_attachments(
+                &app.workspace_path,
+                &parsed.attachments,
+                &parsed.agent_prompt,
+            );
+
+            let mut skills = app.skills.clone();
+            for s in &parsed.skills {
+                if !skills.iter().any(|x| x == s) {
+                    skills.push(s.clone());
+                }
+            }
+
+            if !parsed.skills.is_empty() || !parsed.attachments.is_empty() {
+                let mut bits = Vec::new();
+                if !parsed.skills.is_empty() {
+                    bits.push(format!("skills: {}", parsed.skills.join(", ")));
+                }
+                if !parsed.attachments.is_empty() {
+                    bits.push(format!("@ {}", parsed.attachments.join(", ")));
+                }
+                app.status = bits.join(" · ");
+            }
+
+            app.push_line(MessageLine::user(parsed.display));
             let cancel = CancellationToken::new();
             *run_cancel = Some(cancel.clone());
             app.running = true;
-            app.status = "running…".into();
+            if app.status == "ready" || app.status.is_empty() {
+                app.status = "running…".into();
+            } else {
+                app.status = format!("{} · running…", app.status);
+            }
             app.streaming = None;
             app.activity = None;
             app.scroll = 0;
@@ -247,10 +316,9 @@ async fn handle_key(
             let session = app.session.clone();
             let yolo = app.yolo;
             let max_turns = app.max_turns;
-            let skills = app.skills.clone();
             let tx = tx.clone();
             tokio::spawn(async move {
-                host.run_turn(session, prompt, yolo, max_turns, skills, cancel, tx)
+                host.run_turn(session, agent_prompt, yolo, max_turns, skills, cancel, tx)
                     .await;
             });
         }
@@ -265,5 +333,41 @@ async fn handle_key(
         _ => {}
     }
 
+    Ok(false)
+}
+
+fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
+    match meta {
+        MetaCommand::Quit => return Ok(true),
+        MetaCommand::New => {
+            app.new_session();
+        }
+        MetaCommand::Sessions => {
+            app.toggle_sessions();
+        }
+        MetaCommand::Yolo => {
+            app.yolo = !app.yolo;
+            app.status = format!("yolo={}", app.yolo);
+        }
+        MetaCommand::Help => {
+            app.push_line(MessageLine::system(
+                "Commands: /help  /skills  /new  /sessions  /yolo  /quit\n\
+                 Skills: type / then Tab — e.g. /git fix the commit\n\
+                 Files: type @ then Tab — e.g. fix @src/main.rs\n\
+                 Keys: Enter send · Tab complete · ↑/↓ select · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
+            ));
+        }
+        MetaCommand::Skills => {
+            let mut body = String::from("Skills (type /name in the composer):\n");
+            for (id, desc) in &app.skill_details {
+                let short: String = desc.chars().take(72).collect();
+                body.push_str(&format!("  /{id}  — {short}\n"));
+            }
+            body.push_str(
+                "\nTip: /skill-id activates that pack for the turn (plus always-on skills).",
+            );
+            app.push_line(MessageLine::system(body));
+        }
+    }
     Ok(false)
 }

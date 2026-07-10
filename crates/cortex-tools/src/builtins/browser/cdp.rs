@@ -86,9 +86,14 @@ pub struct CdpSession {
 impl CdpSession {
     /// Connect to a browser-level CDP WebSocket URL and open a blank page.
     pub async fn connect(ws_url: &str, timeout_secs: u64) -> Result<Self> {
-        let (ws, _) = connect_async(ws_url)
-            .await
-            .map_err(|e| ToolError::Execution(format!("CDP connect failed ({ws_url}): {e}")))?;
+        let (ws, _) = connect_async(ws_url).await.map_err(|e| {
+            ToolError::Execution(format!(
+                "CDP connect failed ({ws_url}): {e}. \
+                 Start a browser first, e.g. `obscura serve --port 9222` \
+                 (or Chrome with --remote-debugging-port=9222). \
+                 See docs/browser.md and config/browser.toml."
+            ))
+        })?;
 
         let (write, mut read) = ws.split();
         let write = Arc::new(Mutex::new(write));
