@@ -165,6 +165,12 @@ pub struct App {
     pub skill_details: Vec<(String, String)>,
     /// Active composer completion popup.
     pub completion: Option<CompletionState>,
+    /// Sent prompt history (most recent last).
+    pub history: Vec<String>,
+    /// History browsing index (`None` = not browsing).
+    pub history_index: Option<usize>,
+    /// Draft saved when entering history browsing mode.
+    pub history_draft: String,
 }
 
 impl App {
@@ -214,6 +220,9 @@ impl App {
             skill_ids,
             skill_details,
             completion: None,
+            history: Vec::new(),
+            history_index: None,
+            history_draft: String::new(),
         })
     }
 
@@ -399,7 +408,59 @@ impl App {
         let s = std::mem::take(&mut self.input);
         self.input_cursor = 0;
         self.completion = None;
+        self.history_index = None;
+        self.history_draft = String::new();
+        // Save non-empty prompts to history (skip duplicates).
+        if !s.trim().is_empty() && self.history.last().map(|h| h.as_str()) != Some(s.trim()) {
+            self.history.push(s.trim().to_string());
+        }
         s
+    }
+
+    /// Move history cursor up (to older prompts).
+    pub fn history_up(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+        match self.history_index {
+            None => {
+                // Entering history mode: save current draft, go to most recent.
+                self.history_draft = self.input.clone();
+                let idx = self.history.len() - 1;
+                self.input = self.history[idx].clone();
+                self.input_cursor = self.input.len();
+                self.history_index = Some(idx);
+            }
+            Some(0) => {} // Already at oldest.
+            Some(idx) => {
+                let new = idx - 1;
+                self.input = self.history[new].clone();
+                self.input_cursor = self.input.len();
+                self.history_index = Some(new);
+            }
+        }
+        self.completion = None;
+    }
+
+    /// Move history cursor down (to newer prompts).
+    pub fn history_down(&mut self) {
+        match self.history_index {
+            None => {}
+            Some(idx) => {
+                if idx + 1 >= self.history.len() {
+                    // Exiting history: restore draft.
+                    self.input = self.history_draft.clone();
+                    self.input_cursor = self.input.len();
+                    self.history_index = None;
+                } else {
+                    let new = idx + 1;
+                    self.input = self.history[new].clone();
+                    self.input_cursor = self.input.len();
+                    self.history_index = Some(new);
+                }
+            }
+        }
+        self.completion = None;
     }
 
     /// Apply a finished run.

@@ -236,6 +236,21 @@ async fn handle_key(
         }
     }
 
+    // History navigation (when no completion popup, no sessions drawer, not running)
+    if app.input_focused && !app.running && app.completion.is_none() && !app.show_sessions {
+        match code {
+            KeyCode::Up => {
+                app.history_up();
+                return Ok(false);
+            }
+            KeyCode::Down => {
+                app.history_down();
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+
     match code {
         KeyCode::Esc => {
             if app.running {
