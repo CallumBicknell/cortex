@@ -236,6 +236,21 @@ async fn handle_key(
         }
     }
 
+    // History navigation (when no completion popup, no sessions drawer, not running)
+    if app.input_focused && !app.running && app.completion.is_none() && !app.show_sessions {
+        match code {
+            KeyCode::Up => {
+                app.history_up();
+                return Ok(false);
+            }
+            KeyCode::Down => {
+                app.history_down();
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+
     match code {
         KeyCode::Esc => {
             if app.running {
@@ -351,10 +366,10 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
         }
         MetaCommand::Help => {
             app.push_line(MessageLine::system(
-                "Commands: /help  /skills  /new  /sessions  /yolo  /quit\n\
+                "Commands: /help  /skills  /new  /sessions  /export  /yolo  /quit\n\
                  Skills: type / then Tab — e.g. /git fix the commit\n\
                  Files: type @ then Tab — e.g. fix @src/main.rs\n\
-                 Keys: Enter send · Tab complete · ↑/↓ select · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
+                 Keys: Enter send · Tab complete · ↑/↓ history · Ctrl+J newline · Ctrl+B sessions · Ctrl+C cancel",
             ));
         }
         MetaCommand::Skills => {
@@ -368,6 +383,68 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
             );
             app.push_line(MessageLine::system(body));
         }
+        MetaCommand::Export => match export_transcript(app) {
+            Ok(path) => {
+                app.push_line(MessageLine::system(format!("Exported to {path}")));
+                app.status = format!("exported → {path}");
+            }
+            Err(e) => {
+                app.status = format!("export failed: {e}");
+            }
+        },
     }
     Ok(false)
+}
+
+/// Export the current transcript as a markdown file.
+fn export_transcript(app: &App) -> std::result::Result<String, String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let filename = format!("cortex_export_{timestamp}.md");
+
+    let ws = std::path::Path::new(&app.workspace);
+    let dir = if ws.is_dir() {
+        ws.to_path_buf()
+    } else {
+        PathBuf::from(".")
+    };
+    let path = dir.join(&filename);
+
+    let mut md = String::new();
+    md.push_str("# Cortex Session Export\n\n");
+    md.push_str(&format!(
+        "**Date:** {}\n",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")
+    ));
+    md.push_str(&format!("**Model:** {}\n\n", app.model_label));
+    md.push_str("---\n\n");
+
+    for line in &app.lines {
+        match line.role.as_str() {
+            "you" => {
+                md.push_str("## You\n\n");
+                md.push_str(&line.content);
+                md.push_str("\n\n");
+            }
+            "cortex" => {
+                md.push_str("## Cortex\n\n");
+                md.push_str(&line.content);
+                md.push_str("\n\n");
+            }
+            "tool" => {
+                md.push_str(&format!("> {}\n\n", line.content));
+            }
+            "system" => {
+                md.push_str(&format!("*{}*\n\n", line.content));
+            }
+            _ => {
+                md.push_str(&format!("### {}\n\n{}\n\n", line.role, line.content));
+            }
+        }
+    }
+
+    fs::write(&path, &md).map_err(|e| format!("write failed: {e}"))?;
+    Ok(path.display().to_string())
 }

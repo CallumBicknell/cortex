@@ -241,7 +241,7 @@ fn draw_composer(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
-    let help = " ↵ send  Tab complete  /skill  @path  ^J nl  ^B sessions  /quit ";
+    let help = " ↵ send  ↑↓ history  Tab complete  /skill  @path  ^J nl  ^B sessions  /quit ";
     let line = format!(" {}  ·{} ", app.status, help);
     let p = Paragraph::new(line).style(
         Style::default()

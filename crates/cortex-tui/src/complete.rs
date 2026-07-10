@@ -13,6 +13,7 @@ pub const META_COMMANDS: &[(&str, &str)] = &[
     ("new", "Start a fresh session"),
     ("clear", "Alias for /new"),
     ("sessions", "Open sessions list"),
+    ("export", "Export transcript as markdown"),
     ("yolo", "Toggle auto-approve tools"),
     ("quit", "Exit chat"),
     ("exit", "Exit chat"),
