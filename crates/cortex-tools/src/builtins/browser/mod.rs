@@ -441,6 +441,36 @@ mod tests {
         assert!(err.to_string().to_lowercase().contains("disabled"));
     }
 
+    /// When nothing is listening on the CDP port, navigate fails with a clear fix hint.
+    #[tokio::test]
+    async fn navigate_fails_clearly_when_cdp_down() {
+        let handle = BrowserHandle::new(BrowserConfig {
+            enabled: true,
+            // Unlikely to be a live browser; forces connection error.
+            host: "127.0.0.1".into(),
+            port: 1,
+            cdp_url: "ws://127.0.0.1:1/devtools/browser".into(),
+            ..BrowserConfig::default()
+        });
+        let tool = BrowserNavigateTool::new(handle);
+        let err = tool
+            .execute(
+                &ToolContext::for_tests(std::env::temp_dir()),
+                json!({ "url": "https://example.com" }),
+            )
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("CDP connect failed") || msg.to_lowercase().contains("connect"),
+            "unexpected error: {msg}"
+        );
+        assert!(
+            msg.contains("obscura serve") || msg.contains("docs/browser.md"),
+            "missing actionable hint: {msg}"
+        );
+    }
+
     #[tokio::test]
     async fn close_without_session() {
         let handle = BrowserHandle::from_env_or_default();

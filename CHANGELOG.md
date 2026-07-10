@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Chat TUI**: `/skill` slash commands and `@path` file/folder mentions with
   Tab autocomplete (↑/↓ select); attachments inlined for the agent; `/skills` list
+- **Chat TUI**: tool errors show a short reason (e.g. CDP not running) instead of
+  bare `[ERR] browser_navigate`; CDP connect message points at `obscura serve`
 - **`plugins/sc_analyzers`**: fixed-arg `slither_*` / `aderyn_*` tools
   (`allow_nonzero` so findings still return output)
 - **`cortex init --web3`** also installs `sc_analyzers` plugin

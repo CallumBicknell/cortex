@@ -323,6 +323,20 @@ mod tests {
         assert!(p.meta.is_none());
     }
 
+    /// Real chat line: `/browser visit …` must select the browser skill pack.
+    #[test]
+    fn browser_slash_like_chat() {
+        let known = vec!["browser".into(), "git".into(), "web".into()];
+        let p = parse_prompt(
+            "/browser visit m.example.com for me and give a summary of the site",
+            &known,
+        );
+        assert_eq!(p.skills, vec!["browser".to_string()]);
+        assert!(p.agent_prompt.contains("visit m.example.com"));
+        assert!(!p.agent_prompt.contains("/browser"));
+        assert!(p.meta.is_none());
+    }
+
     #[test]
     fn at_path_collected() {
         let p = parse_prompt("fix @src/main.rs and @README.md", &[]);

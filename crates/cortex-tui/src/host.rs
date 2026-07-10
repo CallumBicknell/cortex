@@ -189,8 +189,12 @@ impl TuiHost {
                             tools_ok += 1;
                         }
                         let flag = if t.is_error { "ERR" } else { "ok" };
-                        let preview: String = t.output.chars().take(120).collect();
-                        format!("[{flag}] {} — {preview}", t.name)
+                        let preview = compact_tool_preview(&t.output, 160);
+                        if preview.is_empty() {
+                            format!("[{flag}] {}", t.name)
+                        } else {
+                            format!("[{flag}] {} — {preview}", t.name)
+                        }
                     })
                     .collect();
                 let assistant = output
@@ -307,6 +311,23 @@ impl TuiHost {
     }
 }
 
+/// One-line tool error preview for the activity strip.
+fn compact_tool_preview(s: &str, max_chars: usize) -> String {
+    let flat: String = s
+        .chars()
+        .map(|c| if c.is_whitespace() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if flat.chars().count() <= max_chars {
+        flat
+    } else {
+        let truncated: String = flat.chars().take(max_chars.saturating_sub(1)).collect();
+        format!("{truncated}…")
+    }
+}
+
 /// User-global cortex home (`CORTEX_HOME` or `~/.cortex`).
 fn cortex_user_home() -> PathBuf {
     if let Ok(p) = std::env::var("CORTEX_HOME") {
@@ -360,7 +381,18 @@ impl EnvelopeHandler for TuiBusBridge {
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
                 let flag = if err { "ERR" } else { "ok" };
-                let _ = self.tx.send(UiEvent::ToolLog(format!("[{flag}] {name}")));
+                let mut line = format!("[{flag}] {name}");
+                // Surface failure reason (e.g. CDP not running) — bare ERR is unactionable.
+                if err {
+                    if let Some(out) = event.payload.get("output").and_then(|v| v.as_str()) {
+                        let preview = compact_tool_preview(out, 140);
+                        if !preview.is_empty() {
+                            line.push_str(" — ");
+                            line.push_str(&preview);
+                        }
+                    }
+                }
+                let _ = self.tx.send(UiEvent::ToolLog(line));
             }
             "agent.tool_call.failed" => {
                 let name = event
@@ -368,7 +400,20 @@ impl EnvelopeHandler for TuiBusBridge {
                     .get("name")
                     .and_then(|v| v.as_str())
                     .unwrap_or("tool");
-                let _ = self.tx.send(UiEvent::ToolLog(format!("[ERR] {name}")));
+                let mut line = format!("[ERR] {name}");
+                if let Some(err) = event
+                    .payload
+                    .get("error")
+                    .or_else(|| event.payload.get("output"))
+                    .and_then(|v| v.as_str())
+                {
+                    let preview = compact_tool_preview(err, 140);
+                    if !preview.is_empty() {
+                        line.push_str(" — ");
+                        line.push_str(&preview);
+                    }
+                }
+                let _ = self.tx.send(UiEvent::ToolLog(line));
             }
             "agent.subagent.started" => {
                 let _ = self.tx.send(UiEvent::ToolLog("↳ sub-agent started".into()));

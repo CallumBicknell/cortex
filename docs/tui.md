@@ -65,6 +65,21 @@ Claude Code–style composer mentions:
 
 Type `/` or `@` to open the completion popup. **Tab** or **Enter** accepts; **Esc** dismisses. After accepting a directory (`@src/`), keep typing or Tab again to nest.
 
+### `/browser` needs a live CDP endpoint
+
+`/browser visit https://example.com …` selects browser tools, but **`browser_navigate` fails if nothing is serving CDP** (default `ws://127.0.0.1:9222`).
+
+```bash
+# terminal 1
+obscura serve --port 9222
+
+# terminal 2
+cortex chat
+# ❯ /browser open https://example.com and summarise the title
+```
+
+Failed tools now show the error text in the activity line (e.g. `CDP connect failed … Start a browser first`). See [`docs/browser.md`](browser.md).
+
 ## Behaviour
 
 - Streams assistant tokens when the provider supports it
