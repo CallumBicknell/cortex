@@ -304,6 +304,15 @@ async fn handle_key(
         return Ok(false);
     }
 
+    // Copy last assistant reply to clipboard
+    if code == KeyCode::Char('o') && mods.contains(KeyModifiers::CONTROL) {
+        match copy_last_assistant(app) {
+            Ok(n) => app.status = format!("copied last reply ({n} chars)"),
+            Err(e) => app.status = format!("copy failed: {e}"),
+        }
+        return Ok(false);
+    }
+
     // Completion navigation (when popup is open)
     if app.completion.is_some() && app.input_focused && !app.running {
         match code {
@@ -637,6 +646,54 @@ fn export_transcript(app: &App) -> Result<String, String> {
 
     fs::write(&path, &md).map_err(|e| format!("write failed: {e}"))?;
     Ok(path.display().to_string())
+}
+
+/// Copy the most recent assistant message to the OS clipboard.
+fn copy_last_assistant(app: &App) -> std::result::Result<usize, String> {
+    let text = app
+        .lines
+        .iter()
+        .rev()
+        .find(|m| m.role == "cortex")
+        .map(|m| m.content.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "no assistant message to copy".to_string())?;
+    copy_to_clipboard(text)?;
+    Ok(text.len())
+}
+
+/// Best-effort clipboard write via common CLI tools.
+fn copy_to_clipboard(text: &str) -> std::result::Result<(), String> {
+    use std::io::Write;
+    use std::process::Command;
+
+    // Try common clipboard tools in order of preference.
+    let tools: &[(&str, &[&str])] = &[
+        ("pbcopy", &[]),                         // macOS
+        ("xclip", &["-selection", "clipboard"]), // Linux X11
+        ("xsel", &["--clipboard", "--input"]),   // Linux X11 alt
+        ("wl-copy", &[]),                        // Linux Wayland
+    ];
+
+    for (cmd, args) in tools {
+        if Command::new(cmd).args(*args).output().is_ok() {
+            // Found a working tool — pipe text to it.
+            let mut child = Command::new(cmd)
+                .args(*args)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .map_err(|e| format!("{cmd}: {e}"))?;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(text.as_bytes())
+                    .map_err(|e| format!("{cmd} stdin: {e}"))?;
+            }
+            child.wait().map_err(|e| format!("{cmd} wait: {e}"))?;
+            return Ok(());
+        }
+    }
+    Err("no clipboard tool found (install pbcopy/xclip/wl-copy)".into())
 }
 
 fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
