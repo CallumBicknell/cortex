@@ -4,7 +4,7 @@ use crate::complete::{self, CompletionState};
 use crate::host::TuiHost;
 use anyhow::Result;
 use cortex_memory::SessionSummary;
-use cortex_models::{Message, Role, Session};
+use cortex_models::{Message, Role, Session, SessionStatus};
 use cortex_tools::{ApprovalDecision, ApprovalRequest};
 use ratatui::widgets::ListState;
 use std::path::{Path, PathBuf};
@@ -217,29 +217,55 @@ impl App {
     /// Create app and load sessions.
     pub async fn new(host: &TuiHost) -> Result<Self> {
         let sessions = host.list_sessions(30).await.unwrap_or_default();
-        let session = Session::new(
+        let mut session = Session::new(
             host.workspace.to_string_lossy(),
             format!("{}/{}", host.provider_id, host.model),
         );
         let mut session_list = ListState::default();
+        let mut session_label = String::new();
         if !sessions.is_empty() {
             session_list.select(Some(0));
+            // Auto-load the most recent active session.
+            if let Some(recent) = sessions.iter().find(|s| s.status == SessionStatus::Active) {
+                if let Ok(loaded) = host.load_session(recent.id).await {
+                    session = loaded;
+                    let short_id = {
+                        let id_str = recent.id.to_string();
+                        if id_str.len() > 8 {
+                            id_str[..8].to_string()
+                        } else {
+                            id_str
+                        }
+                    };
+                    session_label = format!("resumed {short_id}");
+                }
+            }
         }
         let skills = host.list_skills();
         let skill_ids: Vec<String> = skills.iter().map(|(id, _)| id.clone()).collect();
         let skill_details = skills;
-        let welcome = format!(
-            "Cortex · {} · {}\n\nType a message and press Enter to send.\n\
-             /skill · @path · Tab complete · Ctrl+J newline · Ctrl+B sessions · /quit",
-            host.model_alias,
-            host.workspace.display()
-        );
+        let welcome = if session_label.is_empty() {
+            format!(
+                "Cortex · {} · {}\n\nType a message and press Enter to send.\n\
+                 /skill · @path · Tab complete · Ctrl+J newline · Ctrl+B sessions · /quit",
+                host.model_alias,
+                host.workspace.display()
+            )
+        } else {
+            format!(
+                "Cortex · {} · {}\n\nResumed previous session ({})\n\
+                 Type a message to continue, or Ctrl+B for sessions.",
+                host.model_alias,
+                host.workspace.display(),
+                session_label
+            )
+        };
         // Fresh conversation by default (Claude Code–style). Resume via Ctrl+B sessions.
         Ok(Self {
             workspace: host.workspace.display().to_string(),
             model_label: format!("{} · {}/{}", host.model_alias, host.provider_id, host.model),
             database: host.database.display().to_string(),
-            session_label: String::new(),
+            session_label,
             sessions,
             session_list,
             session,
