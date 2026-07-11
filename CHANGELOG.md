@@ -88,6 +88,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   assistant is generating (e.g. '342 chars')
 - **TUI scroll indicator**: shows message count below when scrolled up
   (e.g. '↓ 5 messages below')
+- **TUI session auto-save**: sessions auto-save to SQLite on user message,
+  cancel, and run completion — no more lost conversations on crash
 
 ## [0.2.1] — 2026-07-09
 
