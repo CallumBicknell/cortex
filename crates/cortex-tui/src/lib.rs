@@ -14,7 +14,7 @@ mod mentions;
 pub use host::TuiHost;
 
 use anyhow::{Context, Result};
-use app::{App, MessageLine, UiEvent};
+use app::{App, MessageLine, SettingsModal, UiEvent};
 use approver::TuiApprovalRequest;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
@@ -325,6 +325,66 @@ async fn handle_key(
         match copy_last_assistant(app) {
             Ok(n) => app.status = format!("copied last reply ({n} chars)"),
             Err(e) => app.status = format!("copy failed: {e}"),
+        }
+        return Ok(false);
+    }
+
+    // Settings popup (Ctrl+P)
+    if code == KeyCode::Char('p') && mods.contains(KeyModifiers::CONTROL) {
+        if app.settings.is_some() {
+            app.settings = None;
+            app.input_focused = true;
+        } else if !app.running && !app.show_sessions {
+            app.settings = Some(SettingsModal { selected: 0 });
+            app.input_focused = false;
+            app.status = "settings · ↑/↓ select · Enter toggle · Esc close".into();
+        }
+        return Ok(false);
+    }
+
+    // Settings navigation (when popup is open)
+    if app.settings.is_some() {
+        let selected = app.settings.as_ref().unwrap().selected;
+        let items_count = app.settings_items().len();
+        match code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Some(ref mut s) = app.settings {
+                    s.selected = s.selected.saturating_sub(1);
+                }
+                return Ok(false);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let max = items_count.saturating_sub(1);
+                if let Some(ref mut s) = app.settings {
+                    s.selected = s.selected.min(max);
+                    if s.selected < max {
+                        s.selected += 1;
+                    }
+                }
+                return Ok(false);
+            }
+            KeyCode::Enter => {
+                let items = app.settings_items();
+                if let Some(item) = items.get(selected) {
+                    if item.editable {
+                        app.toggle_setting(selected);
+                        let items2 = app.settings_items();
+                        let val = items2
+                            .get(selected)
+                            .map(|i| i.value.as_str())
+                            .unwrap_or("?");
+                        app.status = format!("{} = {}", item.label, val);
+                    }
+                }
+                return Ok(false);
+            }
+            KeyCode::Esc => {
+                app.settings = None;
+                app.input_focused = true;
+                app.status = "ready".into();
+                return Ok(false);
+            }
+            _ => {}
         }
         return Ok(false);
     }

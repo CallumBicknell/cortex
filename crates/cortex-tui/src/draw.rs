@@ -50,6 +50,10 @@ pub fn ui(f: &mut Frame, app: &App) {
     if app.approval.is_some() {
         draw_approval_modal(f, f.area(), app);
     }
+
+    if app.settings.is_some() {
+        draw_settings(f, f.area(), app);
+    }
 }
 
 fn composer_height(app: &App, inner_width: u16) -> u16 {
@@ -734,4 +738,60 @@ fn draw_approval_modal(f: &mut Frame, area: Rect, app: &App) {
                 .style(Style::default().bg(Color::Rgb(24, 24, 32))),
         );
     f.render_widget(p, rect);
+}
+
+/// Settings popup modal.
+fn draw_settings(f: &mut Frame, area: Rect, app: &App) {
+    let items = app.settings_items();
+    let n = items.len() as u16;
+    let w = (area.width * 70 / 100)
+        .max(50)
+        .min(area.width.saturating_sub(4));
+    let h = n + 4; // items + title + borders
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+
+    f.render_widget(Clear, rect);
+
+    let selected = app.settings.as_ref().map(|s| s.selected).unwrap_or(0);
+
+    let mut list_items: Vec<ListItem> = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let is_selected = i == selected;
+        let label_style = if is_selected {
+            Style::default()
+                .fg(Color::Rgb(20, 22, 28))
+                .bg(Color::Rgb(140, 190, 255))
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Rgb(160, 170, 180))
+        };
+        let value_style = if is_selected {
+            Style::default()
+                .fg(Color::Rgb(20, 22, 28))
+                .bg(Color::Rgb(140, 190, 255))
+        } else if item.editable {
+            Style::default().fg(Color::Rgb(120, 200, 140))
+        } else {
+            Style::default().fg(Color::Rgb(100, 110, 120))
+        };
+        let editable_marker = if item.editable { " ⏎" } else { "" };
+        list_items.push(ListItem::new(Line::from(vec![
+            Span::styled(format!("{:16}", item.label), label_style),
+            Span::styled(format!("{}{}", item.value, editable_marker), value_style),
+        ])));
+    }
+
+    let list = List::new(list_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Settings ")
+            .border_style(Style::default().fg(Color::Rgb(100, 150, 210)))
+            .style(Style::default().bg(Color::Rgb(22, 24, 32))),
+    );
+
+    let mut list_state = ratatui::widgets::ListState::default();
+    list_state.select(Some(selected.min(items.len().saturating_sub(1))));
+    f.render_stateful_widget(list, rect, &mut list_state);
 }

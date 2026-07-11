@@ -89,6 +89,22 @@ pub struct ApprovalModal {
     pub respond: oneshot::Sender<ApprovalDecision>,
 }
 
+/// Settings popup state.
+pub struct SettingsModal {
+    /// Currently selected setting index.
+    pub selected: usize,
+}
+
+/// One row in the settings popup.
+pub struct SettingsItem {
+    /// Setting label.
+    pub label: String,
+    /// Current value display.
+    pub value: String,
+    /// Whether this setting is editable.
+    pub editable: bool,
+}
+
 /// Result of a background agent turn.
 #[derive(Debug)]
 pub struct RunUpdate {
@@ -179,6 +195,8 @@ pub struct App {
     pub activity: Option<String>,
     /// Pending tool-approval modal (blocks input when `Some`).
     pub approval: Option<ApprovalModal>,
+    /// Settings popup (blocks input when `Some`).
+    pub settings: Option<SettingsModal>,
     /// Last run prompt tokens.
     pub last_prompt_tokens: u32,
     /// Last run completion tokens.
@@ -285,6 +303,7 @@ impl App {
             streaming: None,
             activity: None,
             approval: None,
+            settings: None,
             last_prompt_tokens: 0,
             last_completion_tokens: 0,
             input_undo: Vec::new(),
@@ -302,6 +321,84 @@ impl App {
             tool_start: None,
             turn_start: None,
         })
+    }
+
+    /// Get current settings items for the settings popup.
+    pub fn settings_items(&self) -> Vec<SettingsItem> {
+        let yolo_val = if self.yolo { "on" } else { "off" };
+        let compact_val = if self.compact { "on" } else { "off" };
+        let skills_val = if self.skills.is_empty() {
+            "auto".to_string()
+        } else {
+            self.skills.join(", ")
+        };
+        vec![
+            SettingsItem {
+                label: "Model".into(),
+                value: self.model_label.clone(),
+                editable: false,
+            },
+            SettingsItem {
+                label: "Workspace".into(),
+                value: self.workspace.clone(),
+                editable: false,
+            },
+            SettingsItem {
+                label: "Yolo mode".into(),
+                value: yolo_val.into(),
+                editable: true,
+            },
+            SettingsItem {
+                label: "Max turns".into(),
+                value: self.max_turns.to_string(),
+                editable: true,
+            },
+            SettingsItem {
+                label: "Compact mode".into(),
+                value: compact_val.into(),
+                editable: true,
+            },
+            SettingsItem {
+                label: "Skills".into(),
+                value: skills_val,
+                editable: false,
+            },
+            SettingsItem {
+                label: "Session".into(),
+                value: if self.session_label.is_empty() {
+                    "new".to_string()
+                } else {
+                    self.session_label.clone()
+                },
+                editable: false,
+            },
+            SettingsItem {
+                label: "Tokens used".into(),
+                value: format!(
+                    "↑{} ↓{}",
+                    self.last_prompt_tokens, self.last_completion_tokens
+                ),
+                editable: false,
+            },
+        ]
+    }
+
+    /// Toggle a setting by index.
+    pub fn toggle_setting(&mut self, index: usize) {
+        match index {
+            2 => self.yolo = !self.yolo, // Yolo mode
+            3 => {
+                // Max turns: cycle through common values
+                self.max_turns = match self.max_turns {
+                    8 => 16,
+                    16 => 32,
+                    32 => 64,
+                    _ => 8,
+                };
+            }
+            4 => self.compact = !self.compact, // Compact mode
+            _ => {}
+        }
     }
 
     /// Refresh autocomplete from the current input buffer.
