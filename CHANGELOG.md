@@ -98,6 +98,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   as '[label]' for persistent context awareness
 - **TUI archive confirmation**: archive shows 'archived session {short_id}'
   in status bar instead of generic message
+- **TUI `/history`**: shows last 20 prompts with numbering, persisted
+  to `.cortex/input_history.txt` across sessions
+- **TUI error color coding**: errors red, warnings yellow, info gray
+  in conversation view for better visual distinction
+- **TUI session creation date**: session drawer shows creation date
+  alongside relative last-active time
+- **TUI auto-load session**: most recent active session loads on startup
+  with 'Resumed previous session' welcome message
+- **TUI Ctrl+P settings popup**: centered modal showing model, workspace,
+  yolo mode, max turns, compact mode, skills, session label, token usage.
+  Navigate with ↑/↓, toggle with Enter, close with Esc
 
 ## [0.2.1] — 2026-07-09
 

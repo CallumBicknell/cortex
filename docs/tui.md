@@ -46,6 +46,7 @@ Conversation-first: single column, multi-line messages, live token stream, subtl
 | `Ctrl+Y` | Toggle YOLO |
 | `Ctrl+C` | Cancel run / quit if idle |
 | `Ctrl+L` | Reset scroll to bottom |
+| `Ctrl+P` | Open settings popup (model, yolo, max turns, compact, skills) |
 | `Ctrl+↑` / `Ctrl+↓` | Scroll conversation up/down |
 | `Ctrl+Home` / `Ctrl+End` | Jump to top/bottom of conversation |
 | `PgUp` / `PgDn` | Scroll transcript |
