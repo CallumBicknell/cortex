@@ -180,6 +180,8 @@ async fn handle_key(
             app.running = false;
             app.turn_start = None;
             app.activity = None;
+            // Auto-save session on cancel so partial progress is preserved.
+            let _ = host.save_session(&app.session).await;
             return Ok(false);
         }
         return Ok(true);
@@ -410,6 +412,8 @@ async fn handle_key(
                 app.turn_start = None;
                 app.status = "cancelled".into();
                 app.activity = None;
+                // Auto-save session on cancel so partial progress is preserved.
+                let _ = host.save_session(&app.session).await;
             } else if app.completion.is_some() {
                 app.clear_completion();
             } else if !app.input.is_empty() {
@@ -488,6 +492,10 @@ async fn handle_key(
             }
 
             app.push_line(MessageLine::user(parsed.display));
+
+            // Auto-save session so user messages are persisted even if the run crashes.
+            let _ = host.save_session(&app.session).await;
+
             let cancel = CancellationToken::new();
             *run_cancel = Some(cancel.clone());
             app.running = true;

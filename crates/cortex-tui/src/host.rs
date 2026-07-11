@@ -302,6 +302,15 @@ impl TuiHost {
         Ok(())
     }
 
+    /// Save session to SQLite (auto-save on user message, cancel, etc).
+    pub async fn save_session(&self, session: &Session) -> Result<()> {
+        self.store
+            .save_session(session)
+            .await
+            .context("auto-save session")?;
+        Ok(())
+    }
+
     /// Load recent sessions for the sidebar.
     pub async fn list_sessions(&self, limit: u32) -> Result<Vec<cortex_memory::SessionSummary>> {
         self.store
