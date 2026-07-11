@@ -179,16 +179,24 @@ fn draw_conversation(f: &mut Frame, area: Rect, app: &App) {
                 )));
             }
             _ => {
+                // Color-code system messages based on content.
+                let (fg, mods) = if m.content.starts_with("Error:") {
+                    (Color::Rgb(255, 100, 100), Modifier::BOLD)
+                } else if m.content.starts_with("Run failed") {
+                    (Color::Rgb(255, 150, 80), Modifier::BOLD)
+                } else if m.content.contains("warning") || m.content.contains("Warning") {
+                    (Color::Rgb(255, 200, 80), Modifier::ITALIC)
+                } else {
+                    (Color::Rgb(110, 110, 120), Modifier::ITALIC)
+                };
                 lines.push(Line::from(Span::styled(
                     m.content.lines().next().unwrap_or(""),
-                    Style::default()
-                        .fg(Color::Rgb(110, 110, 120))
-                        .add_modifier(Modifier::ITALIC),
+                    Style::default().fg(fg).add_modifier(mods),
                 )));
                 for extra in m.content.lines().skip(1) {
                     lines.push(Line::from(Span::styled(
                         extra.to_string(),
-                        Style::default().fg(Color::Rgb(110, 110, 120)),
+                        Style::default().fg(fg),
                     )));
                 }
             }
@@ -584,6 +592,11 @@ fn draw_sessions_overlay(f: &mut Frame, area: Rect, app: &App) {
                 Span::styled(
                     format!("  {ago}"),
                     Style::default().fg(Color::Rgb(90, 90, 100)),
+                ),
+                // Creation date
+                Span::styled(
+                    format!("  ({})", s.created_at.format("%Y-%m-%d")),
+                    Style::default().fg(Color::Rgb(70, 70, 80)),
                 ),
             ];
             if is_current {

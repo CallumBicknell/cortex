@@ -7,7 +7,7 @@ use cortex_memory::SessionSummary;
 use cortex_models::{Message, Role, Session};
 use cortex_tools::{ApprovalDecision, ApprovalRequest};
 use ratatui::widgets::ListState;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tokio::sync::oneshot;
 
@@ -267,7 +267,7 @@ impl App {
             skill_ids,
             skill_details,
             completion: None,
-            history: Vec::new(),
+            history: Self::load_history(&host.workspace),
             history_index: None,
             history_draft: String::new(),
             auto_follow: true,
@@ -680,8 +680,31 @@ impl App {
         // Save non-empty prompts to history (skip duplicates).
         if !s.trim().is_empty() && self.history.last().map(|h| h.as_str()) != Some(s.trim()) {
             self.history.push(s.trim().to_string());
+            self.save_history();
         }
         s
+    }
+
+    /// Save prompt history to disk.
+    fn save_history(&self) {
+        let dir = self.workspace_path.join(".cortex");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("input_history.txt");
+        let content: Vec<&str> = self.history.iter().map(|s| s.as_str()).collect();
+        let _ = std::fs::write(&path, content.join("\n"));
+    }
+
+    /// Load prompt history from disk.
+    fn load_history(workspace: &Path) -> Vec<String> {
+        let path = workspace.join(".cortex").join("input_history.txt");
+        std::fs::read_to_string(&path)
+            .map(|s| {
+                s.lines()
+                    .map(String::from)
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Move history cursor up (to older prompts).

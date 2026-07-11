@@ -36,6 +36,8 @@ pub enum MetaCommand {
     Stats,
     /// Rename the current session.
     Rename(String),
+    /// Show prompt history.
+    History,
 }
 
 /// Result of parsing a user composer line.
@@ -204,6 +206,7 @@ fn parse_meta_line(s: &str) -> Option<MetaCommand> {
         "undo" => Some(MetaCommand::Undo),
         "compact" => Some(MetaCommand::Compact),
         "stats" => Some(MetaCommand::Stats),
+        "history" => Some(MetaCommand::History),
         _ => None,
     }
 }

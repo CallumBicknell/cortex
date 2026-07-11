@@ -830,6 +830,21 @@ fn handle_meta(app: &mut App, meta: MetaCommand) -> Result<bool> {
             app.session_label = name.clone();
             app.status = format!("renamed to \"{name}\"");
         }
+        MetaCommand::History => {
+            if app.history.is_empty() {
+                app.push_line(MessageLine::system("No prompt history yet.".to_string()));
+            } else {
+                let mut body = format!("Prompt history ({} entries):\n", app.history.len());
+                for (i, h) in app.history.iter().enumerate().rev().take(20) {
+                    let preview: String = h.chars().take(80).collect();
+                    body.push_str(&format!("  {}. {preview}\n", i + 1));
+                }
+                if app.history.len() > 20 {
+                    body.push_str(&format!("  ... and {} more\n", app.history.len() - 20));
+                }
+                app.push_line(MessageLine::system(body));
+            }
+        }
     }
     Ok(false)
 }
