@@ -384,6 +384,12 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     } else {
         String::new()
     };
+    let session_info = if !app.session_label.is_empty() {
+        let label: String = app.session_label.chars().take(16).collect();
+        format!("  [{label}]")
+    } else {
+        String::new()
+    };
     let help = if area.width < 60 {
         " ↵ send  ↑↓ history  ^J nl  ^B sessions "
     } else if area.width < 80 {
@@ -392,7 +398,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
         " ↵ send  ↑↓ history  Tab complete  /skill  @path  ^J nl  ^B sessions  ^C cancel  /quit "
     };
     let line = format!(
-        " {}{tokens}{elapsed}{streaming_chars}  ·{} ",
+        " {}{tokens}{elapsed}{streaming_chars}{session_info}  ·{} ",
         app.status, help
     );
     let p = Paragraph::new(line).style(

@@ -403,19 +403,29 @@ impl App {
     }
 
     /// Archive (soft-delete) the currently selected session.
-    pub async fn archive_selected(&mut self, host: &TuiHost) -> Result<()> {
+    /// Returns true if the session was archived.
+    pub async fn archive_selected(&mut self, host: &TuiHost) -> Result<bool> {
         let filtered = self.filtered_sessions();
         if let Some(i) = self.session_list.selected() {
             if let Some((_, s)) = filtered.get(i) {
                 let id = s.id;
+                let short_id = {
+                    let id_str = id.to_string();
+                    if id_str.len() > 8 {
+                        id_str[..8].to_string()
+                    } else {
+                        id_str
+                    }
+                };
                 host.archive_session(id).await?;
                 self.reload_sessions(host).await?;
                 self.session_search.clear();
                 self.session_list.select(Some(0));
-                self.status = "session archived".into();
+                self.status = format!("archived session {short_id}");
+                return Ok(true);
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     /// Select previous session in list.
@@ -729,8 +739,13 @@ impl App {
             self.push_line(MessageLine::assistant(update.assistant));
         }
         for log in &update.logs {
-            // Keep a short activity trail as system chips, not walls of text.
-            if log.starts_with('[') || log.starts_with('→') || log.starts_with('─') {
+            // Show tool activity in the conversation view.
+            // Filter out overly verbose logs but keep meaningful ones.
+            let show = log.starts_with('[')
+                || log.starts_with('→')
+                || log.starts_with('─')
+                || log.starts_with("↳");
+            if show {
                 self.push_line(MessageLine::tool(log.clone()));
             }
         }
@@ -744,13 +759,16 @@ impl App {
             update.tools_ok + update.tools_err,
             update.duration_ms
         );
-        if let Some(err) = update.error {
-            self.push_line(MessageLine::system(format!("error: {err}")));
+        if let Some(ref err) = update.error {
+            self.push_line(MessageLine::system(format!("Error: {err}")));
             self.status = format!("error · {summary}");
         } else {
             self.status = summary;
         }
-        if !update.ok {
+        if !update.ok && update.error.is_none() {
+            self.push_line(MessageLine::system(
+                "Run failed (no error message)".to_string(),
+            ));
             self.status = format!("! {}", self.status);
         }
         self.last_prompt_tokens = update.prompt_tokens;
