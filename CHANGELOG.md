@@ -90,6 +90,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (e.g. '↓ 5 messages below')
 - **TUI session auto-save**: sessions auto-save to SQLite on user message,
   cancel, and run completion — no more lost conversations on crash
+- **TUI tool output visibility**: sub-agent logs (↳ prefix) now show in
+  conversation view for better observability
+- **TUI error display**: errors show capitalized 'Error: {msg}' in
+  conversation; failed runs without error show explicit failure message
+- **TUI session label in footer**: renamed sessions show label in footer
+  as '[label]' for persistent context awareness
+- **TUI archive confirmation**: archive shows 'archived session {short_id}'
+  in status bar instead of generic message
 
 ## [0.2.1] — 2026-07-09
 
